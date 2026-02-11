@@ -1,0 +1,6 @@
+﻿nom_seuil,valeur,unite,action
+PRIX_ELEVE,200.0,EUR/MWh,Effacement
+PRIX_TRES_ELEVE,300.0,EUR/MWh,Effacement max + Batteries
+SOC_BAS,20.0,%,Charger batteries
+SOC_HAUT,90.0,%,Décharger batteries
+CONSO_ANORMALE,1.5,ratio vs baseline,Alerte technique

@@ -1,0 +1,7 @@
+﻿ConversionID,Zone,Site,TypeElectrolyseur,CapaciteH2,Rendement,Disponibilite,ProductionActuelle,ConsommationElec,StockageH2,CapaciteStockage,Statut,DateMiseEnService
+CONV001,Nord,SiteH2-1,PEM,332,71.54,93.7,202.72,18.26,3953,9133,Operationnel,2023-05-11
+CONV002,Nord,SiteH2-2,PEM,483,75.79,98.0,302.92,26.57,1062,17799,Operationnel,2021-10-07
+CONV003,Sud,SiteH2-1,PEM,202,81.78,91.18,109.67,11.11,4379,15968,Operationnel,2022-10-31
+CONV004,Est,SiteH2-1,Alcalin,462,80.34,83.02,284.94,25.41,1438,17743,DegradMode,2024-04-01
+CONV005,Ouest,SiteH2-1,SOEC,326,83.58,90.36,254.29,17.93,3574,11498,DegradMode,2025-07-27
+CONV006,Centre,SiteH2-1,PEM,456,80.45,95.31,321.67,25.08,1491,18045,Operationnel,2024-01-18

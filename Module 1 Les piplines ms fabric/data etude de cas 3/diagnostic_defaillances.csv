@@ -1,0 +1,23 @@
+﻿DefaillanceID,Type,Zone,Severite,CapaciteNominale,CapacitePerdue,TauxPerte,TempsReparation,Cause,StatutReparation,Priorite,DateDetection
+DEF001,CentraleGaz,Nord,Critique,500,353.75,70.75,83,DefautEquipement,EnCours,2,2026-01-26 16:17:56
+DEF002,CentraleGaz,Nord,Critique,500,451.5,90.3,162,ErreurHumaine,EnCours,5,2026-01-27 12:17:56
+DEF003,CentraleGaz,Nord,Critique,500,354.47,70.89,75,DefautEquipement,Planifie,5,2026-01-28 14:17:56
+DEF004,CentraleGaz,Sud,Critique,450,411.66,91.48,137,ErreurHumaine,EnAttente,2,2026-01-27 11:17:56
+DEF005,CentraleGaz,Sud,Mineure,450,82.56,18.35,4,DefautEquipement,Planifie,4,2026-01-27 18:17:56
+DEF006,CentraleGaz,Sud,Majeure,450,200.99,44.66,72,ConditionsMeteo,EnCours,1,2026-01-27 15:17:56
+DEF007,CentraleGaz,Est,Majeure,400,261.7,65.42,62,ConditionsMeteo,EnCours,4,2026-01-27 05:17:56
+DEF008,CentraleCharbon,Centre,Majeure,600,254.18,42.36,42,Vieillissement,Planifie,3,2026-01-27 03:17:56
+DEF009,CentraleNucleaire,Ouest,Mineure,1200,145.04,12.09,11,ConditionsMeteo,EnCours,2,2026-01-28 09:17:56
+DEF010,LigneHauteT,Nord-Sud,Majeure,800,428.82,53.6,47,DefautEquipement,EnAttente,3,2026-01-28 02:17:56
+DEF011,LigneHauteT,Nord-Sud,Mineure,800,144.07,18.01,24,SurchargeReseau,Planifie,2,2026-01-27 05:17:56
+DEF012,LigneHauteT,Est-Ouest,Critique,750,561.77,74.9,96,ConditionsMeteo,Planifie,5,2026-01-28 01:17:56
+DEF013,LigneHauteT,Est-Ouest,Mineure,750,147.96,19.73,5,DefautEquipement,EnCours,3,2026-01-27 14:17:56
+DEF014,LigneHauteT,Est-Ouest,Majeure,750,314.89,41.99,60,Vieillissement,EnAttente,2,2026-01-26 22:17:56
+DEF015,Transformateur,Nord,Majeure,300,199.62,66.54,65,CyberAttaque,EnCours,3,2026-01-28 07:17:56
+DEF016,Transformateur,Nord,Critique,300,277.05,92.35,116,ConditionsMeteo,Planifie,5,2026-01-27 12:17:56
+DEF017,Transformateur,Sud,Majeure,350,178.01,50.86,32,ErreurHumaine,EnAttente,1,2026-01-28 12:17:56
+DEF018,Transformateur,Sud,Critique,350,261.05,74.59,68,Vieillissement,EnAttente,5,2026-01-28 11:17:56
+DEF019,Transformateur,Sud,Majeure,350,180.07,51.45,53,ErreurHumaine,EnAttente,5,2026-01-28 15:17:56
+DEF020,Transformateur,Est,Mineure,280,37.62,13.44,21,ConditionsMeteo,Planifie,3,2026-01-28 08:17:56
+DEF021,Transformateur,Est,Majeure,280,148.52,53.04,53,SurchargeReseau,Planifie,3,2026-01-27 07:17:56
+DEF022,Transformateur,Est,Critique,280,238.65,85.23,61,Vieillissement,EnAttente,5,2026-01-27 01:17:56

@@ -1,0 +1,20 @@
+﻿AmeliorationID,Categorie,Action,Description,Priorite,CoutEstime,DureeRealistion,ImpactCapacite,ReductionRisque,ROI,StatutProjet,Responsable,DateDebut,BudgetAlloue
+AMEL001,Infrastructure,RenforcementReseau,Mise en œuvre de RenforcementReseau,Basse,4613695.93,23,292.12,59.66,7.43,Planifie,Responsable Infrastructure,2026-05-12,2374206.04
+AMEL002,Infrastructure,RedondanceLignes,Mise en œuvre de RedondanceLignes,Moyenne,1691364.08,32,417.69,16.17,12.98,EnCours,Responsable Infrastructure,2026-05-20,1542879.06
+AMEL003,Infrastructure,ModernisationTransformateurs,Mise en œuvre de ModernisationTransformateurs,Moyenne,2667416.46,28,436.56,25.51,12.13,Planifie,Responsable Infrastructure,2026-06-08,2516059.96
+AMEL004,Infrastructure,InstallationDisjoncteurs,Mise en œuvre de InstallationDisjoncteurs,Moyenne,2699963.62,15,453.9,34.58,14.46,EnCours,Responsable Infrastructure,2026-03-30,1544279.75
+AMEL005,Stockage,AjoutCapaciteBatteries,Mise en œuvre de AjoutCapaciteBatteries,Critique,1354244.29,14,305.18,22.4,12.05,Reporte,Responsable Stockage,2026-05-27,1392314.91
+AMEL006,Stockage,DiversificationTechnologies,Mise en œuvre de DiversificationTechnologies,Moyenne,3823398.03,31,343.76,70.5,10.15,EnCours,Responsable Stockage,2026-05-21,2094458.9
+AMEL007,Stockage,SystemesStockageDecentralises,Mise en œuvre de SystemesStockageDecentralises,Critique,2266819.51,22,400.2,34.64,2.96,Reporte,Responsable Stockage,2026-05-24,1193083.94
+AMEL008,Renouvelable,AugmentationCapaciteSolaire,Mise en œuvre de AugmentationCapaciteSolaire,Critique,1906814.24,21,47.6,53.05,8.59,Reporte,Responsable Renouvelable,2026-06-26,1693291.96
+AMEL009,Renouvelable,DeveloppementEolien,Mise en œuvre de DeveloppementEolien,Haute,3979907.21,5,230.37,32.51,8.18,EnCours,Responsable Renouvelable,2026-02-13,3245081.72
+AMEL010,Renouvelable,IntegrationBiomasse,Mise en œuvre de IntegrationBiomasse,Critique,4073737.38,24,491.37,45.32,4.24,EnCours,Responsable Renouvelable,2026-05-21,4862780.45
+AMEL011,Renouvelable,MicroGrids,Mise en œuvre de MicroGrids,Moyenne,2667935.91,13,188.31,37.12,12.07,Planifie,Responsable Renouvelable,2026-07-09,2542846.4
+AMEL012,Coordination,FormationEquipes,Mise en œuvre de FormationEquipes,Basse,422968.09,9,283.4,29.89,11.41,EnCours,Responsable Coordination,2026-04-24,235614.96
+AMEL013,Coordination,AmeliorationCommunication,Mise en œuvre de AmeliorationCommunication,Basse,3351699.32,25,162.01,19.03,11.21,Planifie,Responsable Coordination,2026-04-18,2987186.77
+AMEL014,Coordination,SystemeAlertePrecoce,Mise en œuvre de SystemeAlertePrecoce,Critique,3253116.99,24,408.46,55.22,7.5,Finalise,Responsable Coordination,2026-02-02,2452259.34
+AMEL015,Coordination,ExercicesSimulation,Mise en œuvre de ExercicesSimulation,Basse,983288.32,16,177.45,23.44,15.0,EnCours,Responsable Coordination,2026-02-17,695238.4
+AMEL016,Digitalisation,SmartGrid,Mise en œuvre de SmartGrid,Critique,3961788.85,35,387.73,56.34,13.39,EnCours,Responsable Digitalisation,2026-06-30,3025633.63
+AMEL017,Digitalisation,PredictionIA,Mise en œuvre de PredictionIA,Critique,895011.34,13,363.38,38.76,10.79,EnCours,Responsable Digitalisation,2026-05-22,830048.55
+AMEL018,Digitalisation,MonitoringTempsReel,Mise en œuvre de MonitoringTempsReel,Haute,3786716.71,31,124.66,31.66,12.51,Reporte,Responsable Digitalisation,2026-03-19,2868395.01
+AMEL019,Digitalisation,AutomationReseaux,Mise en œuvre de AutomationReseaux,Moyenne,4740937.83,31,236.22,64.47,8.54,Reporte,Responsable Digitalisation,2026-03-11,5081450.33

@@ -1,0 +1,7 @@
+﻿site_id,site_type,capacity_mw,flexible,baseline_mw,curtailment_price_eur_mwh,region
+SITE_IND_001,Industrie,5.0,True,2.5,102.0,Ile-de-France
+SITE_IND_002,Industrie,3.5,True,1.75,116.0,Auvergne-Rhone-Alpes
+SITE_COM_001,Commercial,2.0,False,1.0,,Auvergne-Rhone-Alpes
+SITE_COM_002,Commercial,1.5,False,0.75,,Ile-de-France
+SITE_RES_001,Residentiel,0.8,True,0.4,,Auvergne-Rhone-Alpes
+SITE_RES_002,Residentiel,0.6,True,0.3,,Ile-de-France

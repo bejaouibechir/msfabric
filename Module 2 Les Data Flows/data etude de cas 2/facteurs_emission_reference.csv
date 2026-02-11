@@ -1,0 +1,7 @@
+﻿source_energie,facteur_emission_kgco2_kwh,categorie,objectif_2030_pct
+Solaire,0.05,Renouvelable,100
+Eolien,0.02,Renouvelable,100
+Hydro,0.01,Renouvelable,100
+Gaz naturel,0.45,Fossile,0
+Charbon,0.95,Fossile,0
+Nucleaire,0.006,Renouvelable,0

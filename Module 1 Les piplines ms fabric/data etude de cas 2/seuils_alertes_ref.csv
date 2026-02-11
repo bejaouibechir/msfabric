@@ -1,0 +1,5 @@
+TypeCapteur,Seuil_Consommation_kWh,Seuil_Tension_Min_V,Seuil_Tension_Max_V
+Compteur_Intelligent,400.0,210,250
+Capteur_Tension,,215,245
+Capteur_Frequence,,220,240
+Passerelle_IoT,100.0,220,240
