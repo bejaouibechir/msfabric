@@ -5,8 +5,9 @@ from datetime import datetime, timezone
 from azure.eventhub import EventHubProducerClient, EventData
 
 # --- CONFIGURATION (coller vos valeurs depuis l'Eventstream) ---
-CONNECTION_STR = "Endpoint=sb://esehparjk1eba92b8ijb5b7.servicebus.windows.net/;SharedAccessKeyName=key_62e03d6e-ee7f-456f-9462-22ecbb5451b7;SharedAccessKey=A+Jhl2bKXX6de45+OeZumS7YVo6V8bahe+AEhCJfWvU=;EntityPath=es_cf791d0f-835d-46ae-b953-bb11c21ee638"
-EVENTHUB_NAME = "es_cf791d0f-835d-46ae-b953-bb11c21ee638"
+CONNECTION_STR = "<la chaine de connection ici>"
+
+EVENTHUB_NAME = "<event hub ici>"
 
 TURBINES = ["WT-001", "WT-002", "WT-003", "WT-004", "WT-005"]
 PARK_NAME = "Parc Eolien Bizerte"  # Tunisie, zone à fort potentiel éolien
