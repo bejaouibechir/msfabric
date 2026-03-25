@@ -1,0 +1,61 @@
+rep_id,rep_name,region,hire_date,annual_target_eur
+REP-001,Lisa Bernard,France Sud,2023-01-04,462236
+REP-002,Giulia Dubois,Allemagne,2022-09-01,611518
+REP-003,Anna Martinez,Iberique,2022-04-21,847655
+REP-004,Jan Van der Berg,Italie,2020-01-27,752045
+REP-005,Jan Van der Berg,Benelux,2022-10-20,516873
+REP-006,Elena Bernard,France Nord,2021-02-04,648058
+REP-007,Emma Dubois,France Sud,2020-06-27,1198102
+REP-008,Anna Martinez,Allemagne,2022-06-23,732220
+REP-009,Sophie Garcia,Iberique,2021-03-27,455743
+REP-010,Giulia Mueller,Italie,2020-10-07,775839
+REP-011,Marie Lefebvre,Benelux,2019-08-27,498326
+REP-012,Carlos Mueller,France Nord,2024-07-02,899918
+REP-013,Marie Schmidt,France Sud,2021-11-19,732000
+REP-014,Pierre Schmidt,Allemagne,2018-09-24,664344
+REP-015,Giulia Ferrari,Iberique,2021-09-25,212732
+REP-016,Claire Bernard,Italie,2024-03-04,492905
+REP-017,Carlos Martinez,Benelux,2021-07-20,603112
+REP-018,Emma Janssen,France Nord,2021-06-10,763077
+REP-019,Pierre Garcia,France Sud,2021-10-23,637421
+REP-020,Anna Bernard,Allemagne,2022-06-23,792391
+REP-021,Lucas Rossi,Iberique,2019-10-23,786305
+REP-022,Elena De Vries,Italie,2019-12-21,276173
+REP-023,Carlos Bernard,Benelux,2018-06-18,493225
+REP-024,Giulia De Vries,France Nord,2023-09-10,651852
+REP-025,Martin Martinez,France Sud,2018-01-13,621452
+REP-026,Sophie De Vries,Allemagne,2018-04-09,476193
+REP-027,Claire Janssen,Iberique,2023-05-05,793313
+REP-028,Anna Rossi,Italie,2024-09-02,432523
+REP-029,Jan Mueller,Benelux,2022-11-24,588052
+REP-030,Emma Bernard,France Nord,2023-09-13,694589
+REP-031,Anna Bernard,France Sud,2023-01-13,262284
+REP-032,Giulia De Vries,Allemagne,2020-09-02,603190
+REP-033,Hans Rossi,Iberique,2022-08-27,406797
+REP-034,Elena Ferrari,Italie,2022-12-20,518252
+REP-035,Lucas Janssen,Benelux,2021-03-22,503006
+REP-036,Claire Garcia,France Nord,2023-09-04,439043
+REP-037,Sophie Lefebvre,France Sud,2020-09-09,597760
+REP-038,Claire Ferrari,Allemagne,2024-05-01,234096
+REP-039,Jan Bernard,Iberique,2019-01-05,573310
+REP-040,Sophie De Vries,Italie,2022-11-10,569151
+REP-041,Elena Mueller,Benelux,2024-12-11,657189
+REP-042,Emma Garcia,France Nord,2022-02-26,675458
+REP-043,Claire Lefebvre,France Sud,2022-09-13,664839
+REP-044,Elena Rossi,Allemagne,2019-11-11,448205
+REP-045,Elena Janssen,Iberique,2019-10-17,286787
+REP-046,Martin Mueller,Italie,2023-06-15,648961
+REP-047,Emma Dubois,Benelux,2023-06-13,526011
+REP-048,Marco Janssen,France Nord,2022-12-10,459440
+REP-049,Elena Martinez,France Sud,2024-09-15,412952
+REP-050,Sophie Janssen,Allemagne,2023-04-11,655225
+REP-051,Thomas Mueller,Iberique,2019-09-18,669428
+REP-052,Thomas Rossi,Italie,2023-11-25,403843
+REP-053,Giulia Mueller,Benelux,2019-09-27,511765
+REP-054,Giulia De Vries,France Nord,2024-02-24,768439
+REP-055,Pierre Dubois,France Sud,2021-12-11,379842
+REP-056,Thomas Mueller,Allemagne,2018-03-26,419863
+REP-057,Thomas Ferrari,Iberique,2024-04-09,532072
+REP-058,Marco Schmidt,Italie,2023-07-14,613716
+REP-059,Martin Lefebvre,Benelux,2023-02-18,565886
+REP-060,Thomas Bernard,France Nord,2022-01-23,403092

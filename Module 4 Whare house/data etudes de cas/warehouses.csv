@@ -1,0 +1,13 @@
+warehouse_id,warehouse_name,country,city
+WH-001,Hub Paris Nord,FR,Paris
+WH-002,Hub Lyon,FR,Lyon
+WH-003,Hub Marseille,FR,Marseille
+WH-004,Hub Berlin,DE,Berlin
+WH-005,Hub Munich,DE,Munich
+WH-006,Hub Hamburg,DE,Hamburg
+WH-007,Hub Madrid,ES,Madrid
+WH-008,Hub Barcelona,ES,Barcelona
+WH-009,Hub Milan,IT,Milan
+WH-010,Hub Rome,IT,Rome
+WH-011,Hub Brussels,BE,Brussels
+WH-012,Hub Rotterdam,NL,Rotterdam

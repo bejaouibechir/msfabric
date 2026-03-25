@@ -1,0 +1,801 @@
+product_id,product_name,category,sub_category,brand,unit_cost_eur,list_price_eur
+PRD-0001,LONGi Bifacial 328,Panneaux Solaires,Bifacial,LONGi,124.82,157.5
+PRD-0002,LONGi Monocristallin 189,Panneaux Solaires,Monocristallin,LONGi,257.97,353.01
+PRD-0003,Trina Bifacial 338,Panneaux Solaires,Bifacial,Trina,129.32,159.53
+PRD-0004,JA Solar Bifacial 765,Panneaux Solaires,Bifacial,JA Solar,126.39,157.96
+PRD-0005,JA Solar Bifacial 384,Panneaux Solaires,Bifacial,JA Solar,213.81,275.86
+PRD-0006,Jinko Monocristallin 259,Panneaux Solaires,Monocristallin,Jinko,282.51,359.44
+PRD-0007,Canadian Solar Monocristallin 467,Panneaux Solaires,Monocristallin,Canadian Solar,141.28,180.66
+PRD-0008,JA Solar Polycristallin 570,Panneaux Solaires,Polycristallin,JA Solar,187.08,229.36
+PRD-0009,LONGi Bifacial 665,Panneaux Solaires,Bifacial,LONGi,345.65,441.93
+PRD-0010,JA Solar Polycristallin 296,Panneaux Solaires,Polycristallin,JA Solar,325.79,415.64
+PRD-0011,LONGi Bifacial 396,Panneaux Solaires,Bifacial,LONGi,130.54,163.75
+PRD-0012,Jinko Monocristallin 564,Panneaux Solaires,Monocristallin,Jinko,320.58,409.95
+PRD-0013,Canadian Solar Bifacial 786,Panneaux Solaires,Bifacial,Canadian Solar,155.95,198.8
+PRD-0014,LONGi Polycristallin 846,Panneaux Solaires,Polycristallin,LONGi,267.15,332.74
+PRD-0015,Jinko Monocristallin 755,Panneaux Solaires,Monocristallin,Jinko,228.92,288.68
+PRD-0016,JA Solar Bifacial 886,Panneaux Solaires,Bifacial,JA Solar,170.02,215.88
+PRD-0017,Jinko Monocristallin 510,Panneaux Solaires,Monocristallin,Jinko,293.24,396.54
+PRD-0018,LONGi Polycristallin 997,Panneaux Solaires,Polycristallin,LONGi,154.79,213.29
+PRD-0019,Canadian Solar Bifacial 758,Panneaux Solaires,Bifacial,Canadian Solar,164.63,213.79
+PRD-0020,Jinko Polycristallin 674,Panneaux Solaires,Polycristallin,Jinko,182.5,229.46
+PRD-0021,Canadian Solar Bifacial 697,Panneaux Solaires,Bifacial,Canadian Solar,290.73,374.1
+PRD-0022,Canadian Solar Polycristallin 621,Panneaux Solaires,Polycristallin,Canadian Solar,155.43,215.8
+PRD-0023,LONGi Polycristallin 256,Panneaux Solaires,Polycristallin,LONGi,276.48,376.73
+PRD-0024,Jinko Bifacial 165,Panneaux Solaires,Bifacial,Jinko,301.48,387.62
+PRD-0025,Trina Polycristallin 357,Panneaux Solaires,Polycristallin,Trina,254.2,328.77
+PRD-0026,LONGi Bifacial 649,Panneaux Solaires,Bifacial,LONGi,286.3,354.09
+PRD-0027,Canadian Solar Polycristallin 564,Panneaux Solaires,Polycristallin,Canadian Solar,142.47,183.47
+PRD-0028,Canadian Solar Monocristallin 619,Panneaux Solaires,Monocristallin,Canadian Solar,328.44,441.57
+PRD-0029,Canadian Solar Monocristallin 303,Panneaux Solaires,Monocristallin,Canadian Solar,309.62,402.5
+PRD-0030,Canadian Solar Monocristallin 897,Panneaux Solaires,Monocristallin,Canadian Solar,290.15,378.75
+PRD-0031,LONGi Bifacial 214,Panneaux Solaires,Bifacial,LONGi,254.23,329.68
+PRD-0032,Canadian Solar Polycristallin 680,Panneaux Solaires,Polycristallin,Canadian Solar,176.57,221.84
+PRD-0033,LONGi Monocristallin 878,Panneaux Solaires,Monocristallin,LONGi,272.89,369.57
+PRD-0034,Jinko Bifacial 662,Panneaux Solaires,Bifacial,Jinko,145.63,188.52
+PRD-0035,Canadian Solar Monocristallin 316,Panneaux Solaires,Monocristallin,Canadian Solar,234.1,308.3
+PRD-0036,Jinko Bifacial 787,Panneaux Solaires,Bifacial,Jinko,283.86,363.88
+PRD-0037,Canadian Solar Bifacial 223,Panneaux Solaires,Bifacial,Canadian Solar,216.21,281.43
+PRD-0038,Jinko Monocristallin 667,Panneaux Solaires,Monocristallin,Jinko,138.4,169.21
+PRD-0039,JA Solar Monocristallin 746,Panneaux Solaires,Monocristallin,JA Solar,175.64,216.07
+PRD-0040,Jinko Monocristallin 438,Panneaux Solaires,Monocristallin,Jinko,139.05,170.22
+PRD-0041,JA Solar Monocristallin 319,Panneaux Solaires,Monocristallin,JA Solar,166.74,221.4
+PRD-0042,Jinko Bifacial 690,Panneaux Solaires,Bifacial,Jinko,268.56,367.01
+PRD-0043,Jinko Polycristallin 294,Panneaux Solaires,Polycristallin,Jinko,284.9,385.39
+PRD-0044,LONGi Monocristallin 520,Panneaux Solaires,Monocristallin,LONGi,272.79,347.69
+PRD-0045,LONGi Polycristallin 200,Panneaux Solaires,Polycristallin,LONGi,254.0,352.01
+PRD-0046,Trina Monocristallin 211,Panneaux Solaires,Monocristallin,Trina,272.64,368.46
+PRD-0047,Jinko Monocristallin 532,Panneaux Solaires,Monocristallin,Jinko,160.5,207.06
+PRD-0048,Canadian Solar Monocristallin 177,Panneaux Solaires,Monocristallin,Canadian Solar,211.55,288.79
+PRD-0049,JA Solar Polycristallin 653,Panneaux Solaires,Polycristallin,JA Solar,135.39,179.37
+PRD-0050,LONGi Monocristallin 270,Panneaux Solaires,Monocristallin,LONGi,314.57,427.91
+PRD-0051,Trina Polycristallin 160,Panneaux Solaires,Polycristallin,Trina,215.96,294.41
+PRD-0052,Trina Monocristallin 902,Panneaux Solaires,Monocristallin,Trina,117.65,150.65
+PRD-0053,Canadian Solar Polycristallin 902,Panneaux Solaires,Polycristallin,Canadian Solar,200.55,276.9
+PRD-0054,Trina Bifacial 159,Panneaux Solaires,Bifacial,Trina,155.25,196.44
+PRD-0055,JA Solar Bifacial 151,Panneaux Solaires,Bifacial,JA Solar,132.72,168.29
+PRD-0056,Trina Bifacial 261,Panneaux Solaires,Bifacial,Trina,221.05,300.86
+PRD-0057,JA Solar Monocristallin 709,Panneaux Solaires,Monocristallin,JA Solar,139.47,174.03
+PRD-0058,Jinko Monocristallin 683,Panneaux Solaires,Monocristallin,Jinko,196.8,271.13
+PRD-0059,JA Solar Monocristallin 529,Panneaux Solaires,Monocristallin,JA Solar,248.92,328.36
+PRD-0060,JA Solar Bifacial 367,Panneaux Solaires,Bifacial,JA Solar,251.94,319.57
+PRD-0061,Canadian Solar Monocristallin 787,Panneaux Solaires,Monocristallin,Canadian Solar,172.95,221.61
+PRD-0062,Canadian Solar Bifacial 174,Panneaux Solaires,Bifacial,Canadian Solar,208.8,287.17
+PRD-0063,Trina Monocristallin 202,Panneaux Solaires,Monocristallin,Trina,256.87,336.35
+PRD-0064,JA Solar Monocristallin 457,Panneaux Solaires,Monocristallin,JA Solar,169.77,213.95
+PRD-0065,Jinko Monocristallin 953,Panneaux Solaires,Monocristallin,Jinko,209.79,260.86
+PRD-0066,Canadian Solar Bifacial 769,Panneaux Solaires,Bifacial,Canadian Solar,240.55,333.5
+PRD-0067,LONGi Bifacial 779,Panneaux Solaires,Bifacial,LONGi,267.86,350.36
+PRD-0068,Jinko Monocristallin 860,Panneaux Solaires,Monocristallin,Jinko,167.65,229.34
+PRD-0069,Jinko Bifacial 834,Panneaux Solaires,Bifacial,Jinko,175.98,231.7
+PRD-0070,Jinko Polycristallin 617,Panneaux Solaires,Polycristallin,Jinko,261.74,356.25
+PRD-0071,Canadian Solar Polycristallin 194,Panneaux Solaires,Polycristallin,Canadian Solar,310.04,421.6
+PRD-0072,Trina Bifacial 441,Panneaux Solaires,Bifacial,Trina,325.26,398.8
+PRD-0073,Canadian Solar Monocristallin 822,Panneaux Solaires,Monocristallin,Canadian Solar,153.98,198.47
+PRD-0074,JA Solar Polycristallin 807,Panneaux Solaires,Polycristallin,JA Solar,124.23,152.9
+PRD-0075,JA Solar Monocristallin 665,Panneaux Solaires,Monocristallin,JA Solar,125.93,160.81
+PRD-0076,Trina Monocristallin 915,Panneaux Solaires,Monocristallin,Trina,148.55,188.23
+PRD-0077,Canadian Solar Monocristallin 205,Panneaux Solaires,Monocristallin,Canadian Solar,169.36,213.02
+PRD-0078,JA Solar Polycristallin 735,Panneaux Solaires,Polycristallin,JA Solar,323.62,415.24
+PRD-0079,Jinko Bifacial 266,Panneaux Solaires,Bifacial,Jinko,340.61,427.73
+PRD-0080,Trina Monocristallin 440,Panneaux Solaires,Monocristallin,Trina,117.5,157.44
+PRD-0081,Jinko Polycristallin 210,Panneaux Solaires,Polycristallin,Jinko,170.52,230.04
+PRD-0082,LONGi Polycristallin 936,Panneaux Solaires,Polycristallin,LONGi,325.15,407.58
+PRD-0083,Canadian Solar Polycristallin 333,Panneaux Solaires,Polycristallin,Canadian Solar,178.87,241.56
+PRD-0084,LONGi Monocristallin 385,Panneaux Solaires,Monocristallin,LONGi,271.5,348.01
+PRD-0085,Canadian Solar Monocristallin 795,Panneaux Solaires,Monocristallin,Canadian Solar,196.37,255.34
+PRD-0086,Canadian Solar Bifacial 367,Panneaux Solaires,Bifacial,Canadian Solar,349.07,431.77
+PRD-0087,JA Solar Monocristallin 211,Panneaux Solaires,Monocristallin,JA Solar,348.14,438.76
+PRD-0088,Trina Bifacial 546,Panneaux Solaires,Bifacial,Trina,188.09,253.71
+PRD-0089,JA Solar Bifacial 294,Panneaux Solaires,Bifacial,JA Solar,134.83,184.69
+PRD-0090,LONGi Polycristallin 925,Panneaux Solaires,Polycristallin,LONGi,297.3,362.64
+PRD-0091,Jinko Bifacial 780,Panneaux Solaires,Bifacial,Jinko,210.79,259.27
+PRD-0092,JA Solar Polycristallin 837,Panneaux Solaires,Polycristallin,JA Solar,179.51,244.17
+PRD-0093,JA Solar Polycristallin 512,Panneaux Solaires,Polycristallin,JA Solar,189.17,242.79
+PRD-0094,Canadian Solar Bifacial 780,Panneaux Solaires,Bifacial,Canadian Solar,253.31,316.32
+PRD-0095,Jinko Polycristallin 661,Panneaux Solaires,Polycristallin,Jinko,264.34,334.65
+PRD-0096,Canadian Solar Monocristallin 693,Panneaux Solaires,Monocristallin,Canadian Solar,183.43,236.07
+PRD-0097,Canadian Solar Bifacial 318,Panneaux Solaires,Bifacial,Canadian Solar,224.59,289.5
+PRD-0098,Trina Bifacial 853,Panneaux Solaires,Bifacial,Trina,281.01,388.12
+PRD-0099,LONGi Monocristallin 734,Panneaux Solaires,Monocristallin,LONGi,177.2,235.14
+PRD-0100,LONGi Polycristallin 788,Panneaux Solaires,Polycristallin,LONGi,294.62,395.53
+PRD-0101,Jinko Polycristallin 147,Panneaux Solaires,Polycristallin,Jinko,315.64,391.97
+PRD-0102,Trina Monocristallin 566,Panneaux Solaires,Monocristallin,Trina,247.75,333.38
+PRD-0103,JA Solar Polycristallin 606,Panneaux Solaires,Polycristallin,JA Solar,156.32,208.33
+PRD-0104,Jinko Polycristallin 868,Panneaux Solaires,Polycristallin,Jinko,145.94,194.27
+PRD-0105,Trina Monocristallin 812,Panneaux Solaires,Monocristallin,Trina,159.49,215.65
+PRD-0106,Trina Bifacial 968,Panneaux Solaires,Bifacial,Trina,131.24,165.07
+PRD-0107,Trina Monocristallin 643,Panneaux Solaires,Monocristallin,Trina,146.97,190.0
+PRD-0108,JA Solar Bifacial 553,Panneaux Solaires,Bifacial,JA Solar,182.54,245.19
+PRD-0109,JA Solar Bifacial 556,Panneaux Solaires,Bifacial,JA Solar,202.76,278.02
+PRD-0110,Trina Monocristallin 960,Panneaux Solaires,Monocristallin,Trina,212.29,285.02
+PRD-0111,Canadian Solar Bifacial 741,Panneaux Solaires,Bifacial,Canadian Solar,291.59,379.74
+PRD-0112,Canadian Solar Monocristallin 340,Panneaux Solaires,Monocristallin,Canadian Solar,211.09,281.96
+PRD-0113,Canadian Solar Polycristallin 241,Panneaux Solaires,Polycristallin,Canadian Solar,188.36,245.91
+PRD-0114,Jinko Monocristallin 319,Panneaux Solaires,Monocristallin,Jinko,213.18,264.91
+PRD-0115,Trina Monocristallin 525,Panneaux Solaires,Monocristallin,Trina,208.5,272.28
+PRD-0116,Jinko Monocristallin 888,Panneaux Solaires,Monocristallin,Jinko,312.32,399.87
+PRD-0117,LONGi Bifacial 489,Panneaux Solaires,Bifacial,LONGi,302.6,407.02
+PRD-0118,LONGi Polycristallin 499,Panneaux Solaires,Polycristallin,LONGi,341.99,432.82
+PRD-0119,JA Solar Polycristallin 717,Panneaux Solaires,Polycristallin,JA Solar,286.45,374.25
+PRD-0120,Trina Monocristallin 129,Panneaux Solaires,Monocristallin,Trina,167.57,215.83
+PRD-0121,Canadian Solar Polycristallin 841,Panneaux Solaires,Polycristallin,Canadian Solar,259.55,350.66
+PRD-0122,Trina Monocristallin 646,Panneaux Solaires,Monocristallin,Trina,307.44,425.86
+PRD-0123,Trina Monocristallin 185,Panneaux Solaires,Monocristallin,Trina,246.89,327.57
+PRD-0124,Trina Bifacial 151,Panneaux Solaires,Bifacial,Trina,147.58,190.71
+PRD-0125,Trina Polycristallin 445,Panneaux Solaires,Polycristallin,Trina,192.25,248.21
+PRD-0126,Canadian Solar Polycristallin 358,Panneaux Solaires,Polycristallin,Canadian Solar,276.74,375.6
+PRD-0127,Trina Monocristallin 458,Panneaux Solaires,Monocristallin,Trina,119.36,155.81
+PRD-0128,LONGi Monocristallin 872,Panneaux Solaires,Monocristallin,LONGi,290.13,384.37
+PRD-0129,Jinko Monocristallin 256,Panneaux Solaires,Monocristallin,Jinko,171.62,209.81
+PRD-0130,Jinko Monocristallin 323,Panneaux Solaires,Monocristallin,Jinko,236.16,292.07
+PRD-0131,Canadian Solar Polycristallin 721,Panneaux Solaires,Polycristallin,Canadian Solar,305.28,380.07
+PRD-0132,LONGi Bifacial 418,Panneaux Solaires,Bifacial,LONGi,308.06,383.34
+PRD-0133,JA Solar Monocristallin 793,Panneaux Solaires,Monocristallin,JA Solar,124.39,157.7
+PRD-0134,Trina Polycristallin 706,Panneaux Solaires,Polycristallin,Trina,346.02,432.44
+PRD-0135,Jinko Bifacial 970,Panneaux Solaires,Bifacial,Jinko,134.12,180.57
+PRD-0136,JA Solar Bifacial 679,Panneaux Solaires,Bifacial,JA Solar,289.98,391.66
+PRD-0137,Canadian Solar Monocristallin 170,Panneaux Solaires,Monocristallin,Canadian Solar,233.56,309.82
+PRD-0138,Canadian Solar Bifacial 601,Panneaux Solaires,Bifacial,Canadian Solar,119.66,153.8
+PRD-0139,Trina Monocristallin 948,Panneaux Solaires,Monocristallin,Trina,331.5,438.24
+PRD-0140,Jinko Polycristallin 766,Panneaux Solaires,Polycristallin,Jinko,209.54,280.65
+PRD-0141,JA Solar Polycristallin 595,Panneaux Solaires,Polycristallin,JA Solar,300.7,392.46
+PRD-0142,Trina Polycristallin 430,Panneaux Solaires,Polycristallin,Trina,302.57,397.72
+PRD-0143,LONGi Monocristallin 868,Panneaux Solaires,Monocristallin,LONGi,181.08,233.68
+PRD-0144,JA Solar Polycristallin 129,Panneaux Solaires,Polycristallin,JA Solar,260.52,333.1
+PRD-0145,Canadian Solar Polycristallin 916,Panneaux Solaires,Polycristallin,Canadian Solar,163.39,204.55
+PRD-0146,Canadian Solar Polycristallin 382,Panneaux Solaires,Polycristallin,Canadian Solar,177.85,233.9
+PRD-0147,LONGi Bifacial 347,Panneaux Solaires,Bifacial,LONGi,244.26,304.99
+PRD-0148,Trina Bifacial 807,Panneaux Solaires,Bifacial,Trina,220.7,296.57
+PRD-0149,Trina Polycristallin 401,Panneaux Solaires,Polycristallin,Trina,232.76,284.45
+PRD-0150,Trina Monocristallin 695,Panneaux Solaires,Monocristallin,Trina,282.23,357.54
+PRD-0151,Trina Polycristallin 863,Panneaux Solaires,Polycristallin,Trina,248.29,316.04
+PRD-0152,Canadian Solar Bifacial 413,Panneaux Solaires,Bifacial,Canadian Solar,197.95,255.54
+PRD-0153,Jinko Polycristallin 222,Panneaux Solaires,Polycristallin,Jinko,149.1,186.2
+PRD-0154,JA Solar Bifacial 296,Panneaux Solaires,Bifacial,JA Solar,326.87,435.26
+PRD-0155,Trina Monocristallin 878,Panneaux Solaires,Monocristallin,Trina,177.28,232.95
+PRD-0156,JA Solar Bifacial 298,Panneaux Solaires,Bifacial,JA Solar,190.26,234.9
+PRD-0157,Jinko Polycristallin 825,Panneaux Solaires,Polycristallin,Jinko,203.97,258.26
+PRD-0158,Jinko Bifacial 666,Panneaux Solaires,Bifacial,Jinko,167.85,232.29
+PRD-0159,Jinko Polycristallin 205,Panneaux Solaires,Polycristallin,Jinko,254.22,341.36
+PRD-0160,JA Solar Monocristallin 448,Panneaux Solaires,Monocristallin,JA Solar,181.68,235.3
+PRD-0161,LONGi Monocristallin 216,Panneaux Solaires,Monocristallin,LONGi,165.65,225.74
+PRD-0162,Trina Monocristallin 802,Panneaux Solaires,Monocristallin,Trina,226.8,297.52
+PRD-0163,Jinko Monocristallin 411,Panneaux Solaires,Monocristallin,Jinko,148.74,194.76
+PRD-0164,Jinko Monocristallin 720,Panneaux Solaires,Monocristallin,Jinko,137.96,185.54
+PRD-0165,JA Solar Bifacial 561,Panneaux Solaires,Bifacial,JA Solar,167.15,217.71
+PRD-0166,Canadian Solar Polycristallin 412,Panneaux Solaires,Polycristallin,Canadian Solar,294.2,408.05
+PRD-0167,JA Solar Bifacial 201,Panneaux Solaires,Bifacial,JA Solar,121.68,168.07
+PRD-0168,Jinko Monocristallin 345,Panneaux Solaires,Monocristallin,Jinko,186.24,229.39
+PRD-0169,JA Solar Monocristallin 561,Panneaux Solaires,Monocristallin,JA Solar,141.42,172.52
+PRD-0170,JA Solar Bifacial 395,Panneaux Solaires,Bifacial,JA Solar,237.65,290.97
+PRD-0171,Canadian Solar Bifacial 803,Panneaux Solaires,Bifacial,Canadian Solar,279.55,360.9
+PRD-0172,Canadian Solar Monocristallin 777,Panneaux Solaires,Monocristallin,Canadian Solar,292.66,386.35
+PRD-0173,Trina Monocristallin 252,Panneaux Solaires,Monocristallin,Trina,147.09,184.43
+PRD-0174,Jinko Polycristallin 414,Panneaux Solaires,Polycristallin,Jinko,137.72,171.42
+PRD-0175,JA Solar Bifacial 579,Panneaux Solaires,Bifacial,JA Solar,330.89,426.36
+PRD-0176,Canadian Solar Bifacial 612,Panneaux Solaires,Bifacial,Canadian Solar,261.21,359.92
+PRD-0177,Trina Bifacial 542,Panneaux Solaires,Bifacial,Trina,213.87,281.33
+PRD-0178,Canadian Solar Bifacial 334,Panneaux Solaires,Bifacial,Canadian Solar,270.65,331.11
+PRD-0179,JA Solar Bifacial 883,Panneaux Solaires,Bifacial,JA Solar,266.76,326.14
+PRD-0180,Canadian Solar Bifacial 279,Panneaux Solaires,Bifacial,Canadian Solar,240.11,322.87
+PRD-0181,GoodWe Central 285,Onduleurs,Central,GoodWe,2047.12,2384.83
+PRD-0182,Enphase Central 518,Onduleurs,Central,Enphase,3071.08,3400.98
+PRD-0183,Fronius Hybride 437,Onduleurs,Hybride,Fronius,2112.54,2444.43
+PRD-0184,Enphase Central 933,Onduleurs,Central,Enphase,1045.65,1222.3
+PRD-0185,Enphase String 218,Onduleurs,String,Enphase,538.02,581.79
+PRD-0186,GoodWe Central 990,Onduleurs,Central,GoodWe,2792.44,2939.77
+PRD-0187,Enphase Central 737,Onduleurs,Central,Enphase,425.23,473.45
+PRD-0188,Enphase Central 662,Onduleurs,Central,Enphase,2539.76,2731.97
+PRD-0189,Fronius Micro 224,Onduleurs,Micro,Fronius,1498.03,1701.97
+PRD-0190,GoodWe String 418,Onduleurs,String,GoodWe,2512.07,2857.8
+PRD-0191,GoodWe String 961,Onduleurs,String,GoodWe,1489.21,1605.57
+PRD-0192,Enphase String 257,Onduleurs,String,Enphase,2948.33,3330.59
+PRD-0193,Fronius Central 954,Onduleurs,Central,Fronius,1779.24,1928.39
+PRD-0194,Enphase Central 492,Onduleurs,Central,Enphase,966.41,1079.94
+PRD-0195,GoodWe Micro 984,Onduleurs,Micro,GoodWe,1660.66,1926.37
+PRD-0196,Fronius String 448,Onduleurs,String,Fronius,2397.04,2772.56
+PRD-0197,Huawei Hybride 701,Onduleurs,Hybride,Huawei,1108.85,1205.08
+PRD-0198,SMA Central 440,Onduleurs,Central,SMA,1558.76,1728.95
+PRD-0199,Enphase Central 814,Onduleurs,Central,Enphase,2835.2,3285.13
+PRD-0200,GoodWe Micro 520,Onduleurs,Micro,GoodWe,1318.65,1525.51
+PRD-0201,Fronius String 930,Onduleurs,String,Fronius,2359.69,2683.06
+PRD-0202,Enphase Central 767,Onduleurs,Central,Enphase,3015.37,3462.92
+PRD-0203,Enphase Micro 704,Onduleurs,Micro,Enphase,3175.3,3387.44
+PRD-0204,Huawei Hybride 638,Onduleurs,Hybride,Huawei,2806.16,3097.41
+PRD-0205,Huawei Central 770,Onduleurs,Central,Huawei,2374.15,2611.82
+PRD-0206,Huawei Micro 446,Onduleurs,Micro,Huawei,1537.57,1802.37
+PRD-0207,Huawei Central 979,Onduleurs,Central,Huawei,2616.48,3025.65
+PRD-0208,Fronius Central 599,Onduleurs,Central,Fronius,1985.85,2305.76
+PRD-0209,GoodWe String 394,Onduleurs,String,GoodWe,460.25,518.95
+PRD-0210,Huawei Micro 748,Onduleurs,Micro,Huawei,1587.65,1688.71
+PRD-0211,Enphase String 129,Onduleurs,String,Enphase,765.82,832.37
+PRD-0212,Fronius String 483,Onduleurs,String,Fronius,2621.74,2847.66
+PRD-0213,SMA Central 798,Onduleurs,Central,SMA,982.8,1081.43
+PRD-0214,SMA Micro 491,Onduleurs,Micro,SMA,764.78,860.22
+PRD-0215,Enphase Micro 572,Onduleurs,Micro,Enphase,3013.9,3221.05
+PRD-0216,Enphase Hybride 923,Onduleurs,Hybride,Enphase,1060.15,1117.05
+PRD-0217,Fronius Central 552,Onduleurs,Central,Fronius,2305.94,2468.35
+PRD-0218,GoodWe Hybride 806,Onduleurs,Hybride,GoodWe,1073.47,1257.29
+PRD-0219,Enphase Hybride 493,Onduleurs,Hybride,Enphase,2794.86,3004.97
+PRD-0220,Huawei Central 688,Onduleurs,Central,Huawei,945.54,1059.06
+PRD-0221,Fronius Hybride 505,Onduleurs,Hybride,Fronius,320.97,370.21
+PRD-0222,Huawei Hybride 862,Onduleurs,Hybride,Huawei,1860.65,2110.97
+PRD-0223,GoodWe String 393,Onduleurs,String,GoodWe,2326.74,2684.55
+PRD-0224,GoodWe Micro 294,Onduleurs,Micro,GoodWe,2660.1,2866.18
+PRD-0225,SMA Hybride 761,Onduleurs,Hybride,SMA,1986.15,2310.39
+PRD-0226,Fronius String 473,Onduleurs,String,Fronius,2672.95,2823.55
+PRD-0227,Huawei Micro 525,Onduleurs,Micro,Huawei,2945.37,3210.81
+PRD-0228,SMA Micro 474,Onduleurs,Micro,SMA,647.77,722.91
+PRD-0229,SMA Hybride 593,Onduleurs,Hybride,SMA,973.63,1122.3
+PRD-0230,Fronius Hybride 177,Onduleurs,Hybride,Fronius,2595.29,2873.54
+PRD-0231,SMA Micro 506,Onduleurs,Micro,SMA,2678.76,3052.45
+PRD-0232,Huawei Hybride 649,Onduleurs,Hybride,Huawei,2684.73,2830.18
+PRD-0233,Enphase String 368,Onduleurs,String,Enphase,1294.68,1479.47
+PRD-0234,Fronius Central 125,Onduleurs,Central,Fronius,599.25,646.71
+PRD-0235,GoodWe Hybride 943,Onduleurs,Hybride,GoodWe,951.59,1008.38
+PRD-0236,Fronius Central 146,Onduleurs,Central,Fronius,2230.95,2377.57
+PRD-0237,Fronius String 340,Onduleurs,String,Fronius,3272.13,3486.97
+PRD-0238,Enphase Micro 860,Onduleurs,Micro,Enphase,1546.63,1751.66
+PRD-0239,GoodWe Central 524,Onduleurs,Central,GoodWe,2500.16,2675.26
+PRD-0240,Enphase String 386,Onduleurs,String,Enphase,1943.41,2270.09
+PRD-0241,Fronius String 341,Onduleurs,String,Fronius,901.24,995.26
+PRD-0242,Huawei Hybride 760,Onduleurs,Hybride,Huawei,3140.7,3438.97
+PRD-0243,Huawei Hybride 225,Onduleurs,Hybride,Huawei,1465.47,1574.05
+PRD-0244,Huawei Central 711,Onduleurs,Central,Huawei,2144.47,2420.86
+PRD-0245,Huawei String 228,Onduleurs,String,Huawei,2608.22,2817.74
+PRD-0246,Huawei Micro 700,Onduleurs,Micro,Huawei,2643.86,2955.42
+PRD-0247,SMA Micro 710,Onduleurs,Micro,SMA,1263.88,1351.39
+PRD-0248,Fronius String 233,Onduleurs,String,Fronius,2850.47,3046.9
+PRD-0249,SMA Hybride 234,Onduleurs,Hybride,SMA,562.7,651.76
+PRD-0250,Fronius String 431,Onduleurs,String,Fronius,2619.27,2827.95
+PRD-0251,SMA String 531,Onduleurs,String,SMA,1077.15,1149.18
+PRD-0252,Huawei String 625,Onduleurs,String,Huawei,1590.88,1823.99
+PRD-0253,Enphase String 144,Onduleurs,String,Enphase,1635.88,1912.28
+PRD-0254,Enphase Hybride 590,Onduleurs,Hybride,Enphase,2233.41,2358.69
+PRD-0255,Enphase Central 554,Onduleurs,Central,Enphase,2248.39,2495.51
+PRD-0256,Huawei String 229,Onduleurs,String,Huawei,1244.48,1330.76
+PRD-0257,GoodWe Hybride 432,Onduleurs,Hybride,GoodWe,2082.02,2325.85
+PRD-0258,GoodWe Central 719,Onduleurs,Central,GoodWe,1807.25,1997.78
+PRD-0259,Huawei Central 770,Onduleurs,Central,Huawei,2663.54,2837.91
+PRD-0260,Enphase Micro 447,Onduleurs,Micro,Enphase,1617.86,1744.98
+PRD-0261,Enphase Central 537,Onduleurs,Central,Enphase,1534.1,1631.17
+PRD-0262,Fronius Hybride 585,Onduleurs,Hybride,Fronius,1400.01,1497.76
+PRD-0263,Huawei String 198,Onduleurs,String,Huawei,2785.97,2961.67
+PRD-0264,SMA Hybride 675,Onduleurs,Hybride,SMA,1854.36,2080.39
+PRD-0265,Huawei Hybride 868,Onduleurs,Hybride,Huawei,1392.81,1614.59
+PRD-0266,Huawei Central 460,Onduleurs,Central,Huawei,3024.86,3398.88
+PRD-0267,GoodWe String 593,Onduleurs,String,GoodWe,1797.77,1923.72
+PRD-0268,Huawei Micro 217,Onduleurs,Micro,Huawei,1270.33,1420.36
+PRD-0269,GoodWe Hybride 674,Onduleurs,Hybride,GoodWe,928.6,1023.71
+PRD-0270,GoodWe String 373,Onduleurs,String,GoodWe,2837.93,3273.07
+PRD-0271,SMA String 447,Onduleurs,String,SMA,1026.2,1174.47
+PRD-0272,Huawei Hybride 773,Onduleurs,Hybride,Huawei,823.86,880.5
+PRD-0273,Huawei Central 131,Onduleurs,Central,Huawei,668.56,754.0
+PRD-0274,GoodWe String 449,Onduleurs,String,GoodWe,897.51,988.43
+PRD-0275,Fronius Micro 681,Onduleurs,Micro,Fronius,1190.3,1297.24
+PRD-0276,Huawei String 150,Onduleurs,String,Huawei,697.77,797.86
+PRD-0277,Fronius String 721,Onduleurs,String,Fronius,1559.22,1717.96
+PRD-0278,Enphase Central 216,Onduleurs,Central,Enphase,1026.78,1174.13
+PRD-0279,Enphase Hybride 707,Onduleurs,Hybride,Enphase,577.69,654.85
+PRD-0280,GoodWe Central 504,Onduleurs,Central,GoodWe,2302.02,2434.82
+PRD-0281,Huawei String 885,Onduleurs,String,Huawei,816.24,954.15
+PRD-0282,Fronius Micro 609,Onduleurs,Micro,Fronius,1150.21,1226.23
+PRD-0283,SMA Central 335,Onduleurs,Central,SMA,639.73,713.39
+PRD-0284,Huawei Hybride 546,Onduleurs,Hybride,Huawei,1375.55,1570.63
+PRD-0285,Enphase String 689,Onduleurs,String,Enphase,2805.34,3247.72
+PRD-0286,GoodWe Central 396,Onduleurs,Central,GoodWe,1412.39,1594.15
+PRD-0287,Enphase String 920,Onduleurs,String,Enphase,336.49,366.74
+PRD-0288,Fronius Central 349,Onduleurs,Central,Fronius,503.77,582.02
+PRD-0289,GoodWe Central 991,Onduleurs,Central,GoodWe,1489.93,1581.44
+PRD-0290,Fronius Hybride 178,Onduleurs,Hybride,Fronius,879.96,1009.03
+PRD-0291,GoodWe String 457,Onduleurs,String,GoodWe,1660.25,1931.85
+PRD-0292,SMA Hybride 302,Onduleurs,Hybride,SMA,987.79,1056.06
+PRD-0293,GoodWe Micro 177,Onduleurs,Micro,GoodWe,689.81,789.18
+PRD-0294,Enphase Micro 693,Onduleurs,Micro,Enphase,1594.81,1784.65
+PRD-0295,GoodWe Central 430,Onduleurs,Central,GoodWe,2007.11,2357.57
+PRD-0296,SMA Hybride 746,Onduleurs,Hybride,SMA,1541.82,1707.24
+PRD-0297,Fronius Hybride 175,Onduleurs,Hybride,Fronius,2005.75,2192.54
+PRD-0298,Enphase Hybride 951,Onduleurs,Hybride,Enphase,1648.88,1746.12
+PRD-0299,Huawei Hybride 192,Onduleurs,Hybride,Huawei,2013.84,2362.93
+PRD-0300,Enphase Central 856,Onduleurs,Central,Enphase,1843.36,2157.05
+PRD-0301,Enphase String 292,Onduleurs,String,Enphase,2865.07,3208.96
+PRD-0302,GoodWe Hybride 163,Onduleurs,Hybride,GoodWe,1703.42,1822.01
+PRD-0303,Huawei Central 831,Onduleurs,Central,Huawei,2507.91,2895.09
+PRD-0304,GoodWe String 824,Onduleurs,String,GoodWe,2239.96,2367.61
+PRD-0305,Enphase Central 472,Onduleurs,Central,Enphase,1757.61,1977.02
+PRD-0306,Fronius Hybride 795,Onduleurs,Hybride,Fronius,1343.5,1539.73
+PRD-0307,Fronius String 794,Onduleurs,String,Fronius,480.55,510.92
+PRD-0308,Fronius Central 717,Onduleurs,Central,Fronius,956.85,1106.39
+PRD-0309,Fronius Micro 458,Onduleurs,Micro,Fronius,495.55,560.81
+PRD-0310,Enphase Hybride 186,Onduleurs,Hybride,Enphase,626.5,712.65
+PRD-0311,GoodWe Hybride 932,Onduleurs,Hybride,GoodWe,1310.93,1505.37
+PRD-0312,GoodWe Micro 620,Onduleurs,Micro,GoodWe,528.93,599.05
+PRD-0313,Huawei Hybride 319,Onduleurs,Hybride,Huawei,1360.97,1460.31
+PRD-0314,Enphase Hybride 258,Onduleurs,Hybride,Enphase,777.26,914.42
+PRD-0315,Fronius String 889,Onduleurs,String,Fronius,2821.7,3002.17
+PRD-0316,Fronius String 711,Onduleurs,String,Fronius,2757.37,3104.46
+PRD-0317,SMA Central 889,Onduleurs,Central,SMA,710.13,819.19
+PRD-0318,Enphase Micro 836,Onduleurs,Micro,Enphase,401.81,439.82
+PRD-0319,Enphase Micro 902,Onduleurs,Micro,Enphase,1971.63,2253.91
+PRD-0320,SMA Central 928,Onduleurs,Central,SMA,1846.23,2008.84
+PRD-0321,SMA Central 551,Onduleurs,Central,SMA,1263.34,1477.09
+PRD-0322,Fronius Central 528,Onduleurs,Central,Fronius,2510.19,2790.0
+PRD-0323,SMA Micro 356,Onduleurs,Micro,SMA,2681.19,2864.03
+PRD-0324,Enphase String 205,Onduleurs,String,Enphase,2770.56,3097.17
+PRD-0325,Fronius String 560,Onduleurs,String,Fronius,530.87,568.4
+PRD-0326,Enphase Micro 936,Onduleurs,Micro,Enphase,509.77,593.48
+PRD-0327,Fronius Central 505,Onduleurs,Central,Fronius,2977.65,3277.51
+PRD-0328,SMA Hybride 329,Onduleurs,Hybride,SMA,1446.41,1535.73
+PRD-0329,Fronius String 765,Onduleurs,String,Fronius,2839.57,3278.64
+PRD-0330,SMA Hybride 949,Onduleurs,Hybride,SMA,682.07,740.32
+PRD-0331,Tesla Industriel 730,Batteries,Industriel,Tesla,6894.22,9588.41
+PRD-0332,BYD Lithium-ion 253,Batteries,Lithium-ion,BYD,1646.83,2190.04
+PRD-0333,BYD Industriel 224,Batteries,Industriel,BYD,7312.58,9761.73
+PRD-0334,Tesla Lithium-ion 568,Batteries,Lithium-ion,Tesla,4194.94,6198.26
+PRD-0335,BYD Lithium-ion 648,Batteries,Lithium-ion,BYD,7412.55,10366.88
+PRD-0336,Huawei Lithium-ion 398,Batteries,Lithium-ion,Huawei,5321.39,7750.47
+PRD-0337,BYD Industriel 526,Batteries,Industriel,BYD,6100.7,8148.1
+PRD-0338,BYD LFP 638,Batteries,LFP,BYD,5304.02,7234.85
+PRD-0339,Pylontech Lithium-ion 496,Batteries,Lithium-ion,Pylontech,8311.24,10733.31
+PRD-0340,LG Chem Residentiel 169,Batteries,Residentiel,LG Chem,6949.31,9473.17
+PRD-0341,Tesla Residentiel 890,Batteries,Residentiel,Tesla,6514.98,9329.41
+PRD-0342,Tesla Residentiel 933,Batteries,Residentiel,Tesla,1732.39,2443.36
+PRD-0343,Pylontech LFP 286,Batteries,LFP,Pylontech,8475.81,11808.19
+PRD-0344,BYD LFP 137,Batteries,LFP,BYD,6021.45,9160.45
+PRD-0345,Tesla Residentiel 142,Batteries,Residentiel,Tesla,1838.47,2438.06
+PRD-0346,LG Chem Residentiel 656,Batteries,Residentiel,LG Chem,4660.11,7153.84
+PRD-0347,LG Chem Industriel 392,Batteries,Industriel,LG Chem,1646.65,2366.21
+PRD-0348,BYD Residentiel 227,Batteries,Residentiel,BYD,7853.33,10657.98
+PRD-0349,Pylontech Residentiel 495,Batteries,Residentiel,Pylontech,7445.23,10894.87
+PRD-0350,Tesla Residentiel 916,Batteries,Residentiel,Tesla,4980.09,6962.03
+PRD-0351,BYD Residentiel 716,Batteries,Residentiel,BYD,7136.11,9270.81
+PRD-0352,Huawei LFP 435,Batteries,LFP,Huawei,3785.52,4937.66
+PRD-0353,LG Chem Residentiel 270,Batteries,Residentiel,LG Chem,4435.53,6459.16
+PRD-0354,LG Chem Industriel 461,Batteries,Industriel,LG Chem,4436.17,6471.3
+PRD-0355,LG Chem Industriel 158,Batteries,Industriel,LG Chem,5684.11,8394.69
+PRD-0356,Pylontech Lithium-ion 795,Batteries,Lithium-ion,Pylontech,3807.18,5633.11
+PRD-0357,BYD LFP 900,Batteries,LFP,BYD,2402.93,3427.79
+PRD-0358,BYD Industriel 760,Batteries,Industriel,BYD,2444.51,3262.3
+PRD-0359,LG Chem Residentiel 719,Batteries,Residentiel,LG Chem,4116.45,5828.54
+PRD-0360,Pylontech LFP 881,Batteries,LFP,Pylontech,8405.24,11488.24
+PRD-0361,Huawei Lithium-ion 421,Batteries,Lithium-ion,Huawei,2472.93,3376.95
+PRD-0362,Tesla Residentiel 290,Batteries,Residentiel,Tesla,9012.96,11605.2
+PRD-0363,Huawei Industriel 368,Batteries,Industriel,Huawei,4149.9,5869.87
+PRD-0364,Pylontech Residentiel 810,Batteries,Residentiel,Pylontech,2903.88,4145.7
+PRD-0365,Tesla Industriel 562,Batteries,Industriel,Tesla,2158.87,3226.37
+PRD-0366,Pylontech LFP 965,Batteries,LFP,Pylontech,8077.13,11972.62
+PRD-0367,LG Chem Residentiel 397,Batteries,Residentiel,LG Chem,6444.09,9095.4
+PRD-0368,Tesla Residentiel 753,Batteries,Residentiel,Tesla,6012.9,9118.09
+PRD-0369,LG Chem LFP 305,Batteries,LFP,LG Chem,5416.48,7087.56
+PRD-0370,Tesla LFP 667,Batteries,LFP,Tesla,7691.07,9903.73
+PRD-0371,Pylontech Residentiel 726,Batteries,Residentiel,Pylontech,7108.8,10036.62
+PRD-0372,BYD Lithium-ion 836,Batteries,Lithium-ion,BYD,3310.66,5092.91
+PRD-0373,Huawei Industriel 688,Batteries,Industriel,Huawei,4439.1,6107.95
+PRD-0374,Tesla Lithium-ion 560,Batteries,Lithium-ion,Tesla,8165.58,11723.8
+PRD-0375,Huawei Industriel 898,Batteries,Industriel,Huawei,3625.74,5445.15
+PRD-0376,Tesla LFP 156,Batteries,LFP,Tesla,4185.45,6326.18
+PRD-0377,Huawei Lithium-ion 430,Batteries,Lithium-ion,Huawei,2677.95,3530.15
+PRD-0378,LG Chem LFP 390,Batteries,LFP,LG Chem,8176.31,11474.83
+PRD-0379,LG Chem Lithium-ion 381,Batteries,Lithium-ion,LG Chem,2598.45,3963.02
+PRD-0380,LG Chem LFP 756,Batteries,LFP,LG Chem,6253.62,8144.28
+PRD-0381,Huawei LFP 774,Batteries,LFP,Huawei,8675.7,11416.07
+PRD-0382,Huawei Residentiel 183,Batteries,Residentiel,Huawei,1610.47,2411.94
+PRD-0383,Huawei Lithium-ion 685,Batteries,Lithium-ion,Huawei,3496.98,4646.56
+PRD-0384,Huawei Industriel 742,Batteries,Industriel,Huawei,6000.93,8389.91
+PRD-0385,LG Chem Residentiel 801,Batteries,Residentiel,LG Chem,4612.55,6829.45
+PRD-0386,LG Chem Industriel 261,Batteries,Industriel,LG Chem,4512.59,6535.44
+PRD-0387,Pylontech Industriel 721,Batteries,Industriel,Pylontech,5155.67,6842.51
+PRD-0388,LG Chem LFP 981,Batteries,LFP,LG Chem,7838.95,10614.85
+PRD-0389,Pylontech Residentiel 675,Batteries,Residentiel,Pylontech,2420.64,3307.66
+PRD-0390,LG Chem Lithium-ion 560,Batteries,Lithium-ion,LG Chem,3375.2,4417.38
+PRD-0391,Tesla LFP 493,Batteries,LFP,Tesla,2203.15,2968.12
+PRD-0392,Tesla Industriel 933,Batteries,Industriel,Tesla,7705.12,11626.86
+PRD-0393,Huawei Residentiel 263,Batteries,Residentiel,Huawei,6957.48,9211.28
+PRD-0394,Huawei Industriel 609,Batteries,Industriel,Huawei,4439.12,6668.15
+PRD-0395,BYD Lithium-ion 346,Batteries,Lithium-ion,BYD,8180.31,11452.33
+PRD-0396,Huawei LFP 606,Batteries,LFP,Huawei,4276.25,5528.95
+PRD-0397,LG Chem Industriel 541,Batteries,Industriel,LG Chem,4934.85,7366.91
+PRD-0398,LG Chem LFP 474,Batteries,LFP,LG Chem,6313.53,9275.08
+PRD-0399,Pylontech Lithium-ion 471,Batteries,Lithium-ion,Pylontech,1775.6,2511.58
+PRD-0400,BYD Residentiel 663,Batteries,Residentiel,BYD,4230.24,5863.49
+PRD-0401,Huawei Residentiel 199,Batteries,Residentiel,Huawei,6731.13,8803.99
+PRD-0402,LG Chem Industriel 474,Batteries,Industriel,LG Chem,7321.64,9948.97
+PRD-0403,Tesla LFP 141,Batteries,LFP,Tesla,5840.48,8024.63
+PRD-0404,BYD Lithium-ion 585,Batteries,Lithium-ion,BYD,2482.96,3370.36
+PRD-0405,Tesla Industriel 435,Batteries,Industriel,Tesla,5748.51,8062.61
+PRD-0406,Tesla Residentiel 962,Batteries,Residentiel,Tesla,4149.82,5929.55
+PRD-0407,Huawei Residentiel 645,Batteries,Residentiel,Huawei,3606.16,5363.73
+PRD-0408,Huawei Industriel 477,Batteries,Industriel,Huawei,3368.35,4997.91
+PRD-0409,BYD Residentiel 915,Batteries,Residentiel,BYD,8307.88,11798.98
+PRD-0410,Huawei Lithium-ion 901,Batteries,Lithium-ion,Huawei,4413.71,6745.9
+PRD-0411,BYD LFP 744,Batteries,LFP,BYD,5937.8,7835.23
+PRD-0412,Tesla Industriel 686,Batteries,Industriel,Tesla,7647.28,10216.61
+PRD-0413,Tesla Lithium-ion 255,Batteries,Lithium-ion,Tesla,1618.43,2189.37
+PRD-0414,Tesla Industriel 582,Batteries,Industriel,Tesla,4146.01,6103.77
+PRD-0415,Tesla Lithium-ion 778,Batteries,Lithium-ion,Tesla,5081.7,7186.83
+PRD-0416,Huawei Industriel 570,Batteries,Industriel,Huawei,3781.84,5768.25
+PRD-0417,Huawei Residentiel 838,Batteries,Residentiel,Huawei,3767.16,5542.87
+PRD-0418,Huawei Residentiel 385,Batteries,Residentiel,Huawei,4485.12,6841.8
+PRD-0419,Tesla Residentiel 889,Batteries,Residentiel,Tesla,7445.98,11414.86
+PRD-0420,Tesla Residentiel 591,Batteries,Residentiel,Tesla,6377.94,8902.4
+PRD-0421,Huawei Residentiel 380,Batteries,Residentiel,Huawei,7670.58,11337.0
+PRD-0422,BYD Residentiel 504,Batteries,Residentiel,BYD,5486.93,7734.77
+PRD-0423,Tesla Residentiel 831,Batteries,Residentiel,Tesla,3642.14,4904.53
+PRD-0424,LG Chem Lithium-ion 865,Batteries,Lithium-ion,LG Chem,7808.76,11240.1
+PRD-0425,Tesla Industriel 675,Batteries,Industriel,Tesla,2854.62,4020.68
+PRD-0426,Tesla Residentiel 345,Batteries,Residentiel,Tesla,2114.14,3092.27
+PRD-0427,BYD LFP 753,Batteries,LFP,BYD,6184.21,8698.34
+PRD-0428,BYD LFP 583,Batteries,LFP,BYD,2212.64,3001.98
+PRD-0429,Tesla Lithium-ion 261,Batteries,Lithium-ion,Tesla,1453.61,2051.81
+PRD-0430,Pylontech Industriel 394,Batteries,Industriel,Pylontech,5108.44,6774.49
+PRD-0431,Staubli Connecteur MC4 191,Cables et Connectique,Connecteur MC4,Staubli,80.38,130.95
+PRD-0432,Nexans Cable AC 957,Cables et Connectique,Cable AC,Nexans,132.5,183.08
+PRD-0433,Nexans Cable AC 607,Cables et Connectique,Cable AC,Nexans,137.71,199.45
+PRD-0434,Staubli Cable AC 681,Cables et Connectique,Cable AC,Staubli,131.73,175.96
+PRD-0435,Staubli Cable DC 656,Cables et Connectique,Cable DC,Staubli,36.39,60.49
+PRD-0436,Prysmian Boite de jonction 297,Cables et Connectique,Boite de jonction,Prysmian,116.22,170.96
+PRD-0437,Staubli Cable DC 363,Cables et Connectique,Cable DC,Staubli,24.99,36.69
+PRD-0438,Nexans Cable AC 681,Cables et Connectique,Cable AC,Nexans,93.85,148.64
+PRD-0439,Prysmian Cable AC 515,Cables et Connectique,Cable AC,Prysmian,81.21,124.14
+PRD-0440,Staubli Boite de jonction 289,Cables et Connectique,Boite de jonction,Staubli,14.23,21.91
+PRD-0441,Phoenix Contact Cable AC 367,Cables et Connectique,Cable AC,Phoenix Contact,48.54,68.1
+PRD-0442,Prysmian Boite de jonction 437,Cables et Connectique,Boite de jonction,Prysmian,65.39,92.11
+PRD-0443,Nexans Connecteur MC4 341,Cables et Connectique,Connecteur MC4,Nexans,38.98,56.0
+PRD-0444,Nexans Cable DC 802,Cables et Connectique,Cable DC,Nexans,69.52,95.75
+PRD-0445,Nexans Connecteur MC4 476,Cables et Connectique,Connecteur MC4,Nexans,78.88,129.55
+PRD-0446,Prysmian Cable AC 565,Cables et Connectique,Cable AC,Prysmian,130.02,191.69
+PRD-0447,Phoenix Contact Connecteur MC4 875,Cables et Connectique,Connecteur MC4,Phoenix Contact,86.98,141.88
+PRD-0448,Prysmian Cable AC 906,Cables et Connectique,Cable AC,Prysmian,90.95,137.67
+PRD-0449,Phoenix Contact Cable DC 677,Cables et Connectique,Cable DC,Phoenix Contact,75.13,107.99
+PRD-0450,Nexans Cable DC 307,Cables et Connectique,Cable DC,Nexans,102.39,166.61
+PRD-0451,Prysmian Cable AC 219,Cables et Connectique,Cable AC,Prysmian,46.35,68.98
+PRD-0452,Phoenix Contact Cable AC 928,Cables et Connectique,Cable AC,Phoenix Contact,15.31,22.73
+PRD-0453,Phoenix Contact Cable DC 677,Cables et Connectique,Cable DC,Phoenix Contact,21.13,30.73
+PRD-0454,Phoenix Contact Cable DC 122,Cables et Connectique,Cable DC,Phoenix Contact,95.85,136.19
+PRD-0455,Staubli Boite de jonction 692,Cables et Connectique,Boite de jonction,Staubli,104.79,164.21
+PRD-0456,Nexans Cable DC 654,Cables et Connectique,Cable DC,Nexans,56.51,87.62
+PRD-0457,Nexans Cable DC 393,Cables et Connectique,Cable DC,Nexans,134.0,197.3
+PRD-0458,Prysmian Boite de jonction 846,Cables et Connectique,Boite de jonction,Prysmian,98.41,154.95
+PRD-0459,Staubli Boite de jonction 990,Cables et Connectique,Boite de jonction,Staubli,137.56,198.61
+PRD-0460,Phoenix Contact Boite de jonction 995,Cables et Connectique,Boite de jonction,Phoenix Contact,12.5,20.65
+PRD-0461,Staubli Cable AC 502,Cables et Connectique,Cable AC,Staubli,16.91,28.13
+PRD-0462,Prysmian Cable AC 405,Cables et Connectique,Cable AC,Prysmian,106.81,167.79
+PRD-0463,Phoenix Contact Boite de jonction 353,Cables et Connectique,Boite de jonction,Phoenix Contact,68.12,108.73
+PRD-0464,Staubli Boite de jonction 996,Cables et Connectique,Boite de jonction,Staubli,25.44,35.25
+PRD-0465,Nexans Cable DC 884,Cables et Connectique,Cable DC,Nexans,111.9,162.85
+PRD-0466,Prysmian Cable DC 134,Cables et Connectique,Cable DC,Prysmian,33.21,45.19
+PRD-0467,Nexans Boite de jonction 549,Cables et Connectique,Boite de jonction,Nexans,39.19,52.72
+PRD-0468,Prysmian Cable AC 243,Cables et Connectique,Cable AC,Prysmian,96.38,152.11
+PRD-0469,Prysmian Connecteur MC4 426,Cables et Connectique,Connecteur MC4,Prysmian,105.06,164.08
+PRD-0470,Prysmian Connecteur MC4 776,Cables et Connectique,Connecteur MC4,Prysmian,46.51,63.84
+PRD-0471,Phoenix Contact Cable AC 705,Cables et Connectique,Cable AC,Phoenix Contact,47.12,63.6
+PRD-0472,Phoenix Contact Cable AC 452,Cables et Connectique,Cable AC,Phoenix Contact,84.25,113.39
+PRD-0473,Staubli Boite de jonction 407,Cables et Connectique,Boite de jonction,Staubli,96.96,140.78
+PRD-0474,Prysmian Boite de jonction 969,Cables et Connectique,Boite de jonction,Prysmian,103.28,152.11
+PRD-0475,Staubli Cable AC 574,Cables et Connectique,Cable AC,Staubli,125.44,172.22
+PRD-0476,Phoenix Contact Cable DC 237,Cables et Connectique,Cable DC,Phoenix Contact,129.1,193.72
+PRD-0477,Prysmian Boite de jonction 180,Cables et Connectique,Boite de jonction,Prysmian,38.33,54.72
+PRD-0478,Staubli Boite de jonction 295,Cables et Connectique,Boite de jonction,Staubli,14.77,23.03
+PRD-0479,Staubli Cable DC 140,Cables et Connectique,Cable DC,Staubli,51.78,78.55
+PRD-0480,Prysmian Cable DC 787,Cables et Connectique,Cable DC,Prysmian,107.16,161.91
+PRD-0481,Phoenix Contact Cable AC 410,Cables et Connectique,Cable AC,Phoenix Contact,28.08,45.73
+PRD-0482,Prysmian Cable DC 220,Cables et Connectique,Cable DC,Prysmian,113.72,187.75
+PRD-0483,Prysmian Boite de jonction 506,Cables et Connectique,Boite de jonction,Prysmian,90.64,140.65
+PRD-0484,Staubli Cable AC 646,Cables et Connectique,Cable AC,Staubli,108.25,156.23
+PRD-0485,Staubli Connecteur MC4 609,Cables et Connectique,Connecteur MC4,Staubli,37.69,56.0
+PRD-0486,Nexans Boite de jonction 879,Cables et Connectique,Boite de jonction,Nexans,103.66,161.55
+PRD-0487,Prysmian Connecteur MC4 676,Cables et Connectique,Connecteur MC4,Prysmian,53.17,77.29
+PRD-0488,Prysmian Cable AC 698,Cables et Connectique,Cable AC,Prysmian,5.44,8.16
+PRD-0489,Staubli Boite de jonction 488,Cables et Connectique,Boite de jonction,Staubli,24.32,34.72
+PRD-0490,Phoenix Contact Cable AC 445,Cables et Connectique,Cable AC,Phoenix Contact,68.38,112.38
+PRD-0491,Phoenix Contact Connecteur MC4 602,Cables et Connectique,Connecteur MC4,Phoenix Contact,126.48,193.47
+PRD-0492,Prysmian Boite de jonction 243,Cables et Connectique,Boite de jonction,Prysmian,103.1,147.89
+PRD-0493,Prysmian Boite de jonction 757,Cables et Connectique,Boite de jonction,Prysmian,122.9,183.8
+PRD-0494,Nexans Cable DC 937,Cables et Connectique,Cable DC,Nexans,124.58,168.62
+PRD-0495,Nexans Cable DC 336,Cables et Connectique,Cable DC,Nexans,53.27,85.42
+PRD-0496,Prysmian Cable DC 482,Cables et Connectique,Cable DC,Prysmian,4.57,6.78
+PRD-0497,Phoenix Contact Cable DC 644,Cables et Connectique,Cable DC,Phoenix Contact,99.85,133.56
+PRD-0498,Nexans Boite de jonction 648,Cables et Connectique,Boite de jonction,Nexans,5.3,8.26
+PRD-0499,Nexans Connecteur MC4 540,Cables et Connectique,Connecteur MC4,Nexans,66.42,102.93
+PRD-0500,Nexans Cable AC 346,Cables et Connectique,Cable AC,Nexans,123.54,184.02
+PRD-0501,Staubli Cable AC 506,Cables et Connectique,Cable AC,Staubli,116.4,163.97
+PRD-0502,Staubli Cable DC 349,Cables et Connectique,Cable DC,Staubli,130.82,192.06
+PRD-0503,Staubli Cable AC 769,Cables et Connectique,Cable AC,Staubli,86.19,138.39
+PRD-0504,Nexans Cable DC 587,Cables et Connectique,Cable DC,Nexans,58.27,84.03
+PRD-0505,Nexans Cable DC 965,Cables et Connectique,Cable DC,Nexans,104.78,142.05
+PRD-0506,Staubli Boite de jonction 197,Cables et Connectique,Boite de jonction,Staubli,71.66,115.34
+PRD-0507,Prysmian Cable DC 680,Cables et Connectique,Cable DC,Prysmian,28.65,46.23
+PRD-0508,Staubli Boite de jonction 387,Cables et Connectique,Boite de jonction,Staubli,10.4,14.08
+PRD-0509,Prysmian Cable DC 312,Cables et Connectique,Cable DC,Prysmian,130.8,186.11
+PRD-0510,Phoenix Contact Cable AC 677,Cables et Connectique,Cable AC,Phoenix Contact,131.24,186.13
+PRD-0511,Phoenix Contact Cable AC 493,Cables et Connectique,Cable AC,Phoenix Contact,91.65,137.02
+PRD-0512,Nexans Cable AC 154,Cables et Connectique,Cable AC,Nexans,61.99,102.65
+PRD-0513,Phoenix Contact Cable DC 719,Cables et Connectique,Cable DC,Phoenix Contact,37.13,50.27
+PRD-0514,Staubli Boite de jonction 561,Cables et Connectique,Boite de jonction,Staubli,7.64,10.78
+PRD-0515,Prysmian Boite de jonction 542,Cables et Connectique,Boite de jonction,Prysmian,45.28,74.38
+PRD-0516,Phoenix Contact Cable AC 917,Cables et Connectique,Cable AC,Phoenix Contact,14.27,21.71
+PRD-0517,Nexans Cable AC 828,Cables et Connectique,Cable AC,Nexans,15.26,21.0
+PRD-0518,Phoenix Contact Cable AC 105,Cables et Connectique,Cable AC,Phoenix Contact,49.0,66.75
+PRD-0519,Phoenix Contact Connecteur MC4 235,Cables et Connectique,Connecteur MC4,Phoenix Contact,53.34,75.18
+PRD-0520,Prysmian Cable DC 624,Cables et Connectique,Cable DC,Prysmian,59.34,89.04
+PRD-0521,Nexans Boite de jonction 195,Cables et Connectique,Boite de jonction,Nexans,7.05,10.12
+PRD-0522,Phoenix Contact Connecteur MC4 897,Cables et Connectique,Connecteur MC4,Phoenix Contact,5.1,7.41
+PRD-0523,Prysmian Cable DC 489,Cables et Connectique,Cable DC,Prysmian,84.43,116.53
+PRD-0524,Prysmian Cable AC 249,Cables et Connectique,Cable AC,Prysmian,40.77,57.44
+PRD-0525,Prysmian Cable DC 595,Cables et Connectique,Cable DC,Prysmian,61.65,89.76
+PRD-0526,Staubli Cable DC 740,Cables et Connectique,Cable DC,Staubli,38.56,54.08
+PRD-0527,Prysmian Boite de jonction 106,Cables et Connectique,Boite de jonction,Prysmian,68.79,94.28
+PRD-0528,Staubli Boite de jonction 982,Cables et Connectique,Boite de jonction,Staubli,117.2,169.11
+PRD-0529,Phoenix Contact Connecteur MC4 980,Cables et Connectique,Connecteur MC4,Phoenix Contact,44.11,70.27
+PRD-0530,Staubli Cable AC 305,Cables et Connectique,Cable AC,Staubli,41.05,67.53
+PRD-0531,Staubli Boite de jonction 426,Cables et Connectique,Boite de jonction,Staubli,27.36,39.64
+PRD-0532,Phoenix Contact Connecteur MC4 433,Cables et Connectique,Connecteur MC4,Phoenix Contact,122.56,193.71
+PRD-0533,Staubli Boite de jonction 216,Cables et Connectique,Boite de jonction,Staubli,113.49,164.22
+PRD-0534,Prysmian Cable AC 844,Cables et Connectique,Cable AC,Prysmian,92.07,137.93
+PRD-0535,Prysmian Boite de jonction 809,Cables et Connectique,Boite de jonction,Prysmian,63.92,90.5
+PRD-0536,Phoenix Contact Cable DC 410,Cables et Connectique,Cable DC,Phoenix Contact,99.33,136.23
+PRD-0537,Staubli Cable AC 908,Cables et Connectique,Cable AC,Staubli,85.76,133.44
+PRD-0538,Nexans Boite de jonction 696,Cables et Connectique,Boite de jonction,Nexans,61.12,92.57
+PRD-0539,Phoenix Contact Boite de jonction 468,Cables et Connectique,Boite de jonction,Phoenix Contact,70.09,111.01
+PRD-0540,Nexans Cable DC 463,Cables et Connectique,Cable DC,Nexans,100.93,154.95
+PRD-0541,Nexans Cable AC 762,Cables et Connectique,Cable AC,Nexans,75.01,114.83
+PRD-0542,Staubli Boite de jonction 110,Cables et Connectique,Boite de jonction,Staubli,132.5,193.31
+PRD-0543,Staubli Cable DC 671,Cables et Connectique,Cable DC,Staubli,30.81,48.29
+PRD-0544,Phoenix Contact Cable AC 795,Cables et Connectique,Cable AC,Phoenix Contact,53.05,77.95
+PRD-0545,Staubli Cable AC 402,Cables et Connectique,Cable AC,Staubli,135.21,199.55
+PRD-0546,Nexans Boite de jonction 245,Cables et Connectique,Boite de jonction,Nexans,16.82,27.63
+PRD-0547,Staubli Connecteur MC4 633,Cables et Connectique,Connecteur MC4,Staubli,45.47,71.9
+PRD-0548,Staubli Boite de jonction 813,Cables et Connectique,Boite de jonction,Staubli,66.96,97.85
+PRD-0549,Staubli Boite de jonction 827,Cables et Connectique,Boite de jonction,Staubli,13.45,18.1
+PRD-0550,Nexans Cable DC 793,Cables et Connectique,Cable DC,Nexans,111.36,170.59
+PRD-0551,Prysmian Cable AC 438,Cables et Connectique,Cable AC,Prysmian,70.47,105.62
+PRD-0552,Phoenix Contact Boite de jonction 288,Cables et Connectique,Boite de jonction,Phoenix Contact,34.61,50.21
+PRD-0553,Phoenix Contact Cable AC 302,Cables et Connectique,Cable AC,Phoenix Contact,52.52,82.14
+PRD-0554,Phoenix Contact Boite de jonction 310,Cables et Connectique,Boite de jonction,Phoenix Contact,52.07,80.82
+PRD-0555,Nexans Connecteur MC4 649,Cables et Connectique,Connecteur MC4,Nexans,74.08,117.58
+PRD-0556,Staubli Cable AC 368,Cables et Connectique,Cable AC,Staubli,46.72,68.57
+PRD-0557,Staubli Boite de jonction 701,Cables et Connectique,Boite de jonction,Staubli,79.92,121.41
+PRD-0558,Staubli Cable DC 276,Cables et Connectique,Cable DC,Staubli,50.17,73.64
+PRD-0559,Nexans Connecteur MC4 344,Cables et Connectique,Connecteur MC4,Nexans,95.65,136.06
+PRD-0560,Nexans Connecteur MC4 623,Cables et Connectique,Connecteur MC4,Nexans,26.29,40.69
+PRD-0561,Phoenix Contact Boite de jonction 533,Cables et Connectique,Boite de jonction,Phoenix Contact,80.52,121.3
+PRD-0562,Phoenix Contact Cable AC 760,Cables et Connectique,Cable AC,Phoenix Contact,83.28,128.92
+PRD-0563,Prysmian Cable AC 422,Cables et Connectique,Cable AC,Prysmian,73.25,100.48
+PRD-0564,Nexans Boite de jonction 596,Cables et Connectique,Boite de jonction,Nexans,105.52,173.78
+PRD-0565,Prysmian Cable AC 617,Cables et Connectique,Cable AC,Prysmian,99.27,163.97
+PRD-0566,Phoenix Contact Boite de jonction 960,Cables et Connectique,Boite de jonction,Phoenix Contact,95.25,138.52
+PRD-0567,Phoenix Contact Boite de jonction 914,Cables et Connectique,Boite de jonction,Phoenix Contact,25.02,37.61
+PRD-0568,Staubli Cable AC 395,Cables et Connectique,Cable AC,Staubli,8.15,11.38
+PRD-0569,Phoenix Contact Cable AC 607,Cables et Connectique,Cable AC,Phoenix Contact,73.11,115.3
+PRD-0570,Nexans Cable DC 475,Cables et Connectique,Cable DC,Nexans,38.27,57.24
+PRD-0571,Phoenix Contact Cable DC 204,Cables et Connectique,Cable DC,Phoenix Contact,67.1,111.54
+PRD-0572,Staubli Cable AC 369,Cables et Connectique,Cable AC,Staubli,130.84,175.59
+PRD-0573,Nexans Connecteur MC4 894,Cables et Connectique,Connecteur MC4,Nexans,54.45,90.62
+PRD-0574,Prysmian Cable AC 459,Cables et Connectique,Cable AC,Prysmian,107.93,163.09
+PRD-0575,Prysmian Boite de jonction 933,Cables et Connectique,Boite de jonction,Prysmian,79.13,125.15
+PRD-0576,Nexans Cable AC 711,Cables et Connectique,Cable AC,Nexans,77.85,116.16
+PRD-0577,Staubli Cable AC 686,Cables et Connectique,Cable AC,Staubli,138.33,195.91
+PRD-0578,Nexans Connecteur MC4 521,Cables et Connectique,Connecteur MC4,Nexans,20.04,31.44
+PRD-0579,Staubli Cable DC 986,Cables et Connectique,Cable DC,Staubli,127.24,174.07
+PRD-0580,Prysmian Cable AC 353,Cables et Connectique,Cable AC,Prysmian,23.52,33.52
+PRD-0581,Mounting Systems Facade 742,Structures et Fixations,Facade,Mounting Systems,115.4,156.63
+PRD-0582,Mounting Systems Facade 887,Structures et Fixations,Facade,Mounting Systems,286.54,388.99
+PRD-0583,Mounting Systems Toiture 998,Structures et Fixations,Toiture,Mounting Systems,337.22,436.71
+PRD-0584,Mounting Systems Tracker 102,Structures et Fixations,Tracker,Mounting Systems,585.19,762.69
+PRD-0585,Mounting Systems Toiture 970,Structures et Fixations,Toiture,Mounting Systems,384.22,526.13
+PRD-0586,Mounting Systems Toiture 316,Structures et Fixations,Toiture,Mounting Systems,161.53,213.37
+PRD-0587,Esdec Facade 660,Structures et Fixations,Facade,Esdec,225.43,292.15
+PRD-0588,Mounting Systems Sol 880,Structures et Fixations,Sol,Mounting Systems,455.65,641.23
+PRD-0589,K2 Systems Toiture 570,Structures et Fixations,Toiture,K2 Systems,89.97,124.68
+PRD-0590,K2 Systems Toiture 567,Structures et Fixations,Toiture,K2 Systems,585.85,747.07
+PRD-0591,Mounting Systems Toiture 235,Structures et Fixations,Toiture,Mounting Systems,147.5,201.74
+PRD-0592,Schletter Tracker 195,Structures et Fixations,Tracker,Schletter,502.78,705.82
+PRD-0593,Esdec Tracker 764,Structures et Fixations,Tracker,Esdec,82.03,111.82
+PRD-0594,K2 Systems Sol 816,Structures et Fixations,Sol,K2 Systems,267.2,347.26
+PRD-0595,Mounting Systems Sol 101,Structures et Fixations,Sol,Mounting Systems,395.18,541.61
+PRD-0596,Mounting Systems Sol 631,Structures et Fixations,Sol,Mounting Systems,80.32,108.45
+PRD-0597,K2 Systems Facade 223,Structures et Fixations,Facade,K2 Systems,42.91,56.05
+PRD-0598,Schletter Facade 191,Structures et Fixations,Facade,Schletter,317.28,408.28
+PRD-0599,K2 Systems Toiture 240,Structures et Fixations,Toiture,K2 Systems,202.9,285.01
+PRD-0600,Schletter Facade 170,Structures et Fixations,Facade,Schletter,388.98,531.18
+PRD-0601,Schletter Toiture 743,Structures et Fixations,Toiture,Schletter,276.6,380.07
+PRD-0602,Mounting Systems Sol 322,Structures et Fixations,Sol,Mounting Systems,387.0,512.06
+PRD-0603,K2 Systems Toiture 847,Structures et Fixations,Toiture,K2 Systems,122.1,155.01
+PRD-0604,Esdec Facade 243,Structures et Fixations,Facade,Esdec,593.66,772.44
+PRD-0605,Esdec Sol 715,Structures et Fixations,Sol,Esdec,413.54,533.47
+PRD-0606,K2 Systems Tracker 408,Structures et Fixations,Tracker,K2 Systems,503.57,685.92
+PRD-0607,Schletter Sol 155,Structures et Fixations,Sol,Schletter,470.65,610.88
+PRD-0608,Mounting Systems Sol 753,Structures et Fixations,Sol,Mounting Systems,263.35,339.41
+PRD-0609,K2 Systems Toiture 235,Structures et Fixations,Toiture,K2 Systems,558.33,790.16
+PRD-0610,Mounting Systems Facade 881,Structures et Fixations,Facade,Mounting Systems,237.12,324.06
+PRD-0611,K2 Systems Facade 368,Structures et Fixations,Facade,K2 Systems,49.59,62.52
+PRD-0612,K2 Systems Sol 507,Structures et Fixations,Sol,K2 Systems,523.16,741.93
+PRD-0613,Mounting Systems Tracker 755,Structures et Fixations,Tracker,Mounting Systems,279.35,367.68
+PRD-0614,Esdec Sol 308,Structures et Fixations,Sol,Esdec,89.27,112.7
+PRD-0615,Esdec Sol 954,Structures et Fixations,Sol,Esdec,252.68,343.05
+PRD-0616,Esdec Toiture 966,Structures et Fixations,Toiture,Esdec,417.31,574.01
+PRD-0617,K2 Systems Sol 218,Structures et Fixations,Sol,K2 Systems,165.11,233.36
+PRD-0618,K2 Systems Facade 858,Structures et Fixations,Facade,K2 Systems,204.66,281.97
+PRD-0619,K2 Systems Sol 111,Structures et Fixations,Sol,K2 Systems,46.78,59.5
+PRD-0620,Mounting Systems Sol 901,Structures et Fixations,Sol,Mounting Systems,571.81,764.76
+PRD-0621,Schletter Tracker 994,Structures et Fixations,Tracker,Schletter,238.46,328.9
+PRD-0622,K2 Systems Tracker 926,Structures et Fixations,Tracker,K2 Systems,501.01,628.57
+PRD-0623,Esdec Facade 690,Structures et Fixations,Facade,Esdec,342.67,442.89
+PRD-0624,Mounting Systems Toiture 611,Structures et Fixations,Toiture,Mounting Systems,299.02,391.4
+PRD-0625,Esdec Sol 687,Structures et Fixations,Sol,Esdec,121.39,167.98
+PRD-0626,Schletter Toiture 979,Structures et Fixations,Toiture,Schletter,484.31,605.58
+PRD-0627,Schletter Toiture 253,Structures et Fixations,Toiture,Schletter,64.52,84.49
+PRD-0628,K2 Systems Sol 858,Structures et Fixations,Sol,K2 Systems,329.25,464.65
+PRD-0629,Schletter Facade 837,Structures et Fixations,Facade,Schletter,220.95,291.35
+PRD-0630,Esdec Tracker 222,Structures et Fixations,Tracker,Esdec,497.34,669.5
+PRD-0631,Schletter Toiture 147,Structures et Fixations,Toiture,Schletter,162.7,217.39
+PRD-0632,K2 Systems Facade 892,Structures et Fixations,Facade,K2 Systems,504.9,707.74
+PRD-0633,Esdec Tracker 477,Structures et Fixations,Tracker,Esdec,86.59,114.79
+PRD-0634,Esdec Sol 737,Structures et Fixations,Sol,Esdec,363.92,472.86
+PRD-0635,Mounting Systems Sol 891,Structures et Fixations,Sol,Mounting Systems,229.27,326.21
+PRD-0636,Schletter Sol 124,Structures et Fixations,Sol,Schletter,115.15,162.92
+PRD-0637,Esdec Sol 109,Structures et Fixations,Sol,Esdec,385.03,526.96
+PRD-0638,K2 Systems Tracker 855,Structures et Fixations,Tracker,K2 Systems,472.06,619.2
+PRD-0639,K2 Systems Tracker 529,Structures et Fixations,Tracker,K2 Systems,143.07,203.9
+PRD-0640,K2 Systems Facade 386,Structures et Fixations,Facade,K2 Systems,612.44,779.42
+PRD-0641,K2 Systems Toiture 632,Structures et Fixations,Toiture,K2 Systems,526.28,740.96
+PRD-0642,Esdec Facade 694,Structures et Fixations,Facade,Esdec,285.62,393.84
+PRD-0643,Schletter Toiture 706,Structures et Fixations,Toiture,Schletter,401.51,527.91
+PRD-0644,Mounting Systems Toiture 398,Structures et Fixations,Toiture,Mounting Systems,430.32,546.83
+PRD-0645,Esdec Tracker 951,Structures et Fixations,Tracker,Esdec,566.37,744.53
+PRD-0646,Esdec Tracker 307,Structures et Fixations,Tracker,Esdec,302.56,389.57
+PRD-0647,K2 Systems Sol 577,Structures et Fixations,Sol,K2 Systems,130.51,166.56
+PRD-0648,Mounting Systems Tracker 888,Structures et Fixations,Tracker,Mounting Systems,107.4,140.55
+PRD-0649,Mounting Systems Sol 222,Structures et Fixations,Sol,Mounting Systems,217.53,281.23
+PRD-0650,Schletter Toiture 821,Structures et Fixations,Toiture,Schletter,504.61,655.7
+PRD-0651,Schletter Toiture 193,Structures et Fixations,Toiture,Schletter,519.36,676.94
+PRD-0652,Esdec Sol 406,Structures et Fixations,Sol,Esdec,276.04,347.18
+PRD-0653,Schletter Tracker 563,Structures et Fixations,Tracker,Schletter,55.68,73.31
+PRD-0654,K2 Systems Sol 243,Structures et Fixations,Sol,K2 Systems,285.35,396.53
+PRD-0655,K2 Systems Toiture 327,Structures et Fixations,Toiture,K2 Systems,69.48,96.25
+PRD-0656,Schletter Sol 745,Structures et Fixations,Sol,Schletter,509.35,667.76
+PRD-0657,Esdec Toiture 166,Structures et Fixations,Toiture,Esdec,584.92,738.07
+PRD-0658,Mounting Systems Sol 967,Structures et Fixations,Sol,Mounting Systems,519.53,656.97
+PRD-0659,K2 Systems Tracker 272,Structures et Fixations,Tracker,K2 Systems,61.83,82.02
+PRD-0660,Mounting Systems Facade 536,Structures et Fixations,Facade,Mounting Systems,321.52,422.09
+PRD-0661,Esdec Sol 386,Structures et Fixations,Sol,Esdec,164.88,211.04
+PRD-0662,Schletter Facade 351,Structures et Fixations,Facade,Schletter,56.09,75.99
+PRD-0663,Mounting Systems Tracker 162,Structures et Fixations,Tracker,Mounting Systems,267.42,358.99
+PRD-0664,Esdec Toiture 758,Structures et Fixations,Toiture,Esdec,255.67,337.26
+PRD-0665,K2 Systems Sol 467,Structures et Fixations,Sol,K2 Systems,571.71,792.05
+PRD-0666,Mounting Systems Facade 429,Structures et Fixations,Facade,Mounting Systems,229.0,308.03
+PRD-0667,Esdec Facade 324,Structures et Fixations,Facade,Esdec,141.99,184.86
+PRD-0668,Esdec Toiture 642,Structures et Fixations,Toiture,Esdec,65.84,93.94
+PRD-0669,Schletter Tracker 772,Structures et Fixations,Tracker,Schletter,616.57,780.48
+PRD-0670,Esdec Sol 854,Structures et Fixations,Sol,Esdec,324.59,450.27
+PRD-0671,Schletter Toiture 497,Structures et Fixations,Toiture,Schletter,338.07,481.77
+PRD-0672,Schletter Tracker 925,Structures et Fixations,Tracker,Schletter,134.88,182.08
+PRD-0673,K2 Systems Tracker 681,Structures et Fixations,Tracker,K2 Systems,441.76,577.59
+PRD-0674,Schletter Sol 604,Structures et Fixations,Sol,Schletter,487.11,677.52
+PRD-0675,Schletter Tracker 338,Structures et Fixations,Tracker,Schletter,330.49,417.83
+PRD-0676,K2 Systems Sol 728,Structures et Fixations,Sol,K2 Systems,355.84,444.84
+PRD-0677,Schletter Sol 921,Structures et Fixations,Sol,Schletter,239.03,305.57
+PRD-0678,K2 Systems Tracker 245,Structures et Fixations,Tracker,K2 Systems,49.25,66.43
+PRD-0679,Esdec Toiture 778,Structures et Fixations,Toiture,Esdec,587.55,770.42
+PRD-0680,K2 Systems Facade 261,Structures et Fixations,Facade,K2 Systems,232.18,302.42
+PRD-0681,Mounting Systems Facade 675,Structures et Fixations,Facade,Mounting Systems,420.16,536.89
+PRD-0682,Schletter Tracker 487,Structures et Fixations,Tracker,Schletter,394.59,549.15
+PRD-0683,Esdec Tracker 818,Structures et Fixations,Tracker,Esdec,105.8,145.51
+PRD-0684,K2 Systems Facade 928,Structures et Fixations,Facade,K2 Systems,143.31,186.56
+PRD-0685,K2 Systems Sol 863,Structures et Fixations,Sol,K2 Systems,591.43,752.52
+PRD-0686,Schletter Toiture 751,Structures et Fixations,Toiture,Schletter,238.18,310.11
+PRD-0687,Esdec Toiture 355,Structures et Fixations,Toiture,Esdec,297.77,384.97
+PRD-0688,Esdec Toiture 101,Structures et Fixations,Toiture,Esdec,191.37,242.49
+PRD-0689,Mounting Systems Toiture 270,Structures et Fixations,Toiture,Mounting Systems,287.04,378.67
+PRD-0690,Mounting Systems Facade 484,Structures et Fixations,Facade,Mounting Systems,544.08,711.33
+PRD-0691,Mounting Systems Toiture 876,Structures et Fixations,Toiture,Mounting Systems,476.15,641.55
+PRD-0692,Schletter Sol 134,Structures et Fixations,Sol,Schletter,279.73,388.47
+PRD-0693,K2 Systems Tracker 175,Structures et Fixations,Tracker,K2 Systems,203.73,289.04
+PRD-0694,Schletter Tracker 176,Structures et Fixations,Tracker,Schletter,561.24,715.95
+PRD-0695,Esdec Toiture 594,Structures et Fixations,Toiture,Esdec,366.01,495.52
+PRD-0696,Mounting Systems Toiture 544,Structures et Fixations,Toiture,Mounting Systems,592.98,756.83
+PRD-0697,K2 Systems Sol 294,Structures et Fixations,Sol,K2 Systems,98.16,125.94
+PRD-0698,Esdec Facade 198,Structures et Fixations,Facade,Esdec,420.14,545.45
+PRD-0699,Mounting Systems Toiture 257,Structures et Fixations,Toiture,Mounting Systems,342.85,478.83
+PRD-0700,Esdec Toiture 943,Structures et Fixations,Toiture,Esdec,41.82,52.86
+PRD-0701,Meteocontrol Capteur 753,Monitoring et Smart,Capteur,Meteocontrol,187.23,284.28
+PRD-0702,Solar-Log Logiciel SCADA 903,Monitoring et Smart,Logiciel SCADA,Solar-Log,676.75,999.78
+PRD-0703,Fronius Capteur 193,Monitoring et Smart,Capteur,Fronius,584.42,1029.28
+PRD-0704,Meteocontrol Capteur 291,Monitoring et Smart,Capteur,Meteocontrol,502.05,804.94
+PRD-0705,Solar-Log Capteur 331,Monitoring et Smart,Capteur,Solar-Log,364.35,600.26
+PRD-0706,Solar-Log Logiciel SCADA 199,Monitoring et Smart,Logiciel SCADA,Solar-Log,217.08,387.15
+PRD-0707,SolarEdge Compteur intelligent 874,Monitoring et Smart,Compteur intelligent,SolarEdge,1009.46,1635.54
+PRD-0708,Solar-Log Passerelle IoT 528,Monitoring et Smart,Passerelle IoT,Solar-Log,910.41,1697.51
+PRD-0709,Meteocontrol Capteur 974,Monitoring et Smart,Capteur,Meteocontrol,687.56,1004.9
+PRD-0710,Meteocontrol Compteur intelligent 277,Monitoring et Smart,Compteur intelligent,Meteocontrol,180.22,328.54
+PRD-0711,Meteocontrol Passerelle IoT 533,Monitoring et Smart,Passerelle IoT,Meteocontrol,1103.97,1636.08
+PRD-0712,Fronius Compteur intelligent 251,Monitoring et Smart,Compteur intelligent,Fronius,258.99,483.65
+PRD-0713,SolarEdge Logiciel SCADA 168,Monitoring et Smart,Logiciel SCADA,SolarEdge,946.69,1830.53
+PRD-0714,Fronius Compteur intelligent 977,Monitoring et Smart,Compteur intelligent,Fronius,682.21,1157.09
+PRD-0715,Fronius Logiciel SCADA 817,Monitoring et Smart,Logiciel SCADA,Fronius,1285.27,1842.61
+PRD-0716,Solar-Log Capteur 702,Monitoring et Smart,Capteur,Solar-Log,594.9,887.44
+PRD-0717,Solar-Log Compteur intelligent 392,Monitoring et Smart,Compteur intelligent,Solar-Log,794.76,1169.1
+PRD-0718,Fronius Logiciel SCADA 685,Monitoring et Smart,Logiciel SCADA,Fronius,342.48,601.86
+PRD-0719,Solar-Log Capteur 733,Monitoring et Smart,Capteur,Solar-Log,264.6,427.18
+PRD-0720,Solar-Log Capteur 807,Monitoring et Smart,Capteur,Solar-Log,446.63,852.01
+PRD-0721,Solar-Log Passerelle IoT 481,Monitoring et Smart,Passerelle IoT,Solar-Log,782.48,1516.92
+PRD-0722,SolarEdge Compteur intelligent 387,Monitoring et Smart,Compteur intelligent,SolarEdge,1056.93,1653.03
+PRD-0723,Solar-Log Capteur 407,Monitoring et Smart,Capteur,Solar-Log,1274.62,1947.74
+PRD-0724,SolarEdge Capteur 761,Monitoring et Smart,Capteur,SolarEdge,377.33,611.9
+PRD-0725,Meteocontrol Compteur intelligent 516,Monitoring et Smart,Compteur intelligent,Meteocontrol,485.89,939.26
+PRD-0726,SolarEdge Capteur 262,Monitoring et Smart,Capteur,SolarEdge,990.89,1659.93
+PRD-0727,SolarEdge Compteur intelligent 899,Monitoring et Smart,Compteur intelligent,SolarEdge,896.89,1448.18
+PRD-0728,Meteocontrol Compteur intelligent 957,Monitoring et Smart,Compteur intelligent,Meteocontrol,248.7,466.25
+PRD-0729,Meteocontrol Compteur intelligent 469,Monitoring et Smart,Compteur intelligent,Meteocontrol,112.33,162.83
+PRD-0730,SolarEdge Passerelle IoT 506,Monitoring et Smart,Passerelle IoT,SolarEdge,485.65,799.87
+PRD-0731,Solar-Log Compteur intelligent 556,Monitoring et Smart,Compteur intelligent,Solar-Log,337.06,559.68
+PRD-0732,Fronius Passerelle IoT 267,Monitoring et Smart,Passerelle IoT,Fronius,765.55,1215.07
+PRD-0733,Solar-Log Logiciel SCADA 266,Monitoring et Smart,Logiciel SCADA,Solar-Log,399.53,641.63
+PRD-0734,Meteocontrol Passerelle IoT 375,Monitoring et Smart,Passerelle IoT,Meteocontrol,750.74,1330.02
+PRD-0735,Solar-Log Capteur 798,Monitoring et Smart,Capteur,Solar-Log,882.85,1742.8
+PRD-0736,Fronius Compteur intelligent 715,Monitoring et Smart,Compteur intelligent,Fronius,1045.13,1831.88
+PRD-0737,Meteocontrol Compteur intelligent 412,Monitoring et Smart,Compteur intelligent,Meteocontrol,312.36,579.54
+PRD-0738,Fronius Logiciel SCADA 570,Monitoring et Smart,Logiciel SCADA,Fronius,954.18,1801.42
+PRD-0739,Meteocontrol Logiciel SCADA 944,Monitoring et Smart,Logiciel SCADA,Meteocontrol,557.07,986.73
+PRD-0740,Solar-Log Capteur 963,Monitoring et Smart,Capteur,Solar-Log,56.99,113.96
+PRD-0741,SolarEdge Logiciel SCADA 165,Monitoring et Smart,Logiciel SCADA,SolarEdge,452.55,667.1
+PRD-0742,SolarEdge Logiciel SCADA 367,Monitoring et Smart,Logiciel SCADA,SolarEdge,695.05,1317.13
+PRD-0743,Meteocontrol Logiciel SCADA 158,Monitoring et Smart,Logiciel SCADA,Meteocontrol,210.49,384.87
+PRD-0744,SolarEdge Capteur 771,Monitoring et Smart,Capteur,SolarEdge,774.4,1393.44
+PRD-0745,SolarEdge Capteur 497,Monitoring et Smart,Capteur,SolarEdge,365.4,592.91
+PRD-0746,Meteocontrol Compteur intelligent 802,Monitoring et Smart,Compteur intelligent,Meteocontrol,419.12,752.02
+PRD-0747,SolarEdge Capteur 960,Monitoring et Smart,Capteur,SolarEdge,564.84,1063.9
+PRD-0748,SolarEdge Passerelle IoT 364,Monitoring et Smart,Passerelle IoT,SolarEdge,192.51,285.45
+PRD-0749,SolarEdge Passerelle IoT 328,Monitoring et Smart,Passerelle IoT,SolarEdge,880.68,1343.43
+PRD-0750,Fronius Logiciel SCADA 366,Monitoring et Smart,Logiciel SCADA,Fronius,1012.31,1597.37
+PRD-0751,Fronius Logiciel SCADA 987,Monitoring et Smart,Logiciel SCADA,Fronius,1040.51,1717.31
+PRD-0752,Fronius Compteur intelligent 988,Monitoring et Smart,Compteur intelligent,Fronius,1073.78,1789.91
+PRD-0753,SolarEdge Capteur 254,Monitoring et Smart,Capteur,SolarEdge,465.31,884.9
+PRD-0754,Meteocontrol Passerelle IoT 568,Monitoring et Smart,Passerelle IoT,Meteocontrol,377.46,751.07
+PRD-0755,SolarEdge Passerelle IoT 182,Monitoring et Smart,Passerelle IoT,SolarEdge,1154.27,1738.55
+PRD-0756,SolarEdge Capteur 749,Monitoring et Smart,Capteur,SolarEdge,863.33,1298.96
+PRD-0757,Solar-Log Compteur intelligent 892,Monitoring et Smart,Compteur intelligent,Solar-Log,631.07,958.9
+PRD-0758,Meteocontrol Passerelle IoT 190,Monitoring et Smart,Passerelle IoT,Meteocontrol,563.81,1030.2
+PRD-0759,Fronius Passerelle IoT 588,Monitoring et Smart,Passerelle IoT,Fronius,807.37,1303.63
+PRD-0760,Solar-Log Capteur 482,Monitoring et Smart,Capteur,Solar-Log,113.33,171.68
+PRD-0761,SolarEdge Compteur intelligent 118,Monitoring et Smart,Compteur intelligent,SolarEdge,913.26,1538.01
+PRD-0762,Meteocontrol Compteur intelligent 419,Monitoring et Smart,Compteur intelligent,Meteocontrol,277.99,529.9
+PRD-0763,Solar-Log Passerelle IoT 271,Monitoring et Smart,Passerelle IoT,Solar-Log,482.55,828.75
+PRD-0764,Solar-Log Compteur intelligent 845,Monitoring et Smart,Compteur intelligent,Solar-Log,427.83,666.58
+PRD-0765,Fronius Logiciel SCADA 450,Monitoring et Smart,Logiciel SCADA,Fronius,895.19,1787.15
+PRD-0766,SolarEdge Capteur 931,Monitoring et Smart,Capteur,SolarEdge,1017.36,1525.22
+PRD-0767,Solar-Log Capteur 234,Monitoring et Smart,Capteur,Solar-Log,296.13,533.99
+PRD-0768,Solar-Log Passerelle IoT 475,Monitoring et Smart,Passerelle IoT,Solar-Log,813.05,1220.42
+PRD-0769,Fronius Compteur intelligent 647,Monitoring et Smart,Compteur intelligent,Fronius,1145.49,1765.43
+PRD-0770,Solar-Log Compteur intelligent 120,Monitoring et Smart,Compteur intelligent,Solar-Log,772.94,1357.74
+PRD-0771,Solar-Log Compteur intelligent 660,Monitoring et Smart,Compteur intelligent,Solar-Log,556.48,891.87
+PRD-0772,Fronius Logiciel SCADA 802,Monitoring et Smart,Logiciel SCADA,Fronius,944.57,1433.55
+PRD-0773,SolarEdge Compteur intelligent 632,Monitoring et Smart,Compteur intelligent,SolarEdge,611.59,899.66
+PRD-0774,Meteocontrol Logiciel SCADA 623,Monitoring et Smart,Logiciel SCADA,Meteocontrol,466.05,895.77
+PRD-0775,SolarEdge Compteur intelligent 303,Monitoring et Smart,Compteur intelligent,SolarEdge,214.9,316.62
+PRD-0776,SolarEdge Passerelle IoT 466,Monitoring et Smart,Passerelle IoT,SolarEdge,848.96,1679.85
+PRD-0777,SolarEdge Capteur 312,Monitoring et Smart,Capteur,SolarEdge,238.93,404.71
+PRD-0778,SolarEdge Capteur 191,Monitoring et Smart,Capteur,SolarEdge,380.5,545.56
+PRD-0779,Fronius Compteur intelligent 623,Monitoring et Smart,Compteur intelligent,Fronius,261.45,383.37
+PRD-0780,Solar-Log Compteur intelligent 567,Monitoring et Smart,Compteur intelligent,Solar-Log,1038.94,1819.08
+PRD-0781,SolarEdge Logiciel SCADA 278,Monitoring et Smart,Logiciel SCADA,SolarEdge,667.89,982.13
+PRD-0782,SolarEdge Compteur intelligent 536,Monitoring et Smart,Compteur intelligent,SolarEdge,442.91,784.41
+PRD-0783,Solar-Log Compteur intelligent 109,Monitoring et Smart,Compteur intelligent,Solar-Log,896.37,1717.37
+PRD-0784,Meteocontrol Passerelle IoT 736,Monitoring et Smart,Passerelle IoT,Meteocontrol,377.51,724.46
+PRD-0785,Solar-Log Logiciel SCADA 216,Monitoring et Smart,Logiciel SCADA,Solar-Log,510.2,807.98
+PRD-0786,Fronius Capteur 494,Monitoring et Smart,Capteur,Fronius,1245.03,1928.39
+PRD-0787,Fronius Capteur 215,Monitoring et Smart,Capteur,Fronius,720.54,1332.81
+PRD-0788,Solar-Log Passerelle IoT 206,Monitoring et Smart,Passerelle IoT,Solar-Log,1043.66,1964.98
+PRD-0789,Fronius Capteur 285,Monitoring et Smart,Capteur,Fronius,916.63,1624.3
+PRD-0790,SolarEdge Capteur 958,Monitoring et Smart,Capteur,SolarEdge,665.46,1261.58
+PRD-0791,Fronius Passerelle IoT 521,Monitoring et Smart,Passerelle IoT,Fronius,1252.37,1848.76
+PRD-0792,Solar-Log Capteur 112,Monitoring et Smart,Capteur,Solar-Log,125.37,220.34
+PRD-0793,SolarEdge Passerelle IoT 733,Monitoring et Smart,Passerelle IoT,SolarEdge,610.88,1086.29
+PRD-0794,Fronius Compteur intelligent 454,Monitoring et Smart,Compteur intelligent,Fronius,882.61,1357.26
+PRD-0795,Meteocontrol Capteur 727,Monitoring et Smart,Capteur,Meteocontrol,996.73,1694.16
+PRD-0796,Solar-Log Compteur intelligent 969,Monitoring et Smart,Compteur intelligent,Solar-Log,884.22,1322.46
+PRD-0797,Fronius Capteur 603,Monitoring et Smart,Capteur,Fronius,1200.09,1751.89
+PRD-0798,Meteocontrol Logiciel SCADA 619,Monitoring et Smart,Logiciel SCADA,Meteocontrol,469.55,728.7
+PRD-0799,Fronius Passerelle IoT 570,Monitoring et Smart,Passerelle IoT,Fronius,565.65,866.23
+PRD-0800,Fronius Capteur 423,Monitoring et Smart,Capteur,Fronius,160.43,267.24
