@@ -1,0 +1,181 @@
+Voici un **compte rendu structuré et exploitable** de notre échange, conçu pour servir de **référence de travail stable** pendant le débogage de votre atelier Microsoft Fabric — même si la conversation devient longue.
+
+---
+
+# Compte rendu — Stratégie de débogage atelier Microsoft Fabric avec agents IA
+
+## Objectif global 🎯
+
+Mettre en place un **workflow agentique efficace** pour corriger et maintenir un atelier Microsoft Fabric en sandbox formateur, malgré l’indisponibilité temporaire de Codex.
+
+---
+
+# Constat initial
+
+Vous avez identifié que :
+
+* Claude Code = terminal uniquement ❌
+* Claude web/app = génératif mais pas agentique ❌
+* Codex = très efficace mais temporairement indisponible ⏳
+* besoin réel = agent capable d’analyser **captures écran Fabric + logique atelier**
+
+Conclusion : il faut une **approche hybride multi-agents**.
+
+---
+
+# Solution retenue ✅
+
+Workflow validé :
+
+1️⃣ Détection anomalie dans Fabric
+2️⃣ Capture écran
+3️⃣ Analyse ici
+4️⃣ Proposition correction
+5️⃣ Test réel dans Fabric
+6️⃣ Génération TAF modification atelier
+7️⃣ Passage à Claude Code pour appliquer corrections
+
+➡️ équivalent pratique d’un **agent composite type Codex**
+
+---
+
+# Rôle des outils disponibles
+
+### ChatGPT Pro
+
+Analyse optimale pour :
+
+* erreurs UI Fabric
+* workspace / domaines
+* sécurité / gouvernance
+* semantic model
+* Lakehouse
+* pipelines Data Factory
+* monitoring
+
+---
+
+### Claude Pro
+
+Plus adapté pour :
+
+* notebooks Spark
+* SQL
+* KQL
+* transformations Dataflow
+* scripts techniques
+
+---
+
+### Claude Code
+
+Utilisé uniquement pour :
+
+* modifier sandbox atelier
+* corriger scripts
+* ajuster JSON pipeline
+* adapter notebooks
+* restructurer instructions pédagogiques
+
+---
+
+# Workflow opérationnel recommandé 🔁
+
+Procédure standard à suivre désormais :
+
+### Étape 1
+
+Vous détectez une anomalie
+
+### Étape 2
+
+Vous envoyez capture écran + contexte
+
+### Étape 3
+
+Je fournis :
+
+* diagnostic probable
+* hypothèses alternatives
+* correction minimale
+* correction durable
+* impact pédagogique atelier
+
+### Étape 4
+
+Vous testez correction minimale
+
+### Étape 5
+
+Validation terrain
+
+### Étape 6
+
+Je génère un TAF structuré :
+
+Contenu typique :
+
+* contexte
+* problème
+* cause
+* correction validée
+* modification atelier
+* nouvelle version étape pédagogique
+
+### Étape 7
+
+Claude Code applique la modification sandbox
+
+---
+
+# Pourquoi cette approche fonctionne très bien pour Fabric 🧠
+
+Fabric combine :
+
+* interface Azure
+* Spark runtime
+* SQL analytics
+* pipelines orchestration
+* sécurité workspace
+* gouvernance domaine
+* Git integration
+* semantic models
+
+Aucun agent unique actuel ne couvre parfaitement tout cela.
+
+Votre méthode crée un **pipeline d’assistance technique agentique distribué**.
+
+---
+
+# Stratégie provisoire en attendant Codex 🛠️
+
+Stack recommandée :
+
+captures écran Fabric
+→ ChatGPT (diagnostic architecture / UI / sécurité)
+→ Claude Pro (notebook / SQL / pipeline logique)
+→ Claude Code (correction sandbox atelier)
+
+Couverture estimée :
+
+≈ 80–90 % des incidents atelier Fabric
+
+---
+
+# Procédure standard à utiliser dès maintenant 📌
+
+À chaque anomalie, envoyer :
+
+capture écran
+objet concerné
+action réalisée
+résultat attendu
+résultat obtenu
+
+Puis je fournis directement :
+
+diagnostic → correction → TAF prêt pour Claude Code
+
+---
+
+Vous pouvez considérer ce workflow comme votre **mode opératoire officiel de maintenance d’atelier Fabric jusqu’au retour de Codex**.
