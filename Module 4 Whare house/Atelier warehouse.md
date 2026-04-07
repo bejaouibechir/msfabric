@@ -2,7 +2,7 @@
 
 ## Contexte:
 
-EnergiDistrib Europe distribue des équipements énergétiques (panneaux solaires, onduleurs, batteries, câbles) à 2 500 clients professionnels dans 6 pays de l'UE. Le directeur commercial veut un tableau de bord hebdomadaire qui lui prend aujourd'hui 2 jours à construire manuellement.
+**EnergiDistrib** Europe distribue des équipements énergétiques (panneaux solaires, onduleurs, batteries, câbles) à **2 500 clients professionnels dans 6 pays de l'UE**. Le directeur commercial veut un tableau de bord hebdomadaire <u>qui lui prend aujourd'hui 2 jours à construire manuellement.</u>
 
 ## Problematique:
 
@@ -26,7 +26,7 @@ Rapport Power BI (3 pages, étape par étape)
 
 ---
 
-# PARTIE 1 — MATIN (9h00 – 12h00)
+# PARTIE 1
 
 ---
 
@@ -76,15 +76,28 @@ Les fichiers CSV suivants sont fournis (générés par le script en annexe). Té
 
 ```python
 # === CELLULE 1 : Chargement Bronze ===
+#
+# OBJECTIF : Lire les 7 fichiers CSV depuis le stockage du Lakehouse (Files/)
+#            et les écrire en tables Delta — c'est la couche Bronze.
+#
+# Principe Bronze : on ne touche pas aux données. On ingère brut.
+# Le format Delta (Parquet + transaction log) permet les lectures SQL
+# ultérieures depuis le Warehouse via cross-database query.
+#
+# "header=True"      → la 1ère ligne du CSV est l'en-tête de colonne
+# "inferSchema=True" → Spark détecte automatiquement les types (INT, DATE, etc.)
+#                      Attention : peut être lent sur de gros fichiers ; en prod
+#                      on préfère un schéma explicite avec StructType.
+# "mode=overwrite"   → remplace la table si elle existe déjà (idempotent)
 
 tables_csv = {
-    "bronze_orders": "Files/orders.csv",
-    "bronze_order_lines": "Files/order_lines.csv",
-    "bronze_customers": "Files/customers.csv",
-    "bronze_products": "Files/products.csv",
-    "bronze_warehouses": "Files/warehouses.csv",
-    "bronze_sales_reps": "Files/sales_reps.csv",
-    "bronze_stock_levels": "Files/stock_levels.csv",
+    "bronze_orders":       "Files/orders.csv",        # 113 215 commandes
+    "bronze_order_lines":  "Files/order_lines.csv",   # 283 097 lignes de commande
+    "bronze_customers":    "Files/customers.csv",     # 2 500 clients
+    "bronze_products":     "Files/products.csv",      # 800 produits
+    "bronze_warehouses":   "Files/warehouses.csv",    # 12 entrepôts
+    "bronze_sales_reps":   "Files/sales_reps.csv",    # 60 vendeurs
+    "bronze_stock_levels": "Files/stock_levels.csv",  # 128 800 niveaux de stock
 }
 
 for table_name, path in tables_csv.items():
@@ -92,6 +105,8 @@ for table_name, path in tables_csv.items():
         .option("header", True)
         .option("inferSchema", True)
         .csv(path))
+    # saveAsTable écrit dans le Lakehouse en format Delta
+    # La table est accessible via SQL (SELECT * FROM bronze_orders)
     df.write.mode("overwrite").format("delta").saveAsTable(table_name)
     print(f"{table_name}: {df.count():,} lignes, {len(df.columns)} colonnes")
 
@@ -104,16 +119,31 @@ print("\nToutes les tables Bronze sont chargees.")
 
 ```python
 # === CELLULE 2 : Diagnostic qualite ===
+#
+# OBJECTIF : Scanner les tables Bronze pour identifier deux types de problèmes
+#            avant de commencer le nettoyage :
+#            1. Valeurs NULL dans des colonnes qui ne devraient pas en avoir
+#            2. Doublons sur les clés primaires (signe de données corrompues ou dupliquées)
+#
+# Bonne pratique : toujours diagnostiquer AVANT de nettoyer.
+# On ne peut pas corriger ce qu'on n'a pas mesuré.
+#
+# Note : spark.table("nom") charge une table Delta enregistrée dans le Lakehouse.
+#        C'est équivalent à spark.read.format("delta").load("chemin/vers/table")
+#        mais plus simple car le Lakehouse gère les chemins.
 
 from pyspark.sql import functions as F
 
-# Redeclaration des noms de tables (independance vis-a-vis de la Cellule 1)
+# Redéclaration des noms de tables (indépendance vis-à-vis de la Cellule 1)
+# → permet d'exécuter cette cellule seule sans avoir à réexécuter la Cellule 1
 tables_bronze = [
     "bronze_orders", "bronze_order_lines", "bronze_customers",
     "bronze_products", "bronze_warehouses", "bronze_sales_reps", "bronze_stock_levels"
 ]
 
-# Verifier les nulls sur chaque table
+# --- Vérification 1 : Valeurs NULL colonne par colonne ---
+# Pour chaque table, on compte les nulls dans chaque colonne.
+# df.filter(F.col(col_name).isNull()).count() = nombre de lignes où la colonne est null
 for table_name in tables_bronze:
     df = spark.table(table_name)
     null_counts = []
@@ -128,14 +158,20 @@ for table_name in tables_bronze:
     else:
         print(f"{table_name} — OK (aucun null)")
 
-# Verifier les doublons sur les cles primaires
+# --- Vérification 2 : Doublons sur les clés primaires ---
+# Logique : si total_lignes != lignes_distinctes sur la PK → il y a des doublons
+# On vérifie uniquement les tables avec une clé primaire connue.
 print("\n--- Doublons ---")
-for table_name, pk in [("bronze_orders", "order_id"), ("bronze_customers", "customer_id"),
-                        ("bronze_products", "product_id"), ("bronze_sales_reps", "rep_id")]:
+for table_name, pk in [
+    ("bronze_orders",    "order_id"),
+    ("bronze_customers", "customer_id"),
+    ("bronze_products",  "product_id"),
+    ("bronze_sales_reps","rep_id")
+]:
     df = spark.table(table_name)
-    total = df.count()
+    total    = df.count()
     distinct = df.select(pk).distinct().count()
-    dupes = total - distinct
+    dupes    = total - distinct
     print(f"{table_name}.{pk}: {dupes} doublons" + (" ⚠️" if dupes > 0 else " ✅"))
 ```
 
@@ -145,46 +181,83 @@ for table_name, pk in [("bronze_orders", "order_id"), ("bronze_customers", "cust
 
 ```python
 # === CELLULE 3 : Nettoyage donnees ===
+#
+# OBJECTIF : Transformer les tables Bronze en tables Silver.
+#            La couche Silver = données propres, standardisées, enrichies.
+#            On ne supprime pas de lignes (sauf erreurs graves) — on corrige
+#            et on enrichit avec des colonnes calculées.
+#
+# Pattern PySpark utilisé : transformation en chaîne avec .withColumn()
+# Chaque .withColumn(nom, expression) ajoute ou remplace une colonne.
+# Le résultat est un nouveau DataFrame (immutabilité PySpark).
 
-# --- Clients : standardiser les pays et nettoyer les noms ---
+# -------------------------------------------------------
+# CLIENTS : Standardisation pays + nettoyage noms + nulls
+# -------------------------------------------------------
 df_customers = spark.table("bronze_customers")
+
 df_customers_clean = (df_customers
-    # Standardiser les codes pays
+
+    # Problème : la colonne "country" contient des valeurs hétérogènes
+    # selon les filiales (ex: "France", "FR", "FRANCE", "france")
+    # Solution : normaliser vers un code ISO 2 lettres via F.when / .isin()
+    # F.upper() rend la comparaison insensible à la casse
     .withColumn("country_code",
-        F.when(F.upper(F.col("country")).isin(["FRANCE", "FR"]), "FR")
+        F.when(F.upper(F.col("country")).isin(["FRANCE", "FR"]),             "FR")
         .when(F.upper(F.col("country")).isin(["GERMANY", "ALLEMAGNE", "DE"]), "DE")
-        .when(F.upper(F.col("country")).isin(["SPAIN", "ESPAGNE", "ES"]), "ES")
-        .when(F.upper(F.col("country")).isin(["ITALY", "ITALIE", "IT"]), "IT")
-        .when(F.upper(F.col("country")).isin(["BELGIUM", "BELGIQUE", "BE"]), "BE")
+        .when(F.upper(F.col("country")).isin(["SPAIN", "ESPAGNE", "ES"]),     "ES")
+        .when(F.upper(F.col("country")).isin(["ITALY", "ITALIE", "IT"]),      "IT")
+        .when(F.upper(F.col("country")).isin(["BELGIUM", "BELGIQUE", "BE"]),  "BE")
         .when(F.upper(F.col("country")).isin(["NETHERLANDS", "PAYS-BAS", "NL"]), "NL")
-        .otherwise(F.upper(F.col("country"))))
-    # Nettoyer les noms (trim + title case)
+        .otherwise(F.upper(F.col("country"))))   # Fallback : garder en majuscules
+
+    # F.trim() supprime les espaces en début/fin de chaîne
+    # F.initcap() met en Title Case (1ère lettre de chaque mot en majuscule)
+    # Exemple : "  solartech europe " → "Solartech Europe"
     .withColumn("company_name", F.initcap(F.trim(F.col("company_name"))))
-    # Remplir les adresses nulles
+
+    # F.coalesce(a, b) retourne a si a n'est pas NULL, sinon b
+    # Remplace les NULLs par une valeur par défaut lisible
     .withColumn("address", F.coalesce(F.col("address"), F.lit("Adresse non renseignee")))
-    .withColumn("city", F.coalesce(F.col("city"), F.lit("Ville non renseignee")))
+    .withColumn("city",    F.coalesce(F.col("city"),    F.lit("Ville non renseignee")))
 )
+
 df_customers_clean.write.mode("overwrite").format("delta").saveAsTable("silver_customers")
 print(f"silver_customers: {df_customers_clean.count():,} lignes")
 
-# --- Produits : categoriser et valider les prix ---
+
+# -------------------------------------------------------
+# PRODUITS : Validation des prix + marge calculée + segment
+# -------------------------------------------------------
 df_products = spark.table("bronze_products")
+
 df_products_clean = (df_products
+
+    # Invalider les prix négatifs ou nuls (erreurs de saisie)
+    # → remplacés par NULL pour ne pas fausser les calculs de marge
     .withColumn("unit_cost_eur",
         F.when(F.col("unit_cost_eur") <= 0, None).otherwise(F.col("unit_cost_eur")))
     .withColumn("list_price_eur",
         F.when(F.col("list_price_eur") <= 0, None).otherwise(F.col("list_price_eur")))
+
+    # Calculer le % de marge : (prix_vente - coût) / prix_vente * 100
+    # F.round(..., 1) arrondit à 1 décimale
+    # NULL si le prix de vente est 0 ou NULL (évite la division par zéro)
     .withColumn("margin_pct",
         F.when(F.col("list_price_eur") > 0,
                F.round((F.col("list_price_eur") - F.col("unit_cost_eur"))
                        / F.col("list_price_eur") * 100, 1))
         .otherwise(None))
+
+    # Segmentation tarifaire pour le rapport Power BI (axe de filtrage)
+    # Seuils définis métier : > 5000€ = Premium, > 1000€ = Mid-range, etc.
     .withColumn("price_segment",
         F.when(F.col("list_price_eur") > 5000, "Premium")
-        .when(F.col("list_price_eur") > 1000, "Mid-range")
-        .when(F.col("list_price_eur") > 100, "Standard")
+        .when(F.col("list_price_eur") > 1000,  "Mid-range")
+        .when(F.col("list_price_eur") > 100,   "Standard")
         .otherwise("Accessoire"))
 )
+
 df_products_clean.write.mode("overwrite").format("delta").saveAsTable("silver_products")
 print(f"silver_products: {df_products_clean.count():,} lignes")
 ```
@@ -193,39 +266,82 @@ print(f"silver_products: {df_products_clean.count():,} lignes")
 
 ```python
 # === CELLULE 4 : Nettoyage commandes et lignes ===
+#
+# OBJECTIF : Enrichir les deux tables transactionnelles principales :
+#   - bronze_orders → silver_orders  (en-tête de commande)
+#   - bronze_order_lines → silver_order_lines  (détail produit/montants)
+#
+# Pour les commandes : on calcule des colonnes temporelles utiles au rapport
+# Pour les lignes : on calcule les montants dérivés (CA, coût, marge)
+# Ces montants précalculés évitent des calculs répétés dans DAX (performance).
 
-# --- Commandes : convertir les dates et enrichir ---
+# -------------------------------------------------------
+# COMMANDES : Conversion dates + colonnes temporelles
+# -------------------------------------------------------
 df_orders = spark.table("bronze_orders")
+
 df_orders_clean = (df_orders
+
+    # F.to_date() convertit une chaîne "2025-04-15" en type Date Spark
+    # Sans cette conversion, les fonctions date (year, month...) ne fonctionnent pas
     .withColumn("order_date", F.to_date("order_date"))
-    .withColumn("ship_date", F.to_date("ship_date"))
+    .withColumn("ship_date",  F.to_date("ship_date"))
+
+    # Délai de livraison en jours : ship_date - order_date
+    # F.datediff(fin, debut) retourne un entier (peut être négatif si ship < order → erreur données)
     .withColumn("delivery_lead_days",
         F.datediff(F.col("ship_date"), F.col("order_date")))
-    .withColumn("order_year", F.year("order_date"))
-    .withColumn("order_month", F.month("order_date"))
-    .withColumn("order_quarter", F.quarter("order_date"))
+
+    # Colonnes temporelles extraites de order_date
+    # Utiles pour les agrégations dans le Dataflow Gen2 et le rapport Power BI
+    .withColumn("order_year",    F.year("order_date"))
+    .withColumn("order_month",   F.month("order_date"))       # 1 à 12
+    .withColumn("order_quarter", F.quarter("order_date"))     # 1 à 4
+
+    # Flag de retard : livraison > 7 jours = considérée comme tardive
+    # BooleanType dans Spark → s'affiche comme true/false en Delta
     .withColumn("is_late",
         F.when(F.col("delivery_lead_days") > 7, True).otherwise(False))
 )
+
 df_orders_clean.write.mode("overwrite").format("delta").saveAsTable("silver_orders")
 print(f"silver_orders: {df_orders_clean.count():,} lignes")
 
-# --- Lignes de commande : calculer les montants ---
+
+# -------------------------------------------------------
+# LIGNES DE COMMANDE : Calcul des montants
+# -------------------------------------------------------
 df_lines = spark.table("bronze_order_lines")
+
 df_lines_clean = (df_lines
+
+    # CA de la ligne = quantité × prix unitaire de vente
+    # F.round(..., 2) arrondit à 2 décimales (centimes)
     .withColumn("line_total_eur",
         F.round(F.col("quantity") * F.col("unit_price_eur"), 2))
+
+    # Coût de la ligne = quantité × coût unitaire d'achat
     .withColumn("line_cost_eur",
         F.round(F.col("quantity") * F.col("unit_cost_eur"), 2))
+
+    # Marge absolue = CA - Coût (peut être négative si vente à perte)
     .withColumn("line_margin_eur",
         F.round(F.col("line_total_eur") - F.col("line_cost_eur"), 2))
+
+    # Taux de marge = marge / CA × 100
+    # NULL si CA = 0 (évite la division par zéro)
+    # Valeur négative = vente en dessous du prix de revient
     .withColumn("line_margin_pct",
         F.when(F.col("line_total_eur") > 0,
                F.round(F.col("line_margin_eur") / F.col("line_total_eur") * 100, 1))
         .otherwise(None))
+
+    # Flag remise : True si un % de remise a été accordé (> 0)
+    # Permet de filtrer rapidement les lignes avec remise dans Power BI
     .withColumn("is_discount",
         F.when(F.col("discount_pct") > 0, True).otherwise(False))
 )
+
 df_lines_clean.write.mode("overwrite").format("delta").saveAsTable("silver_order_lines")
 print(f"silver_order_lines: {df_lines_clean.count():,} lignes")
 ```
@@ -236,6 +352,21 @@ print(f"silver_order_lines: {df_lines_clean.count():,} lignes")
 
 ```python
 # === CELLULE 5 : Detection anomalies de prix ===
+#
+# OBJECTIF : Identifier les lignes de commande vendues en dessous du coût
+#            de revient (marge négative). C'est un indicateur de "guerre des prix"
+#            ou d'erreur de saisie.
+#
+# Technique : spark.sql() permet d'écrire du SQL standard sur les tables Delta
+#             du Lakehouse. C'est plus lisible qu'enchaîner des transformations
+#             PySpark pour des requêtes analytiques complexes.
+#
+# Jointures utilisées :
+#   silver_order_lines (ol) → silver_orders (o) : relier la ligne à sa commande
+#   silver_orders → silver_products (p)           : retrouver le produit concerné
+#   silver_orders → bronze_sales_reps (sr)        : retrouver le vendeur responsable
+#
+# Filtre : line_margin_pct < 0 → prix de vente < coût de revient
 
 df_anomalies = spark.sql("""
     SELECT
@@ -243,23 +374,28 @@ df_anomalies = spark.sql("""
         ol.product_id,
         p.product_name,
         p.category,
-        ol.unit_price_eur AS prix_vente,
-        ol.unit_cost_eur AS cout_revient,
-        ol.line_margin_pct,
+        ol.unit_price_eur  AS prix_vente,
+        ol.unit_cost_eur   AS cout_revient,
+        ol.line_margin_pct,          -- Négatif = vente à perte
         o.rep_id,
         sr.rep_name,
         o.customer_id,
         o.order_date
     FROM silver_order_lines ol
-    JOIN silver_orders o ON ol.order_id = o.order_id
-    JOIN silver_products p ON ol.product_id = p.product_id
-    JOIN bronze_sales_reps sr ON o.rep_id = sr.rep_id
-    WHERE ol.line_margin_pct < 0
-    ORDER BY ol.line_margin_eur ASC
+    JOIN silver_orders      o  ON ol.order_id  = o.order_id
+    JOIN silver_products    p  ON ol.product_id = p.product_id
+    JOIN bronze_sales_reps  sr ON o.rep_id      = sr.rep_id
+    WHERE ol.line_margin_pct < 0          -- Filtre : uniquement les ventes à perte
+    ORDER BY ol.line_margin_eur ASC       -- Trié du pire au moins pire
 """)
 
 print(f"Lignes vendues a perte: {df_anomalies.count()}")
+
+# Grouper par vendeur : qui accorde le plus de remises sous le coût ?
+# F.desc("count") → tri décroissant pour voir les plus problématiques en premier
 df_anomalies.groupBy("rep_name").count().orderBy(F.desc("count")).show(10, truncate=False)
+
+# Grouper par catégorie : quelles familles de produits sont les plus touchées ?
 df_anomalies.groupBy("category").count().orderBy(F.desc("count")).show(10, truncate=False)
 ```
 
@@ -269,46 +405,77 @@ df_anomalies.groupBy("category").count().orderBy(F.desc("count")).show(10, trunc
 
 ```python
 # === CELLULE 6 : Segmentation clients RFM ===
+#
+# OBJECTIF : Segmenter les 2 500 clients selon 3 dimensions comportementales :
+#   R (Recency)   → Nombre de jours depuis la dernière commande
+#                   (petit = bon → client récemment actif)
+#   F (Frequency) → Nombre de commandes distinctes
+#                   (grand = bon → client régulier)
+#   M (Monetary)  → CA total généré
+#                   (grand = bon → client à fort enjeu financier)
+#
+# La segmentation RFM est une technique marketing standard pour prioriser
+# les actions commerciales (fidélisation, réactivation, up-sell, etc.)
+#
+# Technique : Window Functions (F.ntile) pour découper chaque dimension
+#             en 4 quartiles (rang 1 = meilleur, rang 4 = moins bon)
 
 from pyspark.sql.window import Window
 from pyspark.sql import functions as F
 
+# --- Étape 1 : Calculer les 3 métriques R, F, M par client ---
+# Référence temporelle fixe au 31/12/2025 (fin de période des données)
+# DATEDIFF('2025-12-31', MAX(order_date)) = jours depuis la dernière commande
 df_rfm = spark.sql("""
     SELECT
         o.customer_id,
-        DATEDIFF('2025-12-31', MAX(o.order_date)) AS recency_days,
-        COUNT(DISTINCT o.order_id) AS frequency,
-        ROUND(SUM(ol.line_total_eur), 2) AS monetary_eur
+        DATEDIFF('2025-12-31', MAX(o.order_date)) AS recency_days,   -- R : récence en jours
+        COUNT(DISTINCT o.order_id)                 AS frequency,      -- F : nb commandes
+        ROUND(SUM(ol.line_total_eur), 2)            AS monetary_eur   -- M : CA total
     FROM silver_orders o
     JOIN silver_order_lines ol ON o.order_id = ol.order_id
     GROUP BY o.customer_id
 """)
 
-# Scoring par quartiles
+# --- Étape 2 : Scorer chaque dimension par quartile (1 à 4) ---
+# F.ntile(4) divise les clients en 4 groupes de taille égale.
+# Pour R (recency_days) : trier ASC car moins de jours = plus récent = meilleur (rang 1)
+# Pour F et M : trier DESC car plus grand = meilleur (rang 1)
 for metric in ["recency_days", "frequency", "monetary_eur"]:
-    ascending = metric == "recency_days"  # Recency: plus petit = mieux
+    ascending = metric == "recency_days"   # True pour Recency, False pour F et M
     w = Window.orderBy(F.col(metric).asc() if ascending else F.col(metric).desc())
-    df_rfm = df_rfm.withColumn(f"{metric}_rank",
-        F.ntile(4).over(w))
+    df_rfm = df_rfm.withColumn(
+        f"{metric}_rank",
+        F.ntile(4).over(w)   # Rang 1 = meilleur quartile, Rang 4 = pire
+    )
 
-# Score global et segment
+# --- Étape 3 : Score global et segment ---
+# Score RFM = somme des 3 rangs (min=3 → triple VIP, max=12 → triple Dormant)
+# Les seuils de segmentation sont définis métier :
+#   ≤ 4 = VIP (top 25% sur les 3 dimensions)
+#   ≤ 7 = Fidèle
+#   ≤ 9 = Occasionnel
+#   > 9 = Dormant (à réactiver)
 df_rfm = (df_rfm
     .withColumn("rfm_score",
         F.col("recency_days_rank") + F.col("frequency_rank") + F.col("monetary_eur_rank"))
     .withColumn("customer_segment",
-        F.when(F.col("rfm_score") <= 4, "VIP")
-        .when(F.col("rfm_score") <= 7, "Fidele")
-        .when(F.col("rfm_score") <= 9, "Occasionnel")
+        F.when(F.col("rfm_score") <= 4,  "VIP")
+        .when(F.col("rfm_score") <= 7,   "Fidele")
+        .when(F.col("rfm_score") <= 9,   "Occasionnel")
         .otherwise("Dormant"))
 )
 
 df_rfm.write.mode("overwrite").format("delta").saveAsTable("silver_customer_rfm")
 
+# Résumé des 4 segments : nb clients, CA moyen, fréquence, score
+# F.count("*") = compter toutes les lignes du groupe (équivalent COUNT(*) en SQL)
+# F.avg() = moyenne arithmétique
 df_rfm.groupBy("customer_segment").agg(
     F.count("*").alias("nb_clients"),
     F.round(F.avg("monetary_eur"), 0).alias("ca_moyen_eur"),
-    F.round(F.avg("frequency"), 1).alias("freq_moyenne"),
-    F.round(F.avg("rfm_score"), 2).alias("rfm_score_moyen")
+    F.round(F.avg("frequency"),    1).alias("freq_moyenne"),
+    F.round(F.avg("rfm_score"),    2).alias("rfm_score_moyen")
 ).orderBy("rfm_score_moyen").show(truncate=False)
 ```
 
@@ -318,18 +485,47 @@ df_rfm.groupBy("customer_segment").agg(
 
 ```python
 # === CELLULE 7 : Analyse stock ===
+#
+# OBJECTIF : Transformer les niveaux de stock bruts en indicateurs d'alerte
+#            exploitables par la direction logistique.
+#
+# Source : bronze_stock_levels (128 800 lignes = 1 ligne par produit, entrepôt et date)
+# Destination : silver_stock_levels
+#
+# Colonnes calculées ajoutées :
+#   stock_value_eur  : valorisation du stock en euros (immobilisation de capital)
+#   stock_status     : catégorie d'alerte (4 niveaux)
+#   days_of_stock    : autonomie en jours avant rupture (à demande constante)
+#
+# Règles métier pour stock_status :
+#   RUPTURE_IMMINENTE : stock ≤ reorder_point  (seuil bas de réapprovisionnement)
+#   BAS               : stock ≤ reorder_point × 1.5  (zone de vigilance)
+#   SURSTOCK          : stock ≥ max_stock × 90%  (capital immobilisé)
+#   NORMAL            : tous les autres cas
 
 df_stock = spark.table("bronze_stock_levels")
 
 df_stock_analysis = (df_stock
+
+    # Conversion de la colonne stock_date (string → Date)
     .withColumn("stock_date", F.to_date("stock_date"))
+
+    # Valorisation : quantité en stock × coût unitaire
+    # Donne une vision financière du stock (capital immobilisé)
     .withColumn("stock_value_eur",
         F.round(F.col("quantity_on_hand") * F.col("unit_cost_eur"), 2))
+
+    # Classification du statut de stock (ordre des conditions important !)
+    # On teste les cas critiques en premier (rupture avant bas avant surstock)
     .withColumn("stock_status",
-        F.when(F.col("quantity_on_hand") <= F.col("reorder_point"), "RUPTURE_IMMINENTE")
-        .when(F.col("quantity_on_hand") <= F.col("reorder_point") * 1.5, "BAS")
-        .when(F.col("quantity_on_hand") >= F.col("max_stock") * 0.9, "SURSTOCK")
+        F.when(F.col("quantity_on_hand") <= F.col("reorder_point"),         "RUPTURE_IMMINENTE")
+        .when(F.col("quantity_on_hand") <= F.col("reorder_point") * 1.5,    "BAS")
+        .when(F.col("quantity_on_hand") >= F.col("max_stock") * 0.9,        "SURSTOCK")
         .otherwise("NORMAL"))
+
+    # Autonomie en jours : combien de jours avant rupture à la demande actuelle ?
+    # NULL si avg_daily_demand = 0 (évite la division par zéro)
+    # F.round(..., 0) → nombre entier de jours
     .withColumn("days_of_stock",
         F.when(F.col("avg_daily_demand") > 0,
                F.round(F.col("quantity_on_hand") / F.col("avg_daily_demand"), 0))
@@ -338,7 +534,9 @@ df_stock_analysis = (df_stock
 
 df_stock_analysis.write.mode("overwrite").format("delta").saveAsTable("silver_stock_levels")
 
-# Resume des alertes stock
+# Résumé au 31/12/2025 : vue snapshot de fin d'année pour le rapport
+# filter() = équivalent d'un WHERE en SQL
+# Affiche le nombre de lignes et la valeur financière par statut
 (df_stock_analysis
     .filter(F.col("stock_date") == "2025-12-31")
     .groupBy("stock_status")
@@ -362,24 +560,48 @@ Cette table `silver_stock_levels` pourra alimenter une page “Stocks” optionn
 
 ```python
 # === CELLULE 8 : Table Silver vendeurs enrichie ===
+#
+# OBJECTIF : Créer une table Silver des vendeurs qui agrège leurs performances
+#            sur toute la période. Cette table servira à la fois :
+#            - Dans la Dim_SalesRep du Warehouse (attributs statiques)
+#            - Dans les vues analytiques (KPIs de performance)
+#
+# Pattern : on part de bronze_sales_reps (référentiel des vendeurs)
+#           et on y rattache les commandes + lignes via LEFT JOIN.
+#           LEFT JOIN garantit que tous les vendeurs apparaissent,
+#           même ceux qui n'ont aucune commande (cas possible avec un nouveau vendeur).
+#
+# Colonnes calculées :
+#   total_orders     : nb commandes distinctes traitées par le vendeur
+#   total_clients    : nb clients distincts servis
+#   total_revenue_eur: CA total généré
+#   total_margin_eur : marge totale générée
+#   margin_pct       : taux de marge moyen (NULLIF évite la div/0)
+#   avg_discount_pct : remise moyenne accordée (indicateur de politique tarifaire)
+#   nb_loss_lines    : nb de lignes vendues à perte (CASE WHEN simulant un COUNT FILTER)
 
 df_reps_enriched = spark.sql("""
     SELECT
-        sr.*,
-        COUNT(DISTINCT o.order_id) AS total_orders,
-        COUNT(DISTINCT o.customer_id) AS total_clients,
-        ROUND(SUM(ol.line_total_eur), 0) AS total_revenue_eur,
-        ROUND(SUM(ol.line_margin_eur), 0) AS total_margin_eur,
+        sr.*,                                          -- Tous les attributs du référentiel vendeur
+        COUNT(DISTINCT o.order_id)                                       AS total_orders,
+        COUNT(DISTINCT o.customer_id)                                    AS total_clients,
+        ROUND(SUM(ol.line_total_eur), 0)                                 AS total_revenue_eur,
+        ROUND(SUM(ol.line_margin_eur), 0)                                AS total_margin_eur,
+        -- NULLIF(SUM(CA), 0) → retourne NULL si CA=0 pour éviter la division par zéro
         ROUND(SUM(ol.line_margin_eur) / NULLIF(SUM(ol.line_total_eur), 0) * 100, 1) AS margin_pct,
-        ROUND(AVG(ol.discount_pct), 1) AS avg_discount_pct,
-        SUM(CASE WHEN ol.line_margin_pct < 0 THEN 1 ELSE 0 END) AS nb_loss_lines
+        ROUND(AVG(ol.discount_pct), 1)                                   AS avg_discount_pct,
+        -- CASE WHEN dans un SUM : compte 1 si vente à perte, 0 sinon → somme = nb de lignes à perte
+        SUM(CASE WHEN ol.line_margin_pct < 0 THEN 1 ELSE 0 END)         AS nb_loss_lines
     FROM bronze_sales_reps sr
-    LEFT JOIN silver_orders o ON sr.rep_id = o.rep_id
-    LEFT JOIN silver_order_lines ol ON o.order_id = ol.order_id
+    LEFT JOIN silver_orders      o  ON sr.rep_id   = o.rep_id
+    LEFT JOIN silver_order_lines ol ON o.order_id  = ol.order_id
     GROUP BY sr.rep_id, sr.rep_name, sr.region, sr.hire_date, sr.annual_target_eur
 """)
 
 df_reps_enriched.write.mode("overwrite").format("delta").saveAsTable("silver_sales_reps")
+
+# Afficher les 10 meilleurs vendeurs par CA décroissant
+# F.desc("total_revenue_eur") = ORDER BY total_revenue_eur DESC
 df_reps_enriched.orderBy(F.desc("total_revenue_eur")).show(10, truncate=False)
 ```
 
@@ -399,12 +621,10 @@ Le Notebook a créé les tables Silver. Maintenant on va créer un Dataflow Gen2
 ### 3.2 — Connecter la source Lakehouse
 
 1. Dans l'éditeur Power Query → **Get data** → **More...**
-2. Chercher **Lakehouse** → sélectionner
+2. Chercher **OneLake** → **Lakehouse (LH_EnergiDistrib)** → sélectionner
 3. Connexion → signer avec votre compte organisationnel
 4. Naviguer → votre workspace → **LH_EnergiDistrib** → **silver_orders**
 5. Cliquer **Create**
-
-> ⚠️ **Piège** : Si vous ne voyez pas votre Lakehouse, vérifiez que vous êtes connecté avec le bon compte. L'option « Lakehouse » est dans la catégorie **OneLake** ou **Microsoft Fabric**.
 
 ### 3.3 — Transformation 1 : Supprimer les colonnes inutiles
 
@@ -427,8 +647,6 @@ Dans ce Dataflow, la source est la table **`silver_orders`** produite par le Not
 3. **customer_id** → **CustomerKey**
 4. **rep_id** → **SalesRepKey**
 5. **order_id** → **OrderKey**
-
-> 💡 **Astuce** : La convention PascalCase est standard dans les data warehouses. Les clés se terminent par "Key" pour indiquer qu'elles sont des clés de jointure vers les dimensions.
 
 ### 3.5 — Transformation 3 : Colonne conditionnelle — Priorité livraison
 
@@ -527,10 +745,6 @@ Dans ce Dataflow, la source est la table **`silver_orders`** produite par le Not
 
 ---
 
-*Pause 10h45 – 11h00*
-
----
-
 ## Bloc 4  — Pipeline Data Factory
 
 Le Pipeline orchestre tout le flux : Dataflow Gen2 → Notebook → validation.
@@ -593,7 +807,7 @@ Le Pipeline orchestre tout le flux : Dataflow Gen2 → Notebook → validation.
 
 ### 4.6 — Activité 5 : Gestion d'erreur
 
-1. Cliquer sur la **croix rouge** (✗ On failure) du Notebook → glisser vers une **nouvelle activité Set Variable**
+1. Glisser vers une **nouvelle activité Set Variable**, cliquer sur la **croix rouge** (✗ On failure) du Notebook →
 2. Nom : **`Flag_Echec`**
 3. **Name** : `etl_status` → **Value** : `failed`
 
@@ -630,17 +844,17 @@ Le pipeline doit ressembler à ceci :
 
 ---
 
-**Fin du matin. Le Lakehouse contient les tables Bronze et Silver. Le Dataflow Gen2 enrichit les commandes. Le Pipeline orchestre le flux.**
+ Le Lakehouse contient les tables Bronze et Silver. Le Dataflow Gen2 enrichit les commandes. Le Pipeline orchestre le flux.**
 
-**Après le déjeuner** → On crée le Warehouse avec le schéma étoile, on implémente le SCD Type 2, puis on construit le modèle sémantique et le rapport Power BI.
-
----
-
-# PARTIE 2 — APRÈS-MIDI
+On crée le Warehouse avec le schéma étoile, on implémente le SCD Type 2, puis on construit le modèle sémantique et le rapport Power BI.
 
 ---
 
-## Bloc 5 (13h00 – 14h00) — Warehouse : Schéma étoile + Vues analytiques
+# PARTIE 2
+
+---
+
+## Bloc 5  — Warehouse : Schéma étoile + Vues analytiques
 
 ### 5.1 — Créer le Warehouse
 
@@ -742,12 +956,6 @@ CREATE TABLE dbo.Fact_OrderLines (
 
 PRINT 'Schema etoile cree avec succes.';
 ```
-
-> 💡 **Note Fabric Warehouse** : Dans certains tenants/éditions, les contraintes `PRIMARY KEY`/`DEFAULT` ne sont pas supportées dans `CREATE TABLE` (vous verrez une erreur du type *keyword is not supported*). Dans cet atelier, on **n’utilise pas de contraintes** et on s’appuie sur les clés (SK/ID) et les contrôles de qualité côté Notebook/SQL pour garantir la cohérence. Fabric optimise le stockage via Delta/Parquet et le V-Order.
-> 
-> ⚠️ **Note sur IDENTITY** : Sur Warehouse Fabric, les colonnes `IDENTITY` doivent être en **BIGINT** et ne supportent pas toujours la syntaxe `IDENTITY(seed, increment)`. Utilisez donc `BIGINT IDENTITY` (seed/increment implicites).
-> 
-> ⚠️ **Note sur les types texte** : Selon l’édition, les types Unicode (`NVARCHAR`) peuvent être refusés. Cet atelier utilise donc `VARCHAR` pour les champs texte (noms, villes, etc.).
 
 ### 5.3 — Peupler la dimension Date
 
@@ -1005,14 +1213,39 @@ D'abord, charger le fichier `customers_update_batch2.csv` dans le Lakehouse :
 
 ```python
 # === CELLULE 9 : Charger batch mise a jour clients ===
+#
+# OBJECTIF : Préparer la table de staging pour le SCD Type 2 (Bloc 6).
+#            Le fichier customers_update_batch2.csv contient 150 clients
+#            dont le segment commercial a changé ce trimestre.
+#
+# Pourquoi une table "staging" ?
+#   Le Warehouse ne peut pas lire un fichier CSV directement.
+#   En passant par une table Delta dans le Lakehouse, on peut utiliser
+#   les cross-database queries depuis le Warehouse pour exécuter le MERGE SCD.
+#
+# Colonnes attendues dans le batch :
+#   customer_id     → clé métier pour faire la correspondance avec Dim_Customer
+#   company_name    → nouveau nom (si mis à jour, SCD Type 1)
+#   country_code    → code pays ISO
+#   city            → ville
+#   new_segment     → NOUVEAU segment (c'est ce qui déclenche le SCD Type 2)
+#   contact_email   → nouvel email (si mis à jour, SCD Type 1)
+#
+# mode="overwrite" : si on relance la cellule, on repart d'un staging propre
 
 df_update = (spark.read
     .option("header", True)
     .option("inferSchema", True)
     .csv("Files/customers_update_batch2.csv")
 )
+
+# Écrire en table Delta dans le Lakehouse (accessible depuis le Warehouse)
 df_update.write.mode("overwrite").format("delta").saveAsTable("staging_customer_updates")
+
 print(f"Batch mise a jour: {df_update.count()} clients modifies")
+
+# Aperçu des 5 premières lignes pour vérification visuelle
+# truncate=False → affiche les valeurs complètes sans troncature
 df_update.show(5, truncate=False)
 ```
 
@@ -1251,7 +1484,7 @@ Target Revenue = SUM(Dim_SalesRep[AnnualTargetEUR])
 **Target Attainment %** — taux d’atteinte (= CA / objectif). Fonctions : [DIVIDE](https://dax.guide/divide/).
 
 ```dax
-Target Attainment % = DIVIDE([Total Revenue], [Target Revenue], 0)
+Target Attainment % = DIVIDE([Total Revenue], [Target Revenue]*100, 0)
 ```
 
 **Mesure qualité (ventes à perte)** :
@@ -1284,135 +1517,678 @@ Pour utiliser le KPI dans le rapport :
 
 ---
 
-## Bloc 8 — Rapport Power BI Desktop (thin report)
+## Bloc 8 — Rapport Power BI (depuis le modèle sémantique Fabric)
 
-### 8.1 — Créer le rapport
+> 🎯 **Objectif** : Construire un rapport professionnel à 5 pages directement dans l'éditeur web Fabric, sans Power BI Desktop, en exploitant les 14 mesures DAX créées au Bloc 7.
+> 
+> ⚠️ **Interface ciblée** : l'éditeur de rapport intégré à Fabric (`app.fabric.microsoft.com`), lancé depuis le modèle sémantique. Cet éditeur n'est **pas** Power BI Desktop — les panneaux et options portent des noms différents.
+> 
+> 📋 **Plan** : Tableau de bord exécutif / Analyse des ventes / Analyse clients / Performance vendeurs / Produits & Entrepôts / Page cachée Détail Client (drill-through)
 
-1. Ouvrir **Power BI Desktop**
-2. **Home** → **Get data** → **Power BI semantic models** (ou **Power BI datasets**)
-3. Sélectionner le modèle **`SM_EnergiDistrib`** (celui créé au Bloc 7) → **Connect**
-4. Vous êtes en “thin report” : les données restent dans Fabric, le `.pbix` ne contient que le rapport
-5. **File** → **Save**
-6. **Home** → **Publish** → workspace `WS_EnergiDistrib_Atelier` (publier le rapport)
+---
 
-### 8.2 — Page 1 : Vue d'ensemble commerciale
+### 8.0 — Avant de démarrer : formater les mesures dans le modèle
 
-**Renommer la page** : clic droit sur l'onglet → **Rename** → `Vue d'ensemble`
+Dans l'éditeur Fabric web, le format des nombres affiché sur les visuels est **piloté par la chaîne de format de la mesure** définie dans le modèle sémantique. Il n'existe pas d'option "Display units" au niveau du visuel comme dans Desktop.
 
-**Visuel 1 — Cards KPI (ligne du haut)** :
+**À faire avant de créer le rapport** — dans `SM_EnergiDistrib`, cliquer sur chaque mesure et renseigner le champ **Format** :
 
-1. Insérer un **Card** → glisser **Total Revenue** dans le champ **Value**
-2. Onglet **Format** → **Callout value** → Display units = **Millions**, Decimal places = **1**
-3. **Label** → activer → texte = `CA Total`
-4. Dupliquer la card (Ctrl+D) × 3 et remplacer par :
-   - **Total Margin** → label `Marge totale`
-   - **Margin %** → label `Taux de marge`, format `0.0%`
-   - **Nb Orders** → label `Commandes`
-5. Aligner les 4 cards en haut de la page
+| Mesure              | Format string      |
+| ------------------- | ------------------ |
+| Total Revenue       | `#,0.0,," M€"`     |
+| Total Margin        | `#,0.0,," M€"`     |
+| Total Cost          | `#,0.0,," M€"`     |
+| Margin %            | `0.0%`             |
+| Nb Orders           | `#,0`              |
+| Nb Customers        | `#,0`              |
+| Avg Order Value     | `#,0 €`            |
+| Revenue PY          | `#,0.0,," M€"`     |
+| Revenue YoY %       | `+0.0%;-0.0%;0.0%` |
+| Revenue YTD         | `#,0.0,," M€"`     |
+| Revenue QTD         | `#,0.0,," M€"`     |
+| Target Revenue      | `#,0.0,," M€"`     |
+| Target Attainment % | `0%`               |
+| Nb Loss Lines       | `#,0`              |
 
-**Visuel 2 — Graphique en courbes (CA mensuel)** :
+> 💡 **Comment définir le format d'une mesure** : dans le modèle sémantique → cliquer sur le nom de la mesure dans le panneau Data → dans le panneau de propriétés qui s'ouvre en bas → champ **Format** → saisir la chaîne de format → Entrée.
+> 
+> La chaîne `#,0.0,," M€"` signifie : séparateur de milliers (`#,0`), 1 décimale (`.0`), divisé par 1 million (`,,`), suivi du texte ` M€`. Résultat : `188.8 M€`.
 
-1. Insérer un **Line chart**
-2. **X-axis** : `Dim_Date.FullDate` (utiliser la **Date hierarchy** et garder le niveau **Month**)
-3. **Y-axis** : `Total Revenue`
-4. **Legend** : `Dim_Date.Year`
-5. Taille : occuper la moitié gauche sous les cards
+---
 
-**Visuel 3 — Graphique en barres (CA par pays)** :
+### 8.1 — Ouvrir l'éditeur de rapport
 
-1. Insérer un **Clustered bar chart**
-2. **Y-axis** : `Dim_Customer.Country`
-3. **X-axis** : `Total Revenue`
-4. Onglet **Format** → **Data labels** → activer → Display units = **Thousands**
-5. **Sort** → trier par **Total Revenue** descending
-6. Taille : quart supérieur droit
+1. Dans votre workspace Fabric → ouvrir `SM_EnergiDistrib`
 
-**Visuel 4 — Donut (répartition par catégorie produit)** :
+2. Dans la barre du haut → **File** → **New report**
+   
+   > 💡 Vous pouvez aussi cliquer sur le bouton **Create report** visible sur la page du modèle sémantique. Les deux chemins aboutissent au même éditeur web.
 
-1. Insérer un **Donut chart**
-2. **Legend** : `Dim_Product.Category`
-3. **Values** : `Total Revenue`
-4. Onglet **Format** → **Detail labels** → activer → Label style = **Category, percent of total**
-5. Taille : quart inférieur droit
+3. L'éditeur s'ouvre dans un nouvel onglet avec une page vierge nommée `Page 1`
 
-**Slicer** :
+4. Dans le panneau **Data** (droite) → vérifier que vous voyez les 6 tables et les mesures sous `Fact_OrderLines`
 
-1. Insérer un **Slicer** en haut à droite
-2. **Field** : `Dim_Date.QuarterLabel`
-3. Onglet **Format** → **Slicer settings** → Style = **Dropdown**
+**Présentation de l'interface** (à retenir pour toute la suite) :
 
-### 8.3 — Page 2 : Analyse des marges
+```
+┌─ Barre d'outils ─────────────────────────────────────────────────────────┐
+│  File | View | Reading view | Text box | Shapes | Buttons |              │
+│  Visual interactions | Refresh | Save                                    │
+└──────────────────────────────────────────────────────────────────────────┘
+┌─ Canvas (zone de conception) ──────────┬─ Panneau droit ─────────────────┐
+│                                        │  [Visualizations] [Data]        │
+│                                        │                                 │
+│                                        │  Visualizations : icônes des   │
+│                                        │  types de visuels               │
+│                                        │                                 │
+│                                        │  Format (pinceau 🖌) : options  │
+│                                        │  de mise en forme du visuel     │
+│                                        │  sélectionné (onglets Visual /  │
+│                                        │  General)                       │
+│                                        │                                 │
+│                                        │  Data : liste des tables et     │
+│                                        │  mesures à glisser sur canvas   │
+└────────────────────────────────────────┴─────────────────────────────────┘
+┌─ Bas de page ─────────────────────────────────────────────────────────────┐
+│  [+ Nouvelle page]  [Page 1]  [Page 2] ...                               │
+└──────────────────────────────────────────────────────────────────────────┘
+```
 
-**Nouvelle page** → Renommer : `Analyse marges`
+**Comment ajouter un visuel** :
 
-**Visuel 1 — Matrice** :
+1. Cliquer sur l'icône du type de visuel souhaité dans le panneau Visualizations → un visuel vide apparaît sur le canvas
+2. Glisser un champ depuis le panneau Data vers le visuel **ou** vers les zones de champs (X-axis, Y-axis, Values...) qui apparaissent dans le panneau Visualizations quand le visuel est sélectionné
+3. Cliquer sur l'icône **pinceau 🖌** dans le panneau Visualizations pour accéder aux options de format
 
-1. Insérer une **Matrix**
-2. **Rows** : `Dim_Product.Category`, puis `Dim_Product.ProductName`
-3. **Columns** : `Dim_Customer.Country`
-4. **Values** : `Total Revenue`, `Margin %`
-5. Onglet **Format** → **Conditional formatting** → sélectionner **Margin %** → **Background color** :
-   - Minimum = Rouge (#FF6B6B) pour valeur `0`
-   - Maximum = Vert (#51CF66) pour valeur `0.30`
+**Comment renommer une page** : double-cliquer sur l'onglet de la page en bas → saisir le nouveau nom → Entrée
 
-> 💡 La mesure `Margin %` retourne une fraction décimale (0.30 = 30%). Les seuils de mise en forme conditionnelle doivent utiliser les mêmes unités.
-> 6. **Subtotals** → activer pour les lignes
+---
 
-**Visuel 2 — Scatter plot (marge vs volume)** :
+### 8.2 — Page 1 : Tableau de bord exécutif
 
-1. Insérer un **Scatter chart**
-2. **X-axis** : `Total Revenue`
-3. **Y-axis** : `Margin %`
-4. **Size** : `Nb Orders`
-5. **Details** : `Dim_Product.Category`
-6. Onglet **Analytics** → ajouter une **Constant line** → Value = `0.15` → label = `Seuil marge mini (15%)`
+> 🎯 **Question** : Comment se porte le business en un coup d'œil ? Sommes-nous dans les objectifs ?
+> 
+> **Mesures utilisées** : `Total Revenue`, `Total Margin`, `Margin %`, `Nb Orders`, `Revenue YoY %`, `Revenue YTD`, `Revenue PY`, `Target Attainment %`
 
-**Visuel 3 — Table des ventes à perte** :
+**Renommer la page** : double-cliquer sur `Page 1` → saisir `🏠 Tableau de bord`
 
-1. Insérer une **Table**
-2. **Columns** : `Dim_SalesRep.RepName`, `Dim_Product.Category`, `Nb Loss Lines`, `Total Revenue`, `Margin %`
-3. **Sort** : `Nb Loss Lines` descending
-4. Onglet **Format** → **Conditional formatting** sur **Nb Loss Lines** → **Data bars** → couleur rouge
+---
 
-### 8.4 — Page 3 : Performance vendeurs
+**Titre de page**
 
-**Nouvelle page** → Renommer : `Performance vendeurs`
+1. Barre d'outils → **Text box** → cliquer sur le canvas
+2. Saisir : `EnergiDistrib — Tableau de bord Commercial 2025`
+3. Sélectionner le texte → dans la barre de formatage intégrée à la text box : taille `18`, gras
+4. Cliquer sur la bordure de la text box → panneau Format (pinceau) → **General** → **Effects** → **Background** → activer → couleur `#1B4F72` → **Font color** → blanc
+5. Étirer pour occuper toute la largeur en haut (~60px de hauteur)
 
-**Visuel 1 — Gauge (atteinte objectif global)** :
+---
 
-1. Insérer un **Gauge**
-2. **Value** : `Target Attainment %`
-3. **Target value** : valeur fixe `1` (= 100% en fraction décimale)
-4. Onglet **Format** → **Gauge axis** → Min = 0, Max = 1.5 (150%)
-5. **Conditional formatting** → color : < 0.7 rouge, 0.7-1.0 jaune, ≥ 1.0 vert
+**5 Card visuels (rangée de KPIs)**
 
-**Visuel 2 — Bar chart (CA par vendeur vs objectif)** :
+> 💡 **Le visuel Card dans Fabric web** : c'est le "Card (new)" — il affiche une valeur principale (Callout) et une étiquette (Label). Le format du nombre est celui défini sur la mesure dans le modèle (voir 8.0).
 
-1. Insérer un **Clustered bar chart**
-2. **Y-axis** : `Dim_SalesRep.RepName`
-3. **X-axis** : `Total Revenue` ET `Target Revenue`
-4. **Sort** : `Total Revenue` descending
-5. Onglet **Format** → Couleurs : Revenue en bleu, Target en gris pointillé
+**Card 1 — CA Total**
 
-**Visuel 3 — Table de détail vendeur** :
+1. Cliquer l'icône **Card** dans Visualizations (rectangle avec grand chiffre)
+2. Glisser `Total Revenue` dans la zone **Fields** du visuel
+3. Pinceau 🖌 → onglet **Visual** :
+   - Section **Callout** → **Value** → activé (toggle ON) → aucune autre modification nécessaire (le format est déjà défini sur la mesure)
+   - Section **Callout** → **Label** → activé → cliquer sur le champ texte → saisir `CA Total`
+4. Onglet **General** → **Effects** → **Background** → activer, couleur blanche → **Border** → activer, couleur `#1B4F72`
 
-1. Insérer une **Table**
-2. **Columns** : `RepName`, `Region`, `Seniority`, `Total Revenue`, `Target Attainment %`, `Margin %`, `Nb Orders`, `Avg Order Value`
-3. **Conditional formatting** sur `Target Attainment %` :
-   - **Icons** → style Traffic light → < 0.7 rouge, 0.7-0.9 jaune, ≥ 0.9 vert
+**Cards 2 à 5** — dupliquer la Card 1 (Ctrl+D) et changer uniquement la mesure et le label :
 
-**Slicer** :
+| Card | Mesure          | Label               |
+| ---- | --------------- | ------------------- |
+| 2    | `Total Margin`  | `Marge totale`      |
+| 3    | `Margin %`      | `Taux de marge`     |
+| 4    | `Nb Orders`     | `Nb Commandes`      |
+| 5    | `Revenue YoY %` | `Évolution vs 2024` |
 
-1. **Slicer** → **Field** : `Dim_SalesRep.Region` → Style **Buttons**
+---
 
-### 8.6 — Finition du rapport
+**Line Chart — Évolution CA mensuel vs N-1**
 
-1. **Onglet View** → **Page background** → couleur légèrement grisée (#F8F9FA) pour toutes les pages
-2. Ajouter un **Text box** en haut de chaque page avec le titre de la page
-3. **File** → **Save** → nommer : `Rapport EnergiDistrib`
+1. Cliquer l'icône **Line chart** dans Visualizations
+2. Champs :
+   - Zone **X-axis** : glisser `Dim_Date` → `FullDate`
+   - Zone **Y-axis** : glisser `Total Revenue` PUIS `Revenue PY` (glisser les deux mesures)
 
-**L'atelier est terminé.** Le participant a construit une chaîne complète : Lakehouse (Bronze) → Notebook + Dataflow Gen2 (Silver) → Pipeline → Warehouse (Gold, schéma étoile, SCD Type 2) → Modèle sémantique (mesures DAX) → Rapport Power BI (3 pages interactives).
+---
 
-```python
+**Gauge — Atteinte de l'objectif annuel**
 
+1. Cliquer l'icône **Gauge** (demi-cercle) dans Visualizations
+2. Champs :
+   - Zone **Value** : glisser `Target Attainment %`
+   - Zone **Target value** : saisir directement `1` dans le champ (pas de mesure, valeur fixe)
+   - Zone **Minimum value** : saisir `0`
+   - Zone **Maximum value** : saisir `1.5`
+3. Pinceau 🖌 → onglet **Visual** :
+   - Section **Colors** → **Fill** : couleur `#27AE60` (vert)
+   - Section **General**  → **Title** → `Atteinte Objectif 2025`
+
+---
+
+**Clustered Bar Chart — CA par pays**
+
+1. Cliquer l'icône **Clustered bar chart** dans Visualizations
+2. Champs :
+   - Zone **Y-axis** : glisser `Dim_Date` → `Year`
+   - Zone **X-axis** : glisser `Total Revenue`
+3. Pinceau 🖌 → onglet **Visual** :
+   - Section **Bars** → **Color** → `#1B4F72`
+   - Section **Data labels** → activé
+   - Section **Title** → `CA par pays`
+4. Trier : cliquer sur les `...` (trois points) en haut du visuel → **Sort axis** → `Total Revenue` → **Sort descending**
+5. Positionner : quart inférieur droit
+
+---
+
+**Slicer — Trimestre**
+
+1. Cliquer l'icône **Slicer** dans Visualizations
+2. Glisser `Dim_Date` → `QuarterLabel` dans la zone **Field**
+3. Pinceau 🖌 → onglet **Visual** → section **Slicer settings** → **Options** → **Style** → choisir **Dropdown**
+4. Section **Title** → `Filtrer par trimestre`
+5. Positionner : au-dessus du Bar chart
+
+---
+
+### 8.3 — Page 2 : Analyse des ventes
+
+**Créer la page** : clic **+** en bas → double-clic sur l'onglet → `📈 Analyse des ventes`
+
+---
+
+**2 Cards résumé en haut**
+
+- Card `Revenue YTD` → label `CA cumulé YTD`
+- Card `Revenue QTD` → label `CA ce trimestre`
+- Positionner côte à côte, haut gauche
+
+---
+
+**Clustered Column Chart — CA et Marge par mois**
+
+1. Icône **Clustered column chart** → glisser sur canvas
+2. Champs :
+   - **X-axis** : `Dim_Date` → `MonthName`
+   - **Y-axis** : `Total Revenue`
+   - **Secondary y-axis** : `Margin %`
+3. Pinceau 🖌 → onglet **Visual** :
+   - Section **Columns** → `Total Revenue` → couleur `#1B4F72`
+   - Section **Line** (si disponible pour l'axe secondaire) → `Margin %` → couleur `#27AE60`
+   - Section **Y-axis** → activer **Secondary y-axis**
+   - Section **Title** → `CA et Marge par mois`
+
+> 💡 Si l'axe secondaire n'est pas disponible dans cette version de l'éditeur web, créer deux visuels séparés côte à côte : un bar chart pour le CA et un line chart pour la Marge %.
+
+---
+
+**Stacked Bar Chart — Top 10 produits**
+
+1. Icône **Stacked bar chart** → glisser sur canvas
+2. Champs :
+   - **Y-axis** : `Dim_Product` → `ProductName`
+   - **X-axis** : `Total Revenue`
+   - **Legend** : `Dim_Product` → `Category`
+3. Filtre Top N : dans le panneau **Filters** (gauche, icône entonnoir) → sous **Filters on this visual** → glisser `Total Revenue` → **Filter type** = `Top N` → **Show items** = `Top 10` → **By value** = `Total Revenue` → **Apply filter**
+4. Pinceau 🖌 → **Title** → `Top 10 Produits par CA`
+
+---
+
+**Matrix — CA par segment client (avec drill-down)**
+
+1. Icône **Matrix** (tableau avec sous-totaux) → glisser sur canvas
+2. Champs :
+   - **Rows** : `Dim_Customer` → `CustomerSegment` PUIS `CompanyName` (dans cet ordre)
+   - **Columns** : `Dim_Date` → `Year`
+   - **Values** : `Total Revenue`, `Margin %`, `Nb Orders`
+3. Pinceau 🖌 → onglet **Visual** :
+   - Section **Row headers** → activer **+/- icons** (permet le drill Segment → Clients)
+   - Section **Values** → format de `Margin %` : affiché via le format de mesure (déjà défini)
+   - Section **Subtotals** → **Row subtotals** → activé
+4. **Mise en forme conditionnelle sur Margin %** :
+   - Clic droit sur `Margin %` dans la zone Values du visuel → **Conditional formatting** → **Background color**
+   - Choisir **Rules** : si valeur ≤ 0 → rouge `#E74C3C` / si valeur entre 0 et 0.15 → orange `#F39C12` / si valeur > 0.15 → vert `#27AE60`
+   - **Apply**
+5. Titre → `CA par Segment Client`
+6. Positionner : bas de la page, pleine largeur
+
+> 💡 **Drill-down sur la Matrix** : cliquer sur l'icône **↓** (flèche vers le bas) qui apparaît en haut du visuel pour passer du niveau Segment au niveau Client individuel.
+
+---
+
+**Slicers de la page**
+
+- Slicer `Dim_Date` → `Year` → Style **Buttons** (affiche les années comme boutons cliquables)
+- Slicer `Dim_Product` → `Category` → Style **Dropdown**
+
+---
+
+### 8.4 — Page 3 : Analyse clients
+
+> 🎯 **Question** : Qui sont nos meilleurs clients ? Comment se segmente le portefeuille ?
+> 
+> **Mesures utilisées** : `Total Revenue`, `Nb Orders`, `Avg Order Value`, `Nb Customers`, `Margin %`
+
+**Créer la page** : clic **+** → `👥 Analyse clients`
+
+---
+
+**3 Cards en haut** :
+
+- `Nb Customers` → label `Clients actifs`
+- `Avg Order Value` → label `Panier moyen`
+- `Total Revenue` → label `CA Total`
+
+---
+
+**Donut Chart — Répartition CA par segment**
+
+1. Icône **Donut chart** → canvas
+2. Champs :
+   - **Legend** : `Dim_Customer` → `CustomerSegment`
+   - **Values** : `Total Revenue`
+3. Pinceau 🖌 → onglet **Visual** :
+   - Section **Slices** → attribuer des couleurs distinctes par segment : VIP = `#1B4F72`, Fidele = `#27AE60`, Occasionnel = `#F39C12`, Dormant = `#E74C3C`
+   - Section **Detail labels** → activé → **Label contents** : choisir **Category, percent of total**
+   - Section **Legend** → activé → Position = **Bottom**
+   - Section **Title** → `Répartition du CA par segment client`
+4. Positionner : quart gauche
+
+---
+
+**Scatter Chart — Profil clients**
+
+> 📊 Révèle 4 profils : clients fréquents à gros panier (VIP), fréquents à petit panier (fidèles), rares à gros panier (comptes stratégiques), rares à petit panier (dormants).
+
+1. Icône **Scatter chart** → canvas
+2. Champs :
+   - **X-axis** : `Nb Orders`
+   - **Y-axis** : `Avg Order Value`
+   - **Size** : `Total Revenue`
+   - **Details** : `Dim_Customer` → `CompanyName`
+   - **Legend** : `Dim_Customer` → `CustomerSegment`
+3. Pinceau 🖌 → onglet **Visual** :
+   - Section **Legend** → activé → Position = **Right**
+   - Section **Title** → `Profil clients : fréquence vs panier moyen`
+4. Positionner : moitié droite
+
+---
+
+**Table — Liste clients (avec drill-through à configurer en 8.7)**
+
+1. Icône **Table** → canvas
+2. Champs (dans cet ordre) :
+   - `Dim_Customer` → `CustomerSegment`
+   - `Dim_Customer` → `CompanyName`
+   - `Dim_Customer` → `Country`
+   - `Total Revenue`
+   - `Nb Orders`
+   - `Avg Order Value`
+   - `Margin %`
+3. Pinceau 🖌 → onglet **Visual** :
+   - **Conditional formatting** sur `Total Revenue` : clic droit sur la colonne dans la zone Values → **Conditional formatting** → **Data bars** → couleur `#1B4F72`
+   - **Title** → `Clients (clic droit → Drill-through)`
+4. Cliquer sur l'en-tête `Total Revenue` pour trier décroissant
+5. Positionner : bas de la page, pleine largeur
+
+---
+
+### 8.5 — Page 4 : Performance vendeurs
+
+> 🎯 **Question** : Qui atteint ses objectifs ? Qui vend à perte ? Quelles régions sous-performent ?
+> 
+> **Mesures utilisées** : `Total Revenue`, `Target Revenue`, `Target Attainment %`, `Margin %`, `Nb Orders`, `Avg Order Value`, `Nb Loss Lines`
+
+**Créer la page** : clic **+** → `🏆 Performance vendeurs`
+
+---
+
+**Slicer Région (filtre principal de la page)**
+
+1. Icône **Slicer** → glisser `Dim_SalesRep` → `Region`
+2. Pinceau 🖌 → **Slicer settings** → Style = **Buttons**
+3. Positionner en haut à droite
+
+---
+
+**KPI visual — Atteinte globale équipe**
+
+1. Icône **KPI** (flèche trend + valeur) → canvas
+2. Champs :
+   - **Value** : `Target Attainment %`
+   - **Trend axis** : `Dim_Date` → `MonthName`
+3. Pinceau 🖌 → onglet **Visual** :
+   - Section **Callout value** → format affiché via le format de mesure (`0%`)
+   - Section **Goals** → **Direction** = **High is good**
+   - Section **Title** → `Atteinte Objectif Équipe 2025`
+4. Positionner : coin supérieur gauche
+
+---
+
+**Clustered Bar Chart — CA vs Objectif par vendeur**
+
+> 📊 Le visuel clé de la page : visualise en un coup d'œil qui dépasse ses objectifs.
+
+1. Icône **Clustered bar chart** → canvas
+2. Champs :
+   - **Y-axis** : `Dim_SalesRep` → `RepName`
+   - **X-axis** : `Total Revenue` ET `Target Revenue`
+3. Pinceau 🖌 → onglet **Visual** :
+   - Section **Bars** → sélectionner `Total Revenue` → couleur `#1B4F72`
+   - Section **Bars** → sélectionner `Target Revenue` → couleur `#BDC3C7`
+   - Section **Data labels** → activé
+   - Section **Legend** → activé
+   - Section **Title** → `CA 2025 vs Objectif par vendeur`
+4. Trier : `...` → Sort → `Total Revenue` → descending
+5. Positionner : moitié gauche, zone centrale
+
+---
+
+**Top 5 / Bottom 5 vendeurs (deux petits bar charts)**
+
+**Top 5** :
+
+1. Copier le bar chart précédent (Ctrl+C → Ctrl+V) → réduire la taille
+2. Panneau **Filters** → **Filters on this visual** → glisser `Total Revenue` → **Top N** → Top → `5`
+3. Titre → `🏆 Top 5`
+
+**Bottom 5** :
+
+1. Dupliquer → **Filters** → **Top N** → Bottom → `5`
+2. Titre → `⚠️ Bottom 5`
+3. Positionner côte à côte, moitié droite
+
+---
+
+**Table de détail vendeur**
+
+1. Icône **Table** → canvas
+2. Champs :
+   - `Dim_SalesRep` → `RepName`
+   - `Dim_SalesRep` → `Region`
+   - `Total Revenue`
+   - `Target Revenue`
+   - `Target Attainment %`
+   - `Margin %`
+   - `Nb Orders`
+   - `Avg Order Value`
+   - `Nb Loss Lines`
+3. **Mise en forme conditionnelle** :
+   - Clic droit sur `Target Attainment %` dans la zone Values → **Conditional formatting** → **Icons** → Style = **Traffic light** → Rules :
+     - < `0.7` : icône rouge
+     - entre `0.7` et `0.9` : icône orange
+     - ≥ `0.9` : icône verte
+   - Clic droit sur `Nb Loss Lines` → **Conditional formatting** → **Background color** → gradient blanc → rouge `#E74C3C`
+4. Titre → `Détail performance vendeurs`
+5. Positionner : bas de page, pleine largeur
+
+---
+
+### 8.6 — Page 5 : Produits & Entrepôts
+
+> 🎯 **Question** : Quelles catégories et produits sont les plus rentables ?
+> 
+> **Mesures utilisées** : `Total Revenue`, `Total Margin`, `Total Cost`, `Margin %`, `Nb Orders`
+
+**Créer la page** : clic **+** → `📦 Produits & Entrepôts`
+
+---
+
+**Clustered Column Chart — CA et Marge par catégorie**
+
+1. Icône **Clustered column chart** → canvas
+2. Champs :
+   - **X-axis** : `Dim_Product` → `Category`
+   - **Y-axis** : `Total Revenue` ET `Total Margin`
+3. Pinceau 🖌 :
+   - `Total Revenue` → couleur `#1B4F72`
+   - `Total Margin` → couleur `#27AE60`
+   - **Data labels** → activé
+   - **Title** → `CA et Marge absolue par catégorie`
+4. Positionner : moitié gauche, haut
+
+---
+
+**Treemap — Répartition du CA par sous-catégorie**
+
+1. Icône **Treemap** (rectangles imbriqués) → canvas
+2. Champs :
+   - **Category** : `Dim_Product` → `Category`
+   - **Details** : `Dim_Product` → `SubCategory`
+   - **Values** : `Total Revenue`
+3. Pinceau 🖌 :
+   - **Data labels** → activé → **Label contents** : `Category`
+   - **Title** → `Répartition du CA par sous-catégorie`
+4. Positionner : moitié droite, haut
+
+---
+
+**Scatter Chart — Matrice Volume / Marge par catégorie**
+
+> 📊 Inspiration "matrice BCG" : identifier les catégories Stars (volume + marge élevés) vs les catégories à risque.
+
+1. Icône **Scatter chart** → canvas
+2. Champs :
+   - **X-axis** : `Total Revenue`
+   - **Y-axis** : `Margin %`
+   - **Size** : `Nb Orders`
+   - **Details** : `Dim_Product` → `Category`
+3. Pinceau 🖌 → **Title** → `Matrice Volume / Marge par catégorie de produit`
+4. Positionner : moitié gauche, bas
+
+---
+
+**Clustered Bar Chart — CA par entrepôt**
+
+1. Icône **Clustered bar chart** → canvas
+2. Champs :
+   - **Y-axis** : `Dim_Warehouse` → `WarehouseName`
+   - **X-axis** : `Total Revenue`
+   - **Legend** : `Dim_Warehouse` → `Country`
+3. Pinceau 🖌 → **Title** → `CA par entrepôt de distribution`
+4. Trier : `Total Revenue` descending
+5. Positionner : moitié droite, bas
+
+---
+
+### 8.7 — Page cachée : Détail Client (Drill-through)
+
+> 💡 **Drill-through** : l'utilisateur fait **clic droit** sur un nom de client dans n'importe quelle page → **Drill through** → **Détail Client** → voit la fiche complète de ce client. C'est une fonctionnalité clé pour l'exploration.
+
+**Créer la page** :
+
+1. Clic **+** → renommer `🔍 Détail Client`
+
+2. Clic droit sur l'onglet de la page → **Hide page**
+   
+   > La page reste accessible par drill-through mais n'apparaît pas dans la navigation normale.
+
+---
+
+**Configurer le drill-through sur cette page**
+
+1. Cliquer dans une zone vide du canvas de la page **Détail Client**
+
+2. Dans le panneau **Filters** (gauche) → chercher la section **Drillthrough**
+
+3. Glisser `Dim_Customer` → `CompanyName` dans la zone **Add drill-through fields here**
+   
+   > ✅ Une flèche de retour automatique (`← Back`) apparaît en haut à gauche du canvas — **ne pas la supprimer**.
+
+---
+
+**Visuels de la fiche client**
+
+**Titre** :
+
+1. **Text box** → saisir `Fiche client`
+2. Taille 16, gras, fond `#1B4F72`, texte blanc
+
+**4 Cards KPIs du client** :
+
+- `Total Revenue` → `CA Total`
+- `Nb Orders` → `Nb Commandes`
+- `Avg Order Value` → `Panier moyen`
+- `Margin %` → `Taux de marge`
+
+**Line Chart — Évolution mensuelle du client** :
+
+1. Icône **Line chart**
+2. **X-axis** : `Dim_Date` → `FullDate` (niveau Month)
+3. **Y-axis** : `Total Revenue` ET `Revenue PY`
+4. **Title** → `Évolution mensuelle du CA`
+
+**Table — Historique commandes du client** :
+
+1. Icône **Table**
+2. Champs : `Dim_Date` → `FullDate`, `Fact_OrderLines` → `OrderKey`, `Dim_Product` → `Category`, `Total Revenue`, `Margin %`, `Fact_OrderLines` → `DeliveryPriority`, `Fact_OrderLines` → `OrderStatus`
+3. **Title** → `Historique des commandes`
+
+---
+
+**Tester le drill-through**
+
+1. Aller sur la page **Analyse clients**
+2. Sur la table de clients → **clic droit** sur un nom de client
+3. Dans le menu contextuel → **Drill through** → **Détail Client**
+4. La page Détail Client s'ouvre filtrée sur ce client uniquement
+5. Cliquer la flèche `← Back` pour revenir
+
+---
+
+### 8.8 — Visual interactions (interactions entre visuels)
+
+> 💡 Par défaut, cliquer sur un visuel filtre ou met en surbrillance tous les autres. Vous pouvez personnaliser ce comportement.
+
+**Comment configurer les interactions** :
+
+1. **Sélectionner** le visuel source (ex: Bar chart pays sur Page 1)
+2. Barre d'outils → **Visual interactions** (bouton dans la barre du haut)
+3. Des icônes apparaissent sur chaque autre visuel de la page :
+   - 🔲 **Filtre** : le clic sur le visuel source filtre ce visuel
+   - 🔆 **Surbrillance** : le clic met en surbrillance les valeurs correspondantes
+   - ⊘ **Aucun** : le clic n'affecte pas ce visuel
+4. Recommandations pour la Page 1 :
+   - Bar chart pays → Line chart CA mensuel : **Filtre** (voir la courbe du pays sélectionné)
+   - Bar chart pays → Gauge objectif : **Aucun** (la gauge reste globale)
+   - Donut catégorie → Bar chart pays : **Surbrillance**
+5. Cliquer à nouveau sur **Visual interactions** dans la barre d'outils pour quitter ce mode
+
+---
+
+### 8.9 — Bookmarks et navigation entre pages
+
+**Ajouter des boutons de navigation entre pages**
+
+1. Aller sur une page (ex: Page 1)
+
+2. Barre d'outils → **Buttons** → **Navigator** → **Page navigator**
+   
+   > Le Page navigator génère automatiquement des boutons pour toutes les pages visibles. C'est la façon la plus simple d'ajouter une navigation claire.
+
+3. Positionner en bas ou en haut de la page
+
+4. Pinceau 🖌 → **Buttons** → ajuster le style (couleur, taille de texte)
+
+5. Répéter sur chaque page (ou copier-coller le navigator)
+
+---
+
+**Créer des Bookmarks (vue mensuelle / trimestrielle)**
+
+1. Barre d'outils → **View** → **Bookmarks** (si disponible dans votre version)
+   
+   > 💡 Dans certaines versions de l'éditeur Fabric web, les bookmarks sont sous **View** → **Bookmarks pane** ou via **Insert** → **Bookmark**.
+
+2. Configurer le slicer Year sur `2025` uniquement → **Add** → nommer `Vue 2025`
+
+3. Configurer le slicer Year sur `2024` et `2025` → **Add** → nommer `Comparaison 2024-2025`
+
+4. Créer deux boutons (barre d'outils → **Buttons** → **Blank**) :
+   
+   - Label `2025 seulement` → Format → **Action** → activé → **Type** = **Bookmark** → sélectionner `Vue 2025`
+   - Label `2024 vs 2025` → Action → Bookmark → `Comparaison 2024-2025`
+
+---
+
+### 8.10 — Finalisation et sauvegarde
+
+**Page Méthodologie (optionnelle mais recommandée)**
+
+1. Clic **+** → renommer `📖 Méthodologie`
+2. **Text box** pleine page → saisir :
+
+```
+GLOSSAIRE DES MESURES
+
+Total Revenue       : Somme des CA de toutes les lignes de commande (format : M€)
+Total Margin        : CA − Coût total (marge absolue)
+Margin %            : Total Margin / Total Revenue
+Nb Orders           : Nombre de commandes distinctes
+Nb Customers        : Nombre de clients distincts ayant commandé
+Avg Order Value     : Panier moyen = CA / Nb commandes
+Revenue PY          : CA sur la même période de l'année N-1
+Revenue YoY %       : Évolution CA vs N-1 (+ = croissance)
+Revenue YTD         : CA cumulé depuis le 1er janvier de l'année filtrée
+Revenue QTD         : CA cumulé depuis le début du trimestre filtré
+Target Revenue      : Objectifs annuels cumulés des vendeurs
+Target Attainment % : CA réel / Objectif (100% = objectif atteint)
+Nb Loss Lines       : Lignes vendues en dessous du prix de revient (marge < 0)
+
+SOURCE : Warehouse WH_EnergiDistrib — schéma étoile Gold
+PÉRIODE : 2024-01-01 au 2025-12-31
+```
+
+---
+
+**Vérification finale en mode Lecture**
+
+1. Barre d'outils → **Reading view** (bouton en haut)
+2. Tester sur chaque page :
+   - Les slicers filtrent-ils correctement les visuels ?
+   - Le drill-through fonctionne-t-il (clic droit sur un client) ?
+   - Les boutons de navigation changent-ils bien de page ?
+   - La page **Détail Client** n'apparaît-elle pas dans le Page navigator ?
+   - Les bookmarks basculent-ils correctement ?
+3. Si tout est correct → repasser en mode Édition pour corriger les éventuels problèmes
+
+---
+
+**Sauvegarder le rapport**
+
+1. Barre d'outils → **Save** (icône disquette ou bouton Save)
+
+2. Saisir le nom : `Rapport_EnergiDistrib`
+
+3. Choisir le workspace : votre workspace Fabric
+
+4. **Save**
+   
+   > ✅ Le rapport est désormais visible dans votre workspace Fabric, directement connecté au modèle sémantique `SM_EnergiDistrib`. Si le pipeline est relancé et rechargé le Warehouse, le rapport se met à jour automatiquement — sans aucune action manuelle.
+
+---
+
+**🎉 L'atelier est terminé !**
+
+Le participant a construit une chaîne complète :
+
+```
+CSV (données brutes)
+    ↓ Notebook NB_Bronze_to_Silver
+Tables Bronze + Silver (LH_EnergiDistrib)
+    ↓ Dataflow Gen2 + Pipeline PL_EnergiDistrib_ETL
+Warehouse WH_EnergiDistrib (schéma étoile Gold + SCD Type 2)
+    ↓ Modèle sémantique SM_EnergiDistrib (14 mesures DAX)
+    ↓
+Rapport Power BI Fabric (5 pages interactives)
+    → Drill-through Détail Client
+    → Bookmarks Vue mensuelle / Comparaison
+    → Visual interactions personnalisées
+    → Page navigator entre les pages
+    → Page Méthodologie / Glossaire
 ```
