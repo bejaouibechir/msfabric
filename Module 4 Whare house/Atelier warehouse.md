@@ -788,11 +788,6 @@ Le Pipeline orchestre tout le flux : Dataflow Gen2 → Notebook → validation.
 3. Nom : **`Flag_Succes`**
 4. Onglet **Settings** → **Variable type** : **Pipeline variable**
 5. Dans la section **Variables** du pipeline (en bas), cliquer **+ New** :
-   - **Name** : `etl_status`
-   - **Type** : **String**
-   - **Default value** : `pending`
-6. Revenir sur l'activité **Flag_Succes** (Set variable) :
-   - **Name** : `etl_status`
    - **Value** : `success`
 
 > 💡 **Clarification** :
