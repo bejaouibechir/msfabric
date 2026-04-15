@@ -1518,36 +1518,6 @@ Pour utiliser le KPI dans le rapport :
 > 📋 **Plan** : Tableau de bord exécutif / Analyse des ventes / Analyse clients / Performance vendeurs / Produits & Entrepôts / Page cachée Détail Client (drill-through)
 
 ---
-
-### 8.0 — Avant de démarrer : formater les mesures dans le modèle
-
-Dans l'éditeur Fabric web, le format des nombres affiché sur les visuels est **piloté par la chaîne de format de la mesure** définie dans le modèle sémantique. Il n'existe pas d'option "Display units" au niveau du visuel comme dans Desktop.
-
-**À faire avant de créer le rapport** — dans `SM_EnergiDistrib`, cliquer sur chaque mesure et renseigner le champ **Format** :
-
-| Mesure              | Format string      |
-| ------------------- | ------------------ |
-| Total Revenue       | `#,0.0,," M€"`     |
-| Total Margin        | `#,0.0,," M€"`     |
-| Total Cost          | `#,0.0,," M€"`     |
-| Margin %            | `0.0%`             |
-| Nb Orders           | `#,0`              |
-| Nb Customers        | `#,0`              |
-| Avg Order Value     | `#,0 €`            |
-| Revenue PY          | `#,0.0,," M€"`     |
-| Revenue YoY %       | `+0.0%;-0.0%;0.0%` |
-| Revenue YTD         | `#,0.0,," M€"`     |
-| Revenue QTD         | `#,0.0,," M€"`     |
-| Target Revenue      | `#,0.0,," M€"`     |
-| Target Attainment % | `0%`               |
-| Nb Loss Lines       | `#,0`              |
-
-> 💡 **Comment définir le format d'une mesure** : dans le modèle sémantique → cliquer sur le nom de la mesure dans le panneau Data → dans le panneau de propriétés qui s'ouvre en bas → champ **Format** → saisir la chaîne de format → Entrée.
-> 
-> La chaîne `#,0.0,," M€"` signifie : séparateur de milliers (`#,0`), 1 décimale (`.0`), divisé par 1 million (`,,`), suivi du texte ` M€`. Résultat : `188.8 M€`.
-
----
-
 ### 8.1 — Ouvrir l'éditeur de rapport
 
 1. Dans votre workspace Fabric → ouvrir `SM_EnergiDistrib`
