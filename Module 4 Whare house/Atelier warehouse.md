@@ -6,7 +6,7 @@
 
 ## Problematique:
 
- Les ruptures de stock coûtent des clients, les marges s'érodent sans explication, et personne n'a de vue consolidée multi-pays.
+Les ruptures de stock coûtent des clients, les marges s'érodent sans explication, et personne n'a de vue consolidée multi-pays.
 
 **Architecture** :
 
@@ -30,22 +30,22 @@ Rapport Power BI (3 pages, étape par étape)
 
 ---
 
-## Bloc 1  — Mise en place
+## Bloc 1 — Mise en place
 
 ### 1.1 — Les fichiers de données
 
 Les fichiers CSV suivants sont fournis (générés par le script en annexe). Téléchargez-les et gardez-les à portée de main.
 
-| Fichier                       | Contenu                               | Lignes  |
-| ----------------------------- | ------------------------------------- | ------- |
-| `orders.csv`                  | Commandes clients (fait principal)    | 113 215 |
-| `order_lines.csv`             | Lignes de commande (détail produit)   | 283 097 |
-| `customers.csv`               | Clients professionnels                | 2 500   |
-| `products.csv`                | Catalogue produits                    | 800     |
-| `warehouses.csv`              | Entrepôts                             | 12      |
-| `sales_reps.csv`              | Vendeurs                              | 60      |
-| `stock_levels.csv`            | Niveaux de stock quotidiens           | 128 800 |
-| `customers_update_batch2.csv` | Mise à jour clients (pour SCD Type 2) | 150     |
+| Fichier | Contenu | Lignes |
+| --- | --- | --- |
+| `orders.csv` | Commandes clients (fait principal) | 113 215 |
+| `order_lines.csv` | Lignes de commande (détail produit) | 283 097 |
+| `customers.csv` | Clients professionnels | 2 500 |
+| `products.csv` | Catalogue produits | 800 |
+| `warehouses.csv` | Entrepôts | 12  |
+| `sales_reps.csv` | Vendeurs | 60  |
+| `stock_levels.csv` | Niveaux de stock quotidiens | 128 800 |
+| `customers_update_batch2.csv` | Mise à jour clients (pour SCD Type 2) | 150 |
 
 ### 1.2 — Créer le Lakehouse
 
@@ -64,7 +64,7 @@ Les fichiers CSV suivants sont fournis (générés par le script en annexe). Té
 
 ---
 
-## Bloc 2  — Notebook : Bronze → Silver
+## Bloc 2 — Notebook : Bronze → Silver
 
 ### 2.1 — Créer le Notebook
 
@@ -609,7 +609,7 @@ df_reps_enriched.orderBy(F.desc("total_revenue_eur")).show(10, truncate=False)
 
 ---
 
-## Bloc 3  — Dataflow Gen2
+## Bloc 3 — Dataflow Gen2
 
 Le Notebook a créé les tables Silver. Maintenant on va créer un Dataflow Gen2 pour montrer l'approche **no-code** sur la table `silver_orders`. L'objectif est d'enrichir les commandes avec des colonnes calculées en Power Query.
 
@@ -632,9 +632,9 @@ Dans ce Dataflow, la source est la table **`silver_orders`** produite par le Not
 
 1. Onglet **Home** → **Choose columns**
 2. **Conserver** (à minima) :
-   - `order_id`, `customer_id`, `rep_id`, `warehouse_id`
-   - `order_date`, `ship_date`, `status`, `delivery_lead_days`
-   - `order_year`, `order_month` (nécessaires pour l’agrégation mensuelle plus loin)
+  - `order_id`, `customer_id`, `rep_id`, `warehouse_id`
+  - `order_date`, `ship_date`, `status`, `delivery_lead_days`
+  - `order_year`, `order_month` (nécessaires pour l’agrégation mensuelle plus loin)
 3. **Optionnel** : décocher `order_quarter` et `is_late` (non utilisés dans ce Dataflow)
 4. Cliquer **OK**
 
@@ -652,26 +652,27 @@ Dans ce Dataflow, la source est la table **`silver_orders`** produite par le Not
 
 1. Onglet **Add column** → **Conditional column**
 2. Configurer :
-   - **New column name** : `DeliveryPriority`
-   - **If** `delivery_lead_days` **is less than** `3` **then** `Express`
-   - **Else if** `delivery_lead_days` **is less than** `7` **then** `Standard`
-   - **Else if** `delivery_lead_days` **is less than** `14` **then** `Lent`
-   - **Else** `Critique`
+  - **New column name** : `DeliveryPriority`
+  - **If** `delivery_lead_days` **is less than** `3` **then** `Express`
+  - **Else if** `delivery_lead_days` **is less than** `7` **then** `Standard`
+  - **Else if** `delivery_lead_days` **is less than** `14` **then** `Lent`
+  - **Else** `Critique`
 3. Cliquer **OK**
 
 ### 3.6 — Transformation 4 : Colonne personnalisée — Trimestre formaté
 
 1. Onglet **Add column** → **Custom column**
-
+  
 2. **New column name** : `QuarterLabel`
-
+  
 3. **Formula** :
-   
-   ```
-   "Q" & Text.From(Date.QuarterOfYear([OrderDate])) & " " & Text.From(Date.Year([OrderDate]))
-   ```
-
+  
+  ```
+  "Q" & Text.From(Date.QuarterOfYear([OrderDate])) & " " & Text.From(Date.Year([OrderDate]))
+  ```
+  
 4. Cliquer **OK**
+  
 
 ### 3.7 — Transformation 5 : Filtrer les commandes annulées
 
@@ -691,10 +692,10 @@ Dans ce Dataflow, la source est la table **`silver_orders`** produite par le Not
 2. Renommer la nouvelle requête : **`MonthlyOrderSummary`**
 3. Onglet **Transform** → **Group By** → **Advanced**
 4. Dans **Group by** : garder **uniquement** `order_year` et `order_month`
-   - Si `CustomerKey` apparaît aussi dans la liste “Group by” (ça arrive si vous l’aviez sélectionné avant d’ouvrir Group By) → cliquez sur la ligne `CustomerKey` puis **Remove grouping**
+  - Si `CustomerKey` apparaît aussi dans la liste “Group by” (ça arrive si vous l’aviez sélectionné avant d’ouvrir Group By) → cliquez sur la ligne `CustomerKey` puis **Remove grouping**
 5. Agrégations :
-   - **NbOrders** : Operation = **Count rows** (normal que la zone **Column** soit désactivée)
-   - **NbCustomers** : Operation = **Count distinct values**, Column = **CustomerKey**
+  - **NbOrders** : Operation = **Count rows** (normal que la zone **Column** soit désactivée)
+  - **NbCustomers** : Operation = **Count distinct values**, Column = **CustomerKey**
 6. Cliquer **OK**
 
 > 💡 **Pourquoi ne pas grouper par CustomerKey ?** On veut un résumé **mensuel** (année/mois). Si on groupe aussi par `CustomerKey`, on obtient une ligne *par client et par mois* et le “nb customers” devient trivial (souvent 1).
@@ -736,13 +737,16 @@ Dans ce Dataflow, la source est la table **`silver_orders`** produite par le Not
 3. **New table** : `silver_monthly_summary`
 4. **Replace** → **Save settings**
 
-### 3.12 — Sauvegarder le Dataflow
+### 3.12 — Publier le Dataflow
 
 1. En bas à droite → **Publish**
-   cliquez **Home**  → **Save**
+2. Attendre que le rafraîchissement se termine (barre de progression dans le workspace)
+
+> ⚠️ **Piège** : Le premier Publish peut prendre 2-3 minutes. Ne pas fermer l'onglet pendant ce temps.
+
 ---
 
-## Bloc 4  — Pipeline Data Factory
+## Bloc 4 — Pipeline Data Factory
 
 Le Pipeline orchestre tout le flux : Dataflow Gen2 → Notebook → validation.
 
@@ -788,7 +792,12 @@ Le Pipeline orchestre tout le flux : Dataflow Gen2 → Notebook → validation.
 3. Nom : **`Flag_Succes`**
 4. Onglet **Settings** → **Variable type** : **Pipeline variable**
 5. Dans la section **Variables** du pipeline (en bas), cliquer **+ New** :
-   - **Value** : `success`
+  - **Name** : `etl_status`
+  - **Type** : **String**
+  - **Default value** : `pending`
+6. Revenir sur l'activité **Flag_Succes** (Set variable) :
+  - **Name** : `etl_status`
+  - **Value** : `success`
 
 > 💡 **Clarification** :
 > 
@@ -823,9 +832,9 @@ Le pipeline doit ressembler à ceci :
 
 1. Onglet **Home** → **Validate**
 2. Si la validation échoue avec : `Script activity ... Connection is required` sur `Chargement_Warehouse` :
-   - Dans le panneau de validation, cliquer **Deactivate activities**
-   - Sélectionner/désactiver **Chargement_Warehouse** (et uniquement celle-ci)
-   - Relancer **Validate**
+  - Dans le panneau de validation, cliquer **Deactivate activities**
+  - Sélectionner/désactiver **Chargement_Warehouse** (et uniquement celle-ci)
+  - Relancer **Validate**
 3. **Save**
 
 > 💡 Après le Bloc 5 (Warehouse créé), revenez sur le pipeline, **réactivez** `Chargement_Warehouse`, renseignez la **Connection** vers `WH_EnergiDistrib` et collez le T‑SQL de chargement, puis revalidez et sauvegardez.
@@ -836,7 +845,7 @@ Le pipeline doit ressembler à ceci :
 
 ---
 
- Le Lakehouse contient les tables Bronze et Silver. Le Dataflow Gen2 enrichit les commandes. Le Pipeline orchestre le flux.**
+Le Lakehouse contient les tables Bronze et Silver. Le Dataflow Gen2 enrichit les commandes. Le Pipeline orchestre le flux.**
 
 On crée le Warehouse avec le schéma étoile, on implémente le SCD Type 2, puis on construit le modèle sémantique et le rapport Power BI.
 
@@ -846,7 +855,7 @@ On crée le Warehouse avec le schéma étoile, on implémente le SCD Type 2, pui
 
 ---
 
-## Bloc 5  — Warehouse : Schéma étoile + Vues analytiques
+## Bloc 5 — Warehouse : Schéma étoile + Vues analytiques
 
 ### 5.1 — Créer le Warehouse
 
@@ -1362,8 +1371,8 @@ Les rapports du Q1 qui utilisent la date de commande retrouveront l'ancien segme
 1. Workspace → **New item** → **Semantic model**
 2. **OneLake catalog** → votre workspace → `WH_EnergiDistrib`
 3. Sélectionner uniquement :
-   - `Dim_Customer`, `Dim_Date`, `Dim_Product`, `Dim_SalesRep`, `Dim_Warehouse`
-   - `Fact_OrderLines`
+  - `Dim_Customer`, `Dim_Date`, `Dim_Product`, `Dim_SalesRep`, `Dim_Warehouse`
+  - `Fact_OrderLines`
 4. Nom : **`SM_EnergiDistrib`** → **Create/Confirm**
 
 > ⚠️ Si le modèle s’ouvre en **Viewing mode** (tout grisé), recréez-le en `SM_EnergiDistrib_v2` et utilisez celui qui vous permet au minimum de créer des **mesures**.
@@ -1372,11 +1381,11 @@ Les rapports du Q1 qui utilisent la date de commande retrouveront l'ancien segme
 
 1. Ouvrir le modèle → vue **Model**
 2. Vérifier / créer (Many-to-One, filtre **Single** Dim → Fact) :
-   - `Fact_OrderLines[CustomerSK]` → `Dim_Customer[CustomerSK]`
-   - `Fact_OrderLines[ProductSK]` → `Dim_Product[ProductSK]`
-   - `Fact_OrderLines[SalesRepSK]` → `Dim_SalesRep[SalesRepSK]`
-   - `Fact_OrderLines[WarehouseSK]` → `Dim_Warehouse[WarehouseSK]`
-   - `Fact_OrderLines[DateKey]` → `Dim_Date[DateKey]`
+  - `Fact_OrderLines[CustomerSK]` → `Dim_Customer[CustomerSK]`
+  - `Fact_OrderLines[ProductSK]` → `Dim_Product[ProductSK]`
+  - `Fact_OrderLines[SalesRepSK]` → `Dim_SalesRep[SalesRepSK]`
+  - `Fact_OrderLines[WarehouseSK]` → `Dim_Warehouse[WarehouseSK]`
+  - `Fact_OrderLines[DateKey]` → `Dim_Date[DateKey]`
 
 ### 7.3 — Mesures DAX (14 mesures)
 
@@ -1491,6 +1500,14 @@ CALCULATE(
 )
 ```
 
+**Objectif Atteinte** — valeur cible fixe (100% = 1 en fraction décimale) pour les visuels Gauge et KPI. Fonctions : constante.
+
+```dax
+Objectif Atteinte = 1
+```
+
+> 💡 Power BI n'accepte pas de valeurs constantes saisies directement dans les zones de champs des visuels (Target, Minimum, Maximum). Il faut obligatoirement une mesure, même pour une constante.
+
 **Ressources** :
 
 - [Référence DAX (Microsoft Learn)](https://learn.microsoft.com/dax/)
@@ -1504,7 +1521,7 @@ Pour utiliser le KPI dans le rapport :
 
 1. Insérer un visuel **KPI** sur la page du rapport
 2. **Value** → glisser `Target Attainment %`
-3. **Target** → saisir la valeur fixe `1` (= 100% en fraction décimale)
+3. **Target** → glisser la mesure `Objectif Atteinte`
 4. Les seuils de couleur se configurent dans le panneau **Format** du visuel KPI
 
 ---
@@ -1518,17 +1535,48 @@ Pour utiliser le KPI dans le rapport :
 > 📋 **Plan** : Tableau de bord exécutif / Analyse des ventes / Analyse clients / Performance vendeurs / Produits & Entrepôts / Page cachée Détail Client (drill-through)
 
 ---
+
+### 8.0 — Avant de démarrer : formater les mesures dans le modèle
+
+Dans l'éditeur Fabric web, le format des nombres affiché sur les visuels est **piloté par la chaîne de format de la mesure** définie dans le modèle sémantique. Il n'existe pas d'option "Display units" au niveau du visuel comme dans Desktop.
+
+**À faire avant de créer le rapport** — dans `SM_EnergiDistrib`, cliquer sur chaque mesure et renseigner le champ **Format** :
+
+| Mesure | Format string |
+| --- | --- |
+| Total Revenue | `#,0.0,," M€"` |
+| Total Margin | `#,0.0,," M€"` |
+| Total Cost | `#,0.0,," M€"` |
+| Margin % | `0.0%` |
+| Nb Orders | `#,0` |
+| Nb Customers | `#,0` |
+| Avg Order Value | `#,0 €` |
+| Revenue PY | `#,0.0,," M€"` |
+| Revenue YoY % | `+0.0%;-0.0%;0.0%` |
+| Revenue YTD | `#,0.0,," M€"` |
+| Revenue QTD | `#,0.0,," M€"` |
+| Target Revenue | `#,0.0,," M€"` |
+| Target Attainment % | `0%` |
+| Nb Loss Lines | `#,0` |
+
+> 💡 **Comment définir le format d'une mesure** : dans le modèle sémantique → cliquer sur le nom de la mesure dans le panneau Data → dans le panneau de propriétés qui s'ouvre en bas → champ **Format** → saisir la chaîne de format → Entrée.
+> 
+> La chaîne `#,0.0,," M€"` signifie : séparateur de milliers (`#,0`), 1 décimale (`.0`), divisé par 1 million (`,,`), suivi du texte ` M€`. Résultat : `188.8 M€`.
+
+---
+
 ### 8.1 — Ouvrir l'éditeur de rapport
 
 1. Dans votre workspace Fabric → ouvrir `SM_EnergiDistrib`
-
+  
 2. Dans la barre du haut → **File** → **New report**
-   
-   > 💡 Vous pouvez aussi cliquer sur le bouton **Create report** visible sur la page du modèle sémantique. Les deux chemins aboutissent au même éditeur web.
-
+  
+  > 💡 Vous pouvez aussi cliquer sur le bouton **Create report** visible sur la page du modèle sémantique. Les deux chemins aboutissent au même éditeur web.
+  
 3. L'éditeur s'ouvre dans un nouvel onglet avec une page vierge nommée `Page 1`
-
+  
 4. Dans le panneau **Data** (droite) → vérifier que vous voyez les 6 tables et les mesures sous `Fact_OrderLines`
+  
 
 **Présentation de l'interface** (à retenir pour toute la suite) :
 
@@ -1595,18 +1643,18 @@ Pour utiliser le KPI dans le rapport :
 1. Cliquer l'icône **Card** dans Visualizations (rectangle avec grand chiffre)
 2. Glisser `Total Revenue` dans la zone **Fields** du visuel
 3. Pinceau 🖌 → onglet **Visual** :
-   - Section **Callout** → **Value** → activé (toggle ON) → aucune autre modification nécessaire (le format est déjà défini sur la mesure)
-   - Section **Callout** → **Label** → activé → cliquer sur le champ texte → saisir `CA Total`
+  - Section **Callout** → **Value** → activé (toggle ON) → aucune autre modification nécessaire (le format est déjà défini sur la mesure)
+  - Section **Callout** → **Label** → activé → cliquer sur le champ texte → saisir `CA Total`
 4. Onglet **General** → **Effects** → **Background** → activer, couleur blanche → **Border** → activer, couleur `#1B4F72`
 
 **Cards 2 à 5** — dupliquer la Card 1 (Ctrl+D) et changer uniquement la mesure et le label :
 
-| Card | Mesure          | Label               |
-| ---- | --------------- | ------------------- |
-| 2    | `Total Margin`  | `Marge totale`      |
-| 3    | `Margin %`      | `Taux de marge`     |
-| 4    | `Nb Orders`     | `Nb Commandes`      |
-| 5    | `Revenue YoY %` | `Évolution vs 2024` |
+| Card | Mesure | Label |
+| --- | --- | --- |
+| 2   | `Total Margin` | `Marge totale` |
+| 3   | `Margin %` | `Taux de marge` |
+| 4   | `Nb Orders` | `Nb Commandes` |
+| 5   | `Revenue YoY %` | `Évolution vs 2024` |
 
 ---
 
@@ -1614,8 +1662,8 @@ Pour utiliser le KPI dans le rapport :
 
 1. Cliquer l'icône **Line chart** dans Visualizations
 2. Champs :
-   - Zone **X-axis** : glisser `Dim_Date` → `FullDate`
-   - Zone **Y-axis** : glisser `Total Revenue` PUIS `Revenue PY` (glisser les deux mesures)
+  - Zone **X-axis** : glisser `Dim_Date` → `FullDate`
+  - Zone **Y-axis** : glisser `Total Revenue` PUIS `Revenue PY` (glisser les deux mesures)
 
 ---
 
@@ -1623,13 +1671,13 @@ Pour utiliser le KPI dans le rapport :
 
 1. Cliquer l'icône **Gauge** (demi-cercle) dans Visualizations
 2. Champs :
-   - Zone **Value** : glisser `Target Attainment %`
-   - Zone **Target value** : saisir directement `1` dans le champ (pas de mesure, valeur fixe)
-   - Zone **Minimum value** : saisir `0`
-   - Zone **Maximum value** : saisir `1.5`
-3. Pinceau 🖌 → onglet **Visual** :
-   - Section **Colors** → **Fill** : couleur `#27AE60` (vert)
-   - Section **General**  → **Title** → `Atteinte Objectif 2025`
+  - Zone **Value** : glisser `Target Attainment %`
+  - Zone **Target value** : glisser la mesure `Objectif Atteinte`
+3. Pinceau 🖌 → onglet **Visual** → section **Gauge axis** :
+  - **Min** : saisir `0` (valeur numérique saisie dans le Format pane, pas dans un champ de données)
+  - **Max** : saisir `1.5`
+  - Section **Colors** → **Fill** : couleur `#27AE60` (vert)
+  - Section **General** → **Title** → `Atteinte Objectif 2025`
 
 ---
 
@@ -1637,12 +1685,12 @@ Pour utiliser le KPI dans le rapport :
 
 1. Cliquer l'icône **Clustered bar chart** dans Visualizations
 2. Champs :
-   - Zone **Y-axis** : glisser `Dim_Date` → `Year`
-   - Zone **X-axis** : glisser `Total Revenue`
+  - Zone **Y-axis** : glisser `Dim_Date` → `Year`
+  - Zone **X-axis** : glisser `Total Revenue`
 3. Pinceau 🖌 → onglet **Visual** :
-   - Section **Bars** → **Color** → `#1B4F72`
-   - Section **Data labels** → activé
-   - Section **Title** → `CA par pays`
+  - Section **Bars** → **Color** → `#1B4F72`
+  - Section **Data labels** → activé
+  - Section **Title** → `CA par pays`
 4. Trier : cliquer sur les `...` (trois points) en haut du visuel → **Sort axis** → `Total Revenue` → **Sort descending**
 5. Positionner : quart inférieur droit
 
@@ -1672,20 +1720,29 @@ Pour utiliser le KPI dans le rapport :
 
 ---
 
-**Clustered Column Chart — CA et Marge par mois**
+**Visuel 1 — CA par mois (Clustered Column Chart)**
 
 1. Icône **Clustered column chart** → glisser sur canvas
 2. Champs :
-   - **X-axis** : `Dim_Date` → `MonthName`
-   - **Y-axis** : `Total Revenue`
-   - **Secondary y-axis** : `Margin %`
+  - **X-axis** : `Dim_Date` → `MonthName`
+  - **Y-axis** : `Total Revenue`
 3. Pinceau 🖌 → onglet **Visual** :
-   - Section **Columns** → `Total Revenue` → couleur `#1B4F72`
-   - Section **Line** (si disponible pour l'axe secondaire) → `Margin %` → couleur `#27AE60`
-   - Section **Y-axis** → activer **Secondary y-axis**
-   - Section **Title** → `CA et Marge par mois`
+  - Section **Columns** → couleur `#1B4F72`
+  - Section **Title** → `CA par mois`
+4. Positionner : moitié gauche
 
-> 💡 Si l'axe secondaire n'est pas disponible dans cette version de l'éditeur web, créer deux visuels séparés côte à côte : un bar chart pour le CA et un line chart pour la Marge %.
+**Visuel 2 — Marge % par mois (Line Chart)**
+
+1. Icône **Line chart** → glisser sur canvas
+2. Champs :
+  - **X-axis** : `Dim_Date` → `MonthName`
+  - **Y-axis** : `Margin %`
+3. Pinceau 🖌 → onglet **Visual** :
+  - Section **Lines** → couleur `#27AE60`
+  - Section **Title** → `Taux de marge par mois`
+4. Positionner : moitié droite, aligné avec le premier visuel
+
+> 💡 L'éditeur de rapport Fabric web ne supporte pas l'axe secondaire (dual axis). On sépare donc les deux métriques en deux visuels côte à côte.
 
 ---
 
@@ -1693,11 +1750,13 @@ Pour utiliser le KPI dans le rapport :
 
 1. Icône **Stacked bar chart** → glisser sur canvas
 2. Champs :
-   - **Y-axis** : `Dim_Product` → `ProductName`
-   - **X-axis** : `Total Revenue`
-   - **Legend** : `Dim_Product` → `Category`
-3. Filtre Top N : dans le panneau **Filters** (gauche, icône entonnoir) → sous **Filters on this visual** → glisser `Total Revenue` → **Filter type** = `Top N` → **Show items** = `Top 10` → **By value** = `Total Revenue` → **Apply filter**
-4. Pinceau 🖌 → **Title** → `Top 10 Produits par CA`
+  - **Y-axis** : `Dim_Product` → `ProductName`
+  - **X-axis** : `Total Revenue`
+  - **Legend** : `Dim_Product` → `Category`
+3. Trier : cliquer sur les `...` (trois points) en haut du visuel → **Sort axis** → `Total Revenue` → **Sort descending** (les produits sont ainsi classés du plus grand CA au plus petit)
+4. Pinceau 🖌 → **Title** → `Top produits par CA`
+
+> 💡 L'éditeur Fabric web ne propose pas de filtre Top N au niveau du visuel. Le tri décroissant par CA permet d'identifier visuellement les meilleurs produits sans filtrage.
 
 ---
 
@@ -1705,17 +1764,15 @@ Pour utiliser le KPI dans le rapport :
 
 1. Icône **Matrix** (tableau avec sous-totaux) → glisser sur canvas
 2. Champs :
-   - **Rows** : `Dim_Customer` → `CustomerSegment` PUIS `CompanyName` (dans cet ordre)
-   - **Columns** : `Dim_Date` → `Year`
-   - **Values** : `Total Revenue`, `Margin %`, `Nb Orders`
+  - **Rows** : `Dim_Customer` → `CustomerSegment` PUIS `CompanyName` (dans cet ordre)
+  - **Columns** : `Dim_Date` → `Year`
+  - **Values** : `Total Revenue`, `Margin %`
 3. Pinceau 🖌 → onglet **Visual** :
-   - Section **Row headers** → activer **+/- icons** (permet le drill Segment → Clients)
-   - Section **Values** → format de `Margin %` : affiché via le format de mesure (déjà défini)
-   - Section **Subtotals** → **Row subtotals** → activé
+  - Section **Row headers** → activer **+/- icons** (permet le drill Segment → Clients)
 4. **Mise en forme conditionnelle sur Margin %** :
-   - Clic droit sur `Margin %` dans la zone Values du visuel → **Conditional formatting** → **Background color**
-   - Choisir **Rules** : si valeur ≤ 0 → rouge `#E74C3C` / si valeur entre 0 et 0.15 → orange `#F39C12` / si valeur > 0.15 → vert `#27AE60`
-   - **Apply**
+  - Pinceau 🖌 → onglet **Visual** → section **Cell elements**
+  - Sélectionner la colonne `Margin %` → activer **Background color** → **fx**
+  - Configurer les règles : ≤ 0 → rouge `#E74C3C` / entre 0 et 0.15 → orange `#F39C12` / > 0.15 → vert `#27AE60`
 5. Titre → `CA par Segment Client`
 6. Positionner : bas de la page, pleine largeur
 
@@ -1742,23 +1799,23 @@ Pour utiliser le KPI dans le rapport :
 
 **3 Cards en haut** :
 
-- `Nb Customers` → label `Clients actifs`
-- `Avg Order Value` → label `Panier moyen`
-- `Total Revenue` → label `CA Total`
+- `Nb Customers` → Titre`Clients actifs`
+- `Avg Order Value` → Titre`Panier moyen`
+- `Total Revenue` → Titre`CA Total`
 
 ---
 
 **Donut Chart — Répartition CA par segment**
 
-1. Icône **Donut chart** → canvas
+1. Glissez un **Donut chart** dans la scene
 2. Champs :
-   - **Legend** : `Dim_Customer` → `CustomerSegment`
-   - **Values** : `Total Revenue`
+  - **Legend** : `Dim_Customer` → `CustomerSegment`
+  - **Values** : `Total Revenue`
 3. Pinceau 🖌 → onglet **Visual** :
-   - Section **Slices** → attribuer des couleurs distinctes par segment : VIP = `#1B4F72`, Fidele = `#27AE60`, Occasionnel = `#F39C12`, Dormant = `#E74C3C`
-   - Section **Detail labels** → activé → **Label contents** : choisir **Category, percent of total**
-   - Section **Legend** → activé → Position = **Bottom**
-   - Section **Title** → `Répartition du CA par segment client`
+  - Section **Slices** → attribuer des couleurs distinctes par segment : VIP = `#1B4F72`, Fidele = `#27AE60`, Occasionnel = `#F39C12`, Dormant = `#E74C3C`
+  - Section **Detail labels** → activé → **Label contents** : choisir **Category, percent of total**
+  - Section **Legend** → activé → Position = **Bottom**
+  - Section **Title** → `Répartition du CA par segment client`
 4. Positionner : quart gauche
 
 ---
@@ -1769,14 +1826,14 @@ Pour utiliser le KPI dans le rapport :
 
 1. Icône **Scatter chart** → canvas
 2. Champs :
-   - **X-axis** : `Nb Orders`
-   - **Y-axis** : `Avg Order Value`
-   - **Size** : `Total Revenue`
-   - **Details** : `Dim_Customer` → `CompanyName`
-   - **Legend** : `Dim_Customer` → `CustomerSegment`
+  - **X-axis** : `Nb Orders`
+  - **Y-axis** : `Avg Order Value`
+  - **Size** : `Total Revenue`
+  - **Details** : `Dim_Customer` → `CompanyName`
+  - **Legend** : `Dim_Customer` → `CustomerSegment`
 3. Pinceau 🖌 → onglet **Visual** :
-   - Section **Legend** → activé → Position = **Right**
-   - Section **Title** → `Profil clients : fréquence vs panier moyen`
+  - Section **Legend** → activé → Position = **Right**
+  - Section **Title** → `Profil clients : fréquence vs panier moyen`
 4. Positionner : moitié droite
 
 ---
@@ -1784,19 +1841,23 @@ Pour utiliser le KPI dans le rapport :
 **Table — Liste clients (avec drill-through à configurer en 8.7)**
 
 1. Icône **Table** → canvas
+  
 2. Champs (dans cet ordre) :
-   - `Dim_Customer` → `CustomerSegment`
-   - `Dim_Customer` → `CompanyName`
-   - `Dim_Customer` → `Country`
-   - `Total Revenue`
-   - `Nb Orders`
-   - `Avg Order Value`
-   - `Margin %`
-3. Pinceau 🖌 → onglet **Visual** :
-   - **Conditional formatting** sur `Total Revenue` : clic droit sur la colonne dans la zone Values → **Conditional formatting** → **Data bars** → couleur `#1B4F72`
-   - **Title** → `Clients (clic droit → Drill-through)`
-4. Cliquer sur l'en-tête `Total Revenue` pour trier décroissant
-5. Positionner : bas de la page, pleine largeur
+  
+  - `Dim_Customer` → `CustomerSegment`
+  - `Dim_Customer` → `CompanyName`
+  - `Dim_Customer` → `Country`
+  - `Total Revenue`
+  - `Nb Orders`
+  - `Avg Order Value`
+  - `Margin %`
+  
+  **Title** → `Clients (clic droit → Drill-through)`
+  
+3. Cliquer sur l'en-tête `Total Revenue` pour trier décroissant
+  
+4. Positionner : bas de la page, pleine largeur
+  
 
 ---
 
@@ -1813,22 +1874,8 @@ Pour utiliser le KPI dans le rapport :
 **Slicer Région (filtre principal de la page)**
 
 1. Icône **Slicer** → glisser `Dim_SalesRep` → `Region`
-2. Pinceau 🖌 → **Slicer settings** → Style = **Buttons**
+2. Pinceau 🖌 → **Slicer settings** → Style = **Tiles**
 3. Positionner en haut à droite
-
----
-
-**KPI visual — Atteinte globale équipe**
-
-1. Icône **KPI** (flèche trend + valeur) → canvas
-2. Champs :
-   - **Value** : `Target Attainment %`
-   - **Trend axis** : `Dim_Date` → `MonthName`
-3. Pinceau 🖌 → onglet **Visual** :
-   - Section **Callout value** → format affiché via le format de mesure (`0%`)
-   - Section **Goals** → **Direction** = **High is good**
-   - Section **Title** → `Atteinte Objectif Équipe 2025`
-4. Positionner : coin supérieur gauche
 
 ---
 
@@ -1838,16 +1885,14 @@ Pour utiliser le KPI dans le rapport :
 
 1. Icône **Clustered bar chart** → canvas
 2. Champs :
-   - **Y-axis** : `Dim_SalesRep` → `RepName`
-   - **X-axis** : `Total Revenue` ET `Target Revenue`
+  - **Y-axis** : `Dim_SalesRep` → `RepName`
+  - **X-axis** : `Total Revenue` ET `Target Revenue`
 3. Pinceau 🖌 → onglet **Visual** :
-   - Section **Bars** → sélectionner `Total Revenue` → couleur `#1B4F72`
-   - Section **Bars** → sélectionner `Target Revenue` → couleur `#BDC3C7`
-   - Section **Data labels** → activé
-   - Section **Legend** → activé
-   - Section **Title** → `CA 2025 vs Objectif par vendeur`
-4. Trier : `...` → Sort → `Total Revenue` → descending
-5. Positionner : moitié gauche, zone centrale
+  - Section **Bars** → sélectionner `Total Revenue` → couleur `#1B4F72`
+  - Section **Bars** → sélectionner `Target Revenue` → couleur `#BDC3C7`
+  - Section **Data labels** → activé
+  - Section **Legend** → activé
+  - Section **General **→ **Title** → `CA 2025 vs Objectif par vendeur`
 
 ---
 
@@ -1871,21 +1916,21 @@ Pour utiliser le KPI dans le rapport :
 
 1. Icône **Table** → canvas
 2. Champs :
-   - `Dim_SalesRep` → `RepName`
-   - `Dim_SalesRep` → `Region`
-   - `Total Revenue`
-   - `Target Revenue`
-   - `Target Attainment %`
-   - `Margin %`
-   - `Nb Orders`
-   - `Avg Order Value`
-   - `Nb Loss Lines`
+  - `Dim_SalesRep` → `RepName`
+  - `Dim_SalesRep` → `Region`
+  - `Total Revenue`
+  - `Target Revenue`
+  - `Target Attainment %`
+  - `Margin %`
+  - `Nb Orders`
+  - `Avg Order Value`
+  - `Nb Loss Lines`
 3. **Mise en forme conditionnelle** :
-   - Clic droit sur `Target Attainment %` dans la zone Values → **Conditional formatting** → **Icons** → Style = **Traffic light** → Rules :
-     - < `0.7` : icône rouge
-     - entre `0.7` et `0.9` : icône orange
-     - ≥ `0.9` : icône verte
-   - Clic droit sur `Nb Loss Lines` → **Conditional formatting** → **Background color** → gradient blanc → rouge `#E74C3C`
+  - Clic droit sur `Target Attainment %` dans la zone Values → **Conditional formatting** → **Icons** → Style = **Traffic light** → Rules :
+    - < `0.7` : icône rouge
+    - entre `0.7` et `0.9` : icône orange
+    - ≥ `0.9` : icône verte
+  - Clic droit sur `Nb Loss Lines` → **Conditional formatting** → **Background color** → gradient blanc → rouge `#E74C3C`
 4. Titre → `Détail performance vendeurs`
 5. Positionner : bas de page, pleine largeur
 
@@ -1903,15 +1948,15 @@ Pour utiliser le KPI dans le rapport :
 
 **Clustered Column Chart — CA et Marge par catégorie**
 
-1. Icône **Clustered column chart** → canvas
+1. Selectionnez le visuel **Clustered column chart**
 2. Champs :
-   - **X-axis** : `Dim_Product` → `Category`
-   - **Y-axis** : `Total Revenue` ET `Total Margin`
+  - **X-axis** : `Dim_Product` → `Category`
+  - **Y-axis** : `Total Revenue` ET `Total Margin`
 3. Pinceau 🖌 :
-   - `Total Revenue` → couleur `#1B4F72`
-   - `Total Margin` → couleur `#27AE60`
-   - **Data labels** → activé
-   - **Title** → `CA et Marge absolue par catégorie`
+  - `Total Revenue` → couleur `#1B4F72`
+  - `Total Margin` → couleur `#27AE60`
+  - **Data labels** → activé
+  - **Title** → `CA et Marge absolue par catégorie`
 4. Positionner : moitié gauche, haut
 
 ---
@@ -1920,12 +1965,11 @@ Pour utiliser le KPI dans le rapport :
 
 1. Icône **Treemap** (rectangles imbriqués) → canvas
 2. Champs :
-   - **Category** : `Dim_Product` → `Category`
-   - **Details** : `Dim_Product` → `SubCategory`
-   - **Values** : `Total Revenue`
+  - **Category** : `Dim_Product` → `Category`
+  - **Details** : `Dim_Product` → `SubCategory`
+  - **Values** : `Total Revenue`
 3. Pinceau 🖌 :
-   - **Data labels** → activé → **Label contents** : `Category`
-   - **Title** → `Répartition du CA par sous-catégorie`
+  - **Title** → `Répartition du CA par sous-catégorie`
 4. Positionner : moitié droite, haut
 
 ---
@@ -1936,11 +1980,11 @@ Pour utiliser le KPI dans le rapport :
 
 1. Icône **Scatter chart** → canvas
 2. Champs :
-   - **X-axis** : `Total Revenue`
-   - **Y-axis** : `Margin %`
-   - **Size** : `Nb Orders`
-   - **Details** : `Dim_Product` → `Category`
-3. Pinceau 🖌 → **Title** → `Matrice Volume / Marge par catégorie de produit`
+  - **X-axis** : `Total Revenue`
+  - **Y-axis** : `Margin %`
+  - **Size** : `Nb Orders`
+  - **Values** : `Fact_OrderLines` → `Quantity`
+3. Pinceau 🖌 → **Title** → `Qunatité / Marge par catégorie de produit et revenu total
 4. Positionner : moitié gauche, bas
 
 ---
@@ -1949,12 +1993,11 @@ Pour utiliser le KPI dans le rapport :
 
 1. Icône **Clustered bar chart** → canvas
 2. Champs :
-   - **Y-axis** : `Dim_Warehouse` → `WarehouseName`
-   - **X-axis** : `Total Revenue`
-   - **Legend** : `Dim_Warehouse` → `Country`
+  - **Y-axis** : `Dim_Warehouse` → `WarehouseName`
+  - **X-axis** : `Total Revenue`
+  - **Legend** : `Dim_Warehouse` → `Country`
 3. Pinceau 🖌 → **Title** → `CA par entrepôt de distribution`
-4. Trier : `Total Revenue` descending
-5. Positionner : moitié droite, bas
+4. Positionner : moitié droite, bas
 
 ---
 
@@ -1965,22 +2008,24 @@ Pour utiliser le KPI dans le rapport :
 **Créer la page** :
 
 1. Clic **+** → renommer `🔍 Détail Client`
-
+  
 2. Clic droit sur l'onglet de la page → **Hide page**
-   
-   > La page reste accessible par drill-through mais n'apparaît pas dans la navigation normale.
+  
+  > La page reste accessible par drill-through mais n'apparaît pas dans la navigation normale.
+  
 
 ---
 
 **Configurer le drill-through sur cette page**
 
 1. Cliquer dans une zone vide du canvas de la page **Détail Client**
-
+  
 2. Dans le panneau **Filters** (gauche) → chercher la section **Drillthrough**
-
+  
 3. Glisser `Dim_Customer` → `CompanyName` dans la zone **Add drill-through fields here**
-   
-   > ✅ Une flèche de retour automatique (`← Back`) apparaît en haut à gauche du canvas — **ne pas la supprimer**.
+  
+  > ✅ Une flèche de retour automatique (`← Back`) apparaît en haut à gauche du canvas — **ne pas la supprimer**.
+  
 
 ---
 
@@ -2002,7 +2047,7 @@ Pour utiliser le KPI dans le rapport :
 
 1. Icône **Line chart**
 2. **X-axis** : `Dim_Date` → `FullDate` (niveau Month)
-3. **Y-axis** : `Total Revenue` ET `Revenue PY`
+3. **Y-axis** : `Total Revenue`
 4. **Title** → `Évolution mensuelle du CA`
 
 **Table — Historique commandes du client** :
@@ -2032,13 +2077,13 @@ Pour utiliser le KPI dans le rapport :
 1. **Sélectionner** le visuel source (ex: Bar chart pays sur Page 1)
 2. Barre d'outils → **Visual interactions** (bouton dans la barre du haut)
 3. Des icônes apparaissent sur chaque autre visuel de la page :
-   - 🔲 **Filtre** : le clic sur le visuel source filtre ce visuel
-   - 🔆 **Surbrillance** : le clic met en surbrillance les valeurs correspondantes
-   - ⊘ **Aucun** : le clic n'affecte pas ce visuel
+  - 🔲 **Filtre** : le clic sur le visuel source filtre ce visuel
+  - 🔆 **Surbrillance** : le clic met en surbrillance les valeurs correspondantes
+  - ⊘ **Aucun** : le clic n'affecte pas ce visuel
 4. Recommandations pour la Page 1 :
-   - Bar chart pays → Line chart CA mensuel : **Filtre** (voir la courbe du pays sélectionné)
-   - Bar chart pays → Gauge objectif : **Aucun** (la gauge reste globale)
-   - Donut catégorie → Bar chart pays : **Surbrillance**
+  - Bar chart pays → Line chart CA mensuel : **Filtre** (voir la courbe du pays sélectionné)
+  - Bar chart pays → Gauge objectif : **Aucun** (la gauge reste globale)
+  - Donut catégorie → Bar chart pays : **Surbrillance**
 5. Cliquer à nouveau sur **Visual interactions** dans la barre d'outils pour quitter ce mode
 
 ---
@@ -2048,33 +2093,34 @@ Pour utiliser le KPI dans le rapport :
 **Ajouter des boutons de navigation entre pages**
 
 1. Aller sur une page (ex: Page 1)
-
+  
 2. Barre d'outils → **Buttons** → **Navigator** → **Page navigator**
-   
-   > Le Page navigator génère automatiquement des boutons pour toutes les pages visibles. C'est la façon la plus simple d'ajouter une navigation claire.
-
+  
+  > Le Page navigator génère automatiquement des boutons pour toutes les pages visibles. C'est la façon la plus simple d'ajouter une navigation claire.
+  
 3. Positionner en bas ou en haut de la page
-
+  
 4. Pinceau 🖌 → **Buttons** → ajuster le style (couleur, taille de texte)
-
+  
 5. Répéter sur chaque page (ou copier-coller le navigator)
+  
 
 ---
 
 **Créer des Bookmarks (vue mensuelle / trimestrielle)**
 
 1. Barre d'outils → **View** → **Bookmarks** (si disponible dans votre version)
-   
-   > 💡 Dans certaines versions de l'éditeur Fabric web, les bookmarks sont sous **View** → **Bookmarks pane** ou via **Insert** → **Bookmark**.
-
+  
+  > 💡 Dans certaines versions de l'éditeur Fabric web, les bookmarks sont sous **View** → **Bookmarks pane** ou via **Insert** → **Bookmark**.
+  
 2. Configurer le slicer Year sur `2025` uniquement → **Add** → nommer `Vue 2025`
-
+  
 3. Configurer le slicer Year sur `2024` et `2025` → **Add** → nommer `Comparaison 2024-2025`
-
+  
 4. Créer deux boutons (barre d'outils → **Buttons** → **Blank**) :
-   
-   - Label `2025 seulement` → Format → **Action** → activé → **Type** = **Bookmark** → sélectionner `Vue 2025`
-   - Label `2024 vs 2025` → Action → Bookmark → `Comparaison 2024-2025`
+  
+  - Label `2025 seulement` → Format → **Action** → activé → **Type** = **Bookmark** → sélectionner `Vue 2025`
+  - Label `2024 vs 2025` → Action → Bookmark → `Comparaison 2024-2025`
 
 ---
 
@@ -2112,11 +2158,11 @@ PÉRIODE : 2024-01-01 au 2025-12-31
 
 1. Barre d'outils → **Reading view** (bouton en haut)
 2. Tester sur chaque page :
-   - Les slicers filtrent-ils correctement les visuels ?
-   - Le drill-through fonctionne-t-il (clic droit sur un client) ?
-   - Les boutons de navigation changent-ils bien de page ?
-   - La page **Détail Client** n'apparaît-elle pas dans le Page navigator ?
-   - Les bookmarks basculent-ils correctement ?
+  - Les slicers filtrent-ils correctement les visuels ?
+  - Le drill-through fonctionne-t-il (clic droit sur un client) ?
+  - Les boutons de navigation changent-ils bien de page ?
+  - La page **Détail Client** n'apparaît-elle pas dans le Page navigator ?
+  - Les bookmarks basculent-ils correctement ?
 3. Si tout est correct → repasser en mode Édition pour corriger les éventuels problèmes
 
 ---
@@ -2124,14 +2170,15 @@ PÉRIODE : 2024-01-01 au 2025-12-31
 **Sauvegarder le rapport**
 
 1. Barre d'outils → **Save** (icône disquette ou bouton Save)
-
+  
 2. Saisir le nom : `Rapport_EnergiDistrib`
-
+  
 3. Choisir le workspace : votre workspace Fabric
-
+  
 4. **Save**
-   
-   > ✅ Le rapport est désormais visible dans votre workspace Fabric, directement connecté au modèle sémantique `SM_EnergiDistrib`. Si le pipeline est relancé et rechargé le Warehouse, le rapport se met à jour automatiquement — sans aucune action manuelle.
+  
+  > ✅ Le rapport est désormais visible dans votre workspace Fabric, directement connecté au modèle sémantique `SM_EnergiDistrib`. Si le pipeline est relancé et rechargé le Warehouse, le rapport se met à jour automatiquement — sans aucune action manuelle.
+  
 
 ---
 
