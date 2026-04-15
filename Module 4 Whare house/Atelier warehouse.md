@@ -736,13 +736,10 @@ Dans ce Dataflow, la source est la table **`silver_orders`** produite par le Not
 3. **New table** : `silver_monthly_summary`
 4. **Replace** → **Save settings**
 
-### 3.12 — Publier le Dataflow
+### 3.12 — Sauvegarder le Dataflow
 
 1. En bas à droite → **Publish**
-2. Attendre que le rafraîchissement se termine (barre de progression dans le workspace)
-
-> ⚠️ **Piège** : Le premier Publish peut prendre 2-3 minutes. Ne pas fermer l'onglet pendant ce temps.
-
+   cliquez **Home**  → **Save**
 ---
 
 ## Bloc 4  — Pipeline Data Factory
