@@ -34,14 +34,14 @@ Fichiers audio (MP3 synthétiques)
 
 ## Prérequis
 
-| Élément          | Valeur                                                            |
-| ---------------- | ----------------------------------------------------------------- |
-| Workspace Fabric | `WS_SolarVoix` (F64 ou capacité Trial)                            |
-| Lakehouse        | `LH_SolarVoix`                                                    |
-| Notebook 1       | `NB_Generation_Donnees`                                           |
-| Notebook 2       | `NB_Bronze_to_Silver`                                             |
-| Notebook 3       | `NB_Visualisations`                                               |
-| Bibliothèques    | `transformers`, `torch`, `pydub`, `faker` (installables via %pip) |
+| Élément | Valeur |
+| --- | --- |
+| Workspace Fabric | `WS_SolarVoix` (F64 ou capacité Trial) |
+| Lakehouse | `LH_SolarVoix` |
+| Notebook 1 | `NB_Generation_Donnees` |
+| Notebook 2 | `NB_Bronze_to_Silver` |
+| Notebook 3 | `NB_Visualisations` |
+| Bibliothèques | `transformers`, `torch`, `pydub`, `faker` (installables via %pip) |
 
 ---
 
@@ -97,8 +97,11 @@ Fichiers audio (MP3 synthétiques)
 # transformers → modèles HuggingFace pour sentiment sans clé API
 # torch    → requis par transformers (backend de calcul)
 
-%pip install faker pydub transformers torch sentencepiece --quiet
-print("Installation terminée")
+
+import subprocess, sys
+pkgs = ["faker", "pydub", "transformers", "torch", "sentencepiece"]
+subprocess.run([sys.executable, "-m", "pip", "install", "--quiet"] + pkgs, check=True)
+print("Installation terminée")print("Installation terminée")
 ```
 
 **Résultat attendu :** `Installation terminée` (peut prendre 2-3 minutes au premier lancement)
@@ -786,7 +789,15 @@ COULEURS_SENTIMENT = {
 
 df = spark.table("silver_appels_enrichis").toPandas()
 df["date_appel"] = pd.to_datetime(df["date_appel"])
-df["semaine"] = df["date_appel"].dt.isocalendar().week.astype(int)
+
+# Convertir les entiers/booléens nullable Pandas (Int32, Int64, boolean...) en float numpy
+# → compatibilité matplotlib/seaborn (ufunc isfinite)
+# On exclut les StringDtype pour ne pas écraser les colonnes texte
+for col in df.columns:
+    if pd.api.types.is_extension_array_dtype(df[col]) and pd.api.types.is_numeric_dtype(df[col]):
+        df[col] = df[col].astype(float)
+
+df["semaine"] = df["date_appel"].dt.isocalendar().week.astype(float)
 
 print(f"Données chargées : {len(df)} appels")
 ```
@@ -918,17 +929,21 @@ print("Dashboard sauvegardé")
 from sklearn.metrics import confusion_matrix, classification_report
 import numpy as np
 
+# Filtrer les lignes avec des valeurs manquantes dans les colonnes sentiment
+df_cm = df.dropna(subset=["sentiment_reel", "sentiment_ia"]).copy()
+
 # On mappe "tres_negatif" → "negatif" pour la comparaison
 # (le modèle HuggingFace n'a que 3 classes)
-df["sentiment_reel_3classes"] = df["sentiment_reel"].replace(
+df_cm["sentiment_reel_3classes"] = df_cm["sentiment_reel"].astype(str).replace(
     {"tres_negatif": "negatif"}
 )
 
 labels = ["positif", "neutre", "negatif"]
-y_true = df["sentiment_reel_3classes"]
-y_pred = df["sentiment_ia"]
+y_true = df_cm["sentiment_reel_3classes"]
+y_pred = df_cm["sentiment_ia"].astype(str)
 
 cm = confusion_matrix(y_true, y_pred, labels=labels)
+print(f"Lignes utilisées pour la matrice : {len(df_cm)} / {len(df)}")
 
 fig, ax = plt.subplots(figsize=(8, 6))
 sns.heatmap(cm, annot=True, fmt="d", cmap="Blues",
@@ -950,7 +965,27 @@ print(classification_report(y_true, y_pred, labels=labels))
 
 ## Bloc 7 — Optimisation de la table Silver (optionnel mais recommandé)
 
-### 7.1 — Cellule 8 : OPTIMIZE et VACUUM
+> ⚠️ **Notebook concerné : `NB_Bronze_to_Silver`** — Cette cellule ne s'exécute **pas** dans `NB_Visualisations`. Revenez dans le notebook `NB_Bronze_to_Silver` et ajoutez-y cette cellule à la suite des cellules 1 à 7 déjà créées. La numérotation "Cellule 8" est la continuation directe de ce notebook.
+
+### 7.1 — Cellule 8 : OPTIMIZE et VACUUM *(dans le notebook NB_Bronze_to_Silver)*
+
+Passez vers le notebook **NB_Bronze_to_Silver** et ajoutez la cellule 8
+
+Voici le raisonnement :
+
+Le numérotage des cellules dans l'atelier suit le notebook `NB_Bronze_to_Silver`, pas `NB_Visualisations` :
+
+| Notebook | Cellule | Bloc |
+| --- | --- | --- |
+| NB_Bronze_to_Silver | 1, 2, 3 | Bloc 3 (ingestion Bronze) |
+| NB_Bronze_to_Silver | 4   | Bloc 4 (sentiment IA) |
+| NB_Bronze_to_Silver | 5, 6, 7 | Bloc 5 (intent + Silver + QC) |
+| NB_Visualisations | **1, 2, 3** | Bloc 6 (visualisations) |
+| NB_Bronze_to_Silver | **8** | Bloc 7 (OPTIMIZE/VACUUM) |
+
+La **Cellule 8** appartient logiquement à `NB_Bronze_to_Silver` (suite des cellules 1→7), pas à `NB_Visualisations`. L'OPTIMIZE/VACUUM s'applique à la table Silver qu'on vient d'écrire — ce serait incohérent de le mettre dans le notebook de visualisation.
+
+**Conclusion :** le Bloc 7 aurait dû avoir un titre indiquant `NB_Bronze_to_Silver` (comme le Bloc 3). La numérotation repart à 1 pour `NB_Visualisations` (Bloc 6), puis reprend à 8 pour continuer `NB_Bronze_to_Silver` — c'est juste un manque de clarté dans la rédaction.
 
 ```python
 # === CELLULE 8 : Optimisation Delta ===
@@ -981,10 +1016,9 @@ spark.sql("DESCRIBE DETAIL silver_appels_enrichis") \
 
 ## Récapitulatif de la Partie 1
 
-| Étape               | Outil                    | Résultat                          |
-| ------------------- | ------------------------ | --------------------------------- |
-| Génération données  | Python / Faker           | 120 appels synthétiques réalistes |
-| Ingestion Bronze    | Spark binaryFile + CSV   | 2 tables Delta Bronze             |
-| Analyse sentiment   | HuggingFace Transformers | sentiment_ia + score_sentiment    |
-| Détection intention | Règles métier            | intent_detecte (9 catégories)     |
-| Score churn         | Formule pondérée         | s                                 |
+| Étape | Outil | Résultat |
+| --- | --- | --- |
+| Génération données | Python / Faker | 120 appels synthétiques réalistes |
+| Ingestion Bronze | Spark binaryFile + CSV | 2 tables Delta Bronze |
+| Analyse sentiment | HuggingFace Transformers | sentiment_ia + score_sentiment |
+| Détection intention | Règles |     |
