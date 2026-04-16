@@ -10,34 +10,34 @@
 
 Les Parties 1 et 2 ont produit la table `silver_appels_enrichis` avec les colonnes suivantes :
 
-| Colonne            | Type     | Description                                           |
-| ------------------ | -------- | ----------------------------------------------------- |
-| call_id            | Text     | Identifiant unique de l'appel                         |
-| client_nom         | Text     | Nom du client                                         |
-| ville              | Text     | Ville du client                                       |
-| produit            | Text     | Produit concerné par l'appel                          |
-| date_appel         | DateTime | Date et heure de l'appel                              |
-| duree_minutes      | Decimal  | Durée de l'appel en minutes                           |
-| tranche_horaire    | Text     | Matin / Après-midi / Fin de journée                   |
-| jour_semaine       | Integer  | Numéro du jour (1=Lundi … 7=Dimanche)                 |
-| sentiment_ia       | Text     | Sentiment prédit par le modèle IA                     |
-| score_sentiment    | Decimal  | Confiance de la prédiction IA (0 à 1)                 |
-| intent_detecte     | Text     | Intention détectée automatiquement                    |
-| score_risque_churn | Integer  | Score de risque churn (0 à 100)                       |
-| alerte_critique    | Boolean  | TRUE si score ≥ 50                                    |
-| sentiment_reel     | Text     | Sentiment réel (vérité terrain pour audit qualité IA) |
-| intention_reelle   | Text     | Intention réelle déclarée par le client               |
+| Colonne | Type | Description |
+| --- | --- | --- |
+| call_id | Text | Identifiant unique de l'appel |
+| client_nom | Text | Nom du client |
+| ville | Text | Ville du client |
+| produit | Text | Produit concerné par l'appel |
+| date_appel | DateTime | Date et heure de l'appel |
+| duree_minutes | Decimal | Durée de l'appel en minutes |
+| tranche_horaire | Text | Matin / Après-midi / Fin de journée |
+| jour_semaine | Integer | Numéro du jour (1=Lundi … 7=Dimanche) |
+| sentiment_ia | Text | Sentiment prédit par le modèle IA |
+| score_sentiment | Decimal | Confiance de la prédiction IA (0 à 1) |
+| intent_detecte | Text | Intention détectée automatiquement |
+| score_risque_churn | Integer | Score de risque churn (0 à 100) |
+| alerte_critique | Boolean | TRUE si score ≥ 50 |
+| sentiment_reel | Text | Sentiment réel (vérité terrain pour audit qualité IA) |
+| intention_reelle | Text | Intention réelle déclarée par le client |
 
 **Objectif de la Partie 3 :**
 
 1. **Table Date DimDate** — exploiter pleinement la dimension temporelle
 2. **Mesures DAX analytiques** — comparaisons, écarts, précision IA, ratios
 3. **Rapport 5 pages** — chaque page répond à une question analytique précise :
-   - Page 1 : Vue d'ensemble & KPIs comparatifs
-   - Page 2 : Analyse risque churn (jauges, scatter, seuils)
-   - Page 3 : Analyse géographique (ville)
-   - Page 4 : Qualité IA & intentions réelles
-   - Page 5 : Détail par appel (drill-through)
+  - Page 1 : Vue d'ensemble & KPIs comparatifs
+  - Page 2 : Analyse risque churn (jauges, scatter, seuils)
+  - Page 3 : Analyse géographique (ville)
+  - Page 4 : Qualité IA & intentions réelles
+  - Page 5 : Détail par appel (drill-through)
 4. **Vues T-SQL** — exploration SQL des sentiments sur le Lakehouse
 5. **Visualisations Python** — analyse approfondie des sentiments
 
@@ -59,51 +59,112 @@ Les Parties 1 et 2 ont produit la table `silver_appels_enrichis` avec les colonn
 2. Badge **Direct Lake** visible sur la table
 3. Vérifier colonnes dans le panneau droit
 
-### 1.3 — Propriétés des colonnes
-
-Dans la table `silver_appels_enrichis` :
-
-1. `date_appel` → **Data category** : Date/Time
-2. `score_risque_churn` → **Summarization** : None
-3. `alerte_critique` → **Data type** : True/False
-4. `score_sentiment` → **Format** : Percentage (0.00%)
-5. `ville` → **Data category** : **City** (active la géolocalisation automatique)
-6. **Ctrl+S**
-
-> 💡 Définir `ville` en catégorie **City** permet à Power BI de géolocaliser automatiquement les villes françaises sans configuration supplémentaire.
-
----
+###
 
 ## Bloc 2 — Table Date DimDate
 
 > 💡 **Pourquoi une table Date ?** Sans table Date dédiée, Power BI ne peut pas faire de comparaisons temporelles (semaine précédente, même mois l'an dernier), ni trier correctement les mois par nom. Une DimDate est **indispensable** pour exploiter la dimension temporelle.
 
-### 2.1 — Créer la table calculée DimDate
+### 2.1 — Créer la table DimDate dans LH_SolarVoix (Notebook)
 
-Dans le modèle sémantique → onglet **Model view** → barre du haut → **New table** :
+> ⚠️ **Pourquoi dans le Lakehouse ?** Le modèle sémantique `SM_SolarVoix_Appels` fonctionne en mode **Direct Lake** : il lit les données de `LH_SolarVoix` mais **n'a pas de droits d'écriture**. Il est impossible d'y créer une table calculée DAX. La table `DimDate` doit donc être créée directement dans le Lakehouse, puis référencée par le modèle.
 
-```dax
-DimDate =
-ADDCOLUMNS(
-    CALENDAR(
-        MIN(silver_appels_enrichis[date_appel]),
-        MAX(silver_appels_enrichis[date_appel])
-    ),
-    "Année",        YEAR([Date]),
-    "Trimestre",    "T" & ROUNDUP(MONTH([Date]) / 3, 0),
-    "Mois Num",     MONTH([Date]),
-    "Nom Mois",     FORMAT([Date], "MMMM"),
-    "Année-Mois",   FORMAT([Date], "YYYY-MM"),
-    "Semaine",      WEEKNUM([Date], 2),
-    "Jour Semaine", WEEKDAY([Date], 2),
-    "Nom Jour",     FORMAT([Date], "dddd"),
-    "Est Weekend",  IF(WEEKDAY([Date], 2) >= 6, TRUE(), FALSE())
+**Étape 1 — Ouvrir un Notebook dans LH_SolarVoix**
+
+1. Dans `WS_SolarVoix` → ouvrir `LH_SolarVoix`
+2. Barre du haut → **Open notebook** → **New notebook**
+3. Nommer le notebook : `NB_Create_DimDate`
+4. Vérifier que le Lakehouse `LH_SolarVoix` est bien attaché (panneau gauche)
+
+**Étape 2 — Générer DimDate avec les dates de silver_appels_enrichis**
+
+La plage de dates est calculée directement depuis `silver_appels_enrichis[date_appel]` pour garantir la cohérence.
+
+```python
+from pyspark.sql import functions as F
+from pyspark.sql.types import DateType
+
+# Lire la plage de dates depuis silver_appels_enrichis
+df_appels = spark.table("silver_appels_enrichis")
+date_range = df_appels.agg(
+    F.min(F.col("date_appel").cast(DateType())).alias("date_min"),
+    F.max(F.col("date_appel").cast(DateType())).alias("date_max")
+).collect()[0]
+
+date_min = date_range["date_min"]
+date_max = date_range["date_max"]
+print(f"Plage de dates : {date_min} → {date_max}")
+
+# Générer la séquence de dates
+df_dim = spark.sql(f"""
+    SELECT sequence(
+        TO_DATE('{date_min}'),
+        TO_DATE('{date_max}'),
+        INTERVAL 1 DAY
+    ) AS date_array
+""").select(F.explode("date_array").alias("Date"))
+
+# Ajouter toutes les colonnes de dimension temporelle
+df_dimdate = df_dim.select(
+    F.col("Date"),
+    F.year("Date").alias("Année"),
+    F.concat(F.lit("T"), F.ceil(F.month("Date") / 3).cast("string")).alias("Trimestre"),
+    F.month("Date").alias("Mois_Num"),
+    F.date_format("Date", "MMMM").alias("Nom_Mois"),
+    F.date_format("Date", "yyyy-MM").alias("Année_Mois"),
+    F.weekofyear("Date").alias("Semaine"),
+    F.dayofweek("Date").alias("Jour_Semaine"),   # 1=Dim ... 7=Sam (Spark)
+    F.date_format("Date", "EEEE").alias("Nom_Jour"),
+    F.when(F.dayofweek("Date").isin([1, 7]), True).otherwise(False).alias("Est_Weekend")
 )
+
+# Écrire dans le Lakehouse en mode overwrite
+df_dimdate.write.format("delta").mode("overwrite").saveAsTable("DimDate")
+
+print(f"Table DimDate créée : {df_dimdate.count()} lignes")
+df_dimdate.show(5)
 ```
+
+**Étape 3 — Ajouter une colonne date_appel_date à silver_appels_enrichis**
+
+> ⚠️ **Pourquoi cette étape est indispensable ?** `silver_appels_enrichis[date_appel]` est de type **TimestampType** (date + heure), tandis que `DimDate[Date]` est de type **DateType** (date seule). En mode Direct Lake, une relation entre deux colonnes de types différents est silencieusement inactive — les visuels affichent `(Blank)`. Il faut donc ajouter une colonne de type `DateType` dans `silver_appels_enrichis` pour servir de clé de relation.
+
+Dans le même notebook `NB_Create_DimDate`, ajouter une deuxième cellule :
+
+```python
+# Ajouter la colonne à la structure Delta (sans réécrire la table)
+spark.sql("ALTER TABLE silver_appels_enrichis ADD COLUMN date_appel_date DATE")
+
+# Remplir la colonne avec le cast Timestamp → Date
+spark.sql("UPDATE silver_appels_enrichis SET date_appel_date = CAST(date_appel AS DATE)")
+
+# Vérifier sur une lecture fraîche
+spark.sql("SELECT date_appel, date_appel_date FROM silver_appels_enrichis LIMIT 3").show()
+```
+
+> 💡 `ALTER TABLE` + `UPDATE` Delta modifie la table chirurgicalement sans réécrire tous les fichiers Parquet — c'est plus rapide et sans risque de conflit de lecture.
+
+La table `silver_appels_enrichis` contient maintenant une colonne `date_appel_date` de type **DateType**, compatible avec `DimDate[Date]`.
+
+**Étape 4 — Vérifier les deux tables dans LH_SolarVoix**
+
+1. Dans le panneau gauche du Notebook → **Tables** → actualiser (icône ↻)
+2. `DimDate` et `silver_appels_enrichis` (mise à jour) doivent apparaître
+3. Clic droit sur chacune → **Load data** → vérifier les premières lignes
+
+**Étape 5 — Ajouter DimDate au modèle sémantique**
+
+1. Dans `WS_SolarVoix` → ouvrir `SM_SolarVoix_Appels`
+2. Barre du haut → **Edit data model** → onglet **Model view**
+3. Barre du haut → **Add data** (ou **Edit tables**)
+4. Cocher `DimDate` → **Confirm**
+5. Les deux tables apparaissent dans le modèle avec le badge **Direct Lake**
 
 ### 2.2 — Créer la relation DimDate ↔ silver_appels_enrichis
 
-1. Dans **Model view** → glisser `DimDate[Date]` vers `silver_appels_enrichis[date_appel]`
+La relation s'appuie sur `date_appel_date` (DateType) côté faits — pas sur `date_appel` (TimestampType).
+
+1. Dans **Model view** → glisser `DimDate[Date]` vers `silver_appels_enrichis[date_appel_date]`
 2. Relation créée : DimDate (1) → silver_appels_enrichis (*)
 3. Vérifier : Cardinality = **One to many**, Cross filter = **Single**
 
@@ -155,7 +216,21 @@ Objectif Taux Alertes =
 0.10
 ```
 
-*Ces 4 mesures servent uniquement à alimenter les champs Min / Max / Target des jauges et des visuels Goals.*
+**Mesure C5 — Max Taux Alertes**
+
+```dax
+Max Taux Alertes =
+0.30
+```
+
+**Mesure C6 — Objectif Détection Résiliation**
+
+```dax
+Objectif Détection Résiliation =
+0.80
+```
+
+*Ces 6 mesures servent uniquement à alimenter les champs Min / Max / Target des jauges et des visuels Goals.*
 
 ---
 
@@ -346,11 +421,20 @@ DIVIDE([Taux Résiliation], [Taux Intention Réelle Résiliation], 0)
 
 ---
 
-## Bloc 4 — Création du Rapport Power BI Fabric
+## Bloc 4 — Création du rapport dans Fabric
 
-### Présentation de l'interface
+### 4.0 — Lancer l'éditeur de rapport depuis le modèle sémantique
 
-L'éditeur Fabric comporte 3 zones importantes :
+Tout se passe dans le navigateur, directement depuis le workspace Fabric.
+
+1. Dans `WS_SolarVoix` → ouvrir `SM_SolarVoix_Appels`
+2. Barre du haut → **Create report**
+3. L'éditeur de rapport Fabric s'ouvre dans un nouvel onglet du navigateur
+4. **Ctrl+S** → nommer le rapport `RPT_SolarVoix_Appels` → **Save**
+
+> 💡 Le rapport est automatiquement connecté au modèle sémantique `SM_SolarVoix_Appels` en mode Direct Lake. Toutes les tables et mesures créées dans les Blocs 2 et 3 sont immédiatement disponibles dans le panneau **Data** à droite.
+
+### Présentation de l'interface de l'éditeur Fabric
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
@@ -367,17 +451,17 @@ L'éditeur Fabric comporte 3 zones importantes :
 └──────────────────────────────────────────────────────────────────┘
 ```
 
-**Créer et nommer les 5 pages :**
+Les trois gestes de base à retenir dans cet éditeur :
+
+- **Ajouter un visuel** → cliquer une icône dans le panneau **Visualizations** (panneau droit, onglet ①) — le visuel apparaît sur le canvas, sélectionné
+- **Configurer un visuel** → visuel sélectionné → onglet **Build visual** (icône graphe) → glisser les champs depuis **Data** (panneau ②) vers les zones Value / Axis / Legend etc.
+- **Mettre en forme** → visuel sélectionné → onglet **Format visual** (icône pinceau)
+
+### Créer et nommer les 5 pages
 
 1. Cliquer **+** en bas à gauche pour chaque nouvelle page
 2. Clic droit sur l'onglet → **Rename page**
 3. Nommer dans l'ordre : `Vue d'ensemble`, `Risque Churn`, `Géographie`, `Qualité IA`, `Détail appel`
-
-**Sauvegarder le rapport :**
-
-1. Ctrl+S → nommer `RPT_SolarVoix_Appels`
-
-> ⚠️ **Important :** Ne jamais ouvrir Power BI Desktop. Les rapports Direct Lake ne sont compatibles qu'avec l'éditeur Fabric dans le navigateur.
 
 ---
 
@@ -399,7 +483,7 @@ Le visuel **KPI** est différent du visuel **Card** : il affiche la valeur coura
 
 - **Value** : `Score Churn Moyen`
 - **Target** : `Seuil Alerte` (mesure C3 = 40)
-- **Trend axis** : `DimDate[Année-Mois]`
+- **Trend axis** : `DimDate[Année_Mois]`
 
 **Résultat :** La flèche est verte si le score est sous 40, rouge si au-dessus. La tendance mensuelle s'affiche en miniature sous la valeur.
 
@@ -417,10 +501,10 @@ Le visuel **Goals** (ou **Gauge** en mode linéaire) montre la progression vers 
 
 - **Value** : `Taux Alertes Critiques`
 - **Minimum value** : `Score Min` (mesure C1 — retourne 0)
-- **Maximum value** : `Objectif Taux Alertes` (mesure C4 — retourne 0.10)
-- **Target value** : `Objectif Taux Alertes`
+- **Maximum value** : `Max Taux Alertes` (mesure C5 — retourne 0.30)
+- **Target value** : `Objectif Taux Alertes` (mesure C4 — retourne 0.10)
 
-> 💡 La jauge montre la progression entre 0% et 10%. Si le taux dépasse 10%, l'aiguille dépasse le maximum — signal visuel immédiat de dépassement de l'objectif.
+> 💡 La jauge s'étend de 0 à 30%. La ligne cible à 10% est clairement visible. Si le taux réel dépasse 10%, l'aiguille franchit la cible sans déborder — le signal de dépassement est immédiat et lisible. Ne jamais utiliser l'objectif comme Maximum : quand la valeur dépasse la cible, la jauge devient incohérente.
 
 ---
 
@@ -486,7 +570,7 @@ Le **Ribbon Chart** est un graphique en barres empilées avec des "rubans" qui r
 
 **Build visual :**
 
-- **X-axis** : `DimDate[Année-Mois]`
+- **X-axis** : `DimDate[Année_Mois]`
 - **Y-axis** : `Score Churn Moyen`
 - **Secondary Y** : `Seuil Danger P90`
 
@@ -504,7 +588,7 @@ Le **Ribbon Chart** est un graphique en barres empilées avec des "rubans" qui r
 **Visualizations → Slicer**
 
 - **Field** : `tranche_horaire`
-- **Style** : Tile (boutons)
+- **Style** : Tile
 
 > 💡 Permet d'isoler les appels du matin / après-midi / fin de journée pour détecter si le churn est plus élevé à certaines heures.
 
@@ -576,8 +660,8 @@ Le **Scatter Chart** montre des concentrations de phénomènes en deux dimension
 - **X-axis** : `Durée Moy Appels Critiques` (durée moyenne des appels critiques)
 - **Y-axis** : `Score Churn Moyen`
 - **Size** : `Nb Appels en Alerte` (taille de la bulle = nombre d'alertes)
-- **Legend** : `produit`
-- **Details** : `produit` (une bulle par produit)
+- **Legend** : `produit` (une bulle par produit, chaque produit avec sa couleur)
+- **Values** : laisser vide
 
 **Analytics → Constant line :**
 
@@ -647,18 +731,35 @@ Le **Scatter Chart** montre des concentrations de phénomènes en deux dimension
 
 ---
 
-#### Visuel 1 — Carte géographique : Score churn par ville
+#### Visuel 1 — Treemap : Top 10 villes par volume et risque churn
 
-**Visualizations → Map** (carte bulles)
+**Visualizations → Treemap**
 
 **Build visual :**
 
-- **Location** : `ville` (Power BI géolocalise automatiquement car Data category = City)
-- **Size** : `Score Churn Moyen` (taille de la bulle = intensité du risque)
-- **Color saturation** : `Nb Appels en Alerte`
-- **Tooltips** : `Total Appels`, `Taux Alertes Critiques`
+- **Category** : `ville`
+- **Values** : `Total Appels` (taille de chaque tuile = volume d'appels)
+- **Color saturation** : `Score Churn Moyen`
+- **Tooltips** : `Nb Appels en Alerte`, `Taux Alertes Critiques`
 
-> 💡 Les grandes bulles foncées indiquent les villes avec à la fois un score élevé ET beaucoup d'alertes. Ce sont les zones géographiques prioritaires.
+**Appliquer deux filtres sur le visuel :**
+
+**Filtre 1 — Exclure les villes nulles :**
+
+1. Visuel sélectionné → panneau **Filters** → section **Filters on this visual**
+2. Glisser `ville` dans cette zone
+3. Filter type = **Basic filtering** → décocher **(Blank)**
+4. Cliquer **Apply filter**
+
+**Filtre 2 — Top 10 villes par score churn :**
+
+1. Dans la même zone **Filters on this visual**, glisser à nouveau `ville`
+2. Filter type = **Top N**
+3. **Show items** : `Top` `10`
+4. **By value** : glisser la mesure **`Score Churn Moyen`**
+5. Cliquer **Apply filter**
+
+> 💡 `Score Churn Moyen` comme critère de sélection est cohérent avec la Color saturation du treemap — les 10 villes affichées sont exactement celles avec le risque churn le plus élevé. Ne pas utiliser `Total Appels` (favorise les grandes villes indépendamment du risque) ni `Taux Résiliation` (taux biaisé sur les villes avec peu d'appels).
 
 ---
 
@@ -672,33 +773,9 @@ Le **Scatter Chart** montre des concentrations de phénomènes en deux dimension
 - **X-axis** : `Score Churn Moyen`
 - **Filters panel** (gauche) → ajouter `ville` → Top N = 10 (par `Score Churn Moyen`)
 
-**Analytics → Constant line :**
-
-- Value : `Seuil Alerte` (40) — rouge pointillé
-
 ---
 
-#### Visuel 3 — Scatter Chart : Nb appels vs Score churn par ville
-
-**Visualizations → Scatter chart**
-
-**Build visual :**
-
-- **X-axis** : `Total Appels` (nombre d'appels par ville)
-- **Y-axis** : `Score Churn Moyen`
-- **Size** : `Nb Appels en Alerte`
-- **Details** : `ville`
-- **Legend** : laisser vide
-
-> 💡 **Quadrants analytiques :**
-> 
-> - Haut-droite (beaucoup d'appels + score élevé) = villes à risque systémique, priorité absolue
-> - Haut-gauche (peu d'appels + score élevé) = cas isolés mais graves, investigation individuelle
-> - Bas-droite (beaucoup d'appels + score faible) = villes sous contrôle malgré le volume
-
----
-
-#### Visuel 4 — Matrice : Score churn — Ville × Produit
+#### Visuel 3 — Matrice : Score churn — Ville × Produit
 
 **Visualizations → Matrix**
 
@@ -718,7 +795,7 @@ Le **Scatter Chart** montre des concentrations de phénomènes en deux dimension
 
 ---
 
-#### Visuel 5 — Slicer : Filtre produit
+#### Visuel 4 — Slicer : Filtre produit
 
 **Visualizations → Slicer** → `produit` → Style : Tile
 
@@ -763,53 +840,31 @@ Le **Scatter Chart** montre des concentrations de phénomènes en deux dimension
 
 ---
 
-#### Visuel 3 — Barres groupées : Intentions réelles vs détectées
+#### Visuel 3 — Comparaison Cards : Résiliations détectées vs réelles
 
-**Visualizations → Clustered bar chart**
+Deux cards côte à côte — aucune division, aucune instabilité liée à la densité des données.
 
-**Build visual :**
+**Visuel 3a — Card : Taux résiliation détectée par IA**
 
-- **Y-axis** : utiliser deux séries en superposition
-  - Série 1 : `intention_reelle` avec `Total Appels` — glisser via un second champ
-  - Série 2 : `intent_detecte` avec `Total Appels`
+`Visualizations → Card`
 
-> ℹ️ Pour comparer deux colonnes texte côte à côte, créer deux visuels séparés (un pour `intention_reelle`, un pour `intent_detecte`) et les placer côte à côte avec les mêmes dimensions.
+- **Fields** : `Taux Résiliation`
+- **Title** : `Résiliations détectées (IA)`
+- Format : Pourcentage, 1 décimale
 
-**Visuel 3a — Barres : intentions réelles**
+**Visuel 3b — Card : Taux résiliation réelle**
 
-**Build visual :**
+`Visualizations → Card`
 
-- **Y-axis** : `intention_reelle`
-- **X-axis** : `Total Appels`
-- **Title** : `Intentions réelles (clients)`
+- **Fields** : `Taux Intention Réelle Résiliation`
+- **Title** : `Résiliations réelles (clients)`
+- Format : Pourcentage, 1 décimale
 
-**Visuel 3b — Barres : intentions détectées par IA**
-
-**Build visual :**
-
-- **Y-axis** : `intent_detecte`
-- **X-axis** : `Total Appels`
-- **Title** : `Intentions détectées (IA)`
-
-> 💡 En plaçant ces deux graphiques côte à côte avec les mêmes dimensions, le participant compare visuellement si les proportions d'intentions sont similaires entre la réalité et les prédictions. Un écart sur "resiliation" est particulièrement significatif.
+> 💡 L'écart entre les deux valeurs est le signal clé : si l'IA détecte 5% mais que la réalité est 15%, le modèle manque 10 points de résiliations réelles sans déclencher d'alerte. Cette lecture directe est plus fiable qu'un ratio `DIVIDE` qui retourne 0 dès qu'un des termes est absent sur une période.
 
 ---
 
-#### Visuel 4 — KPI : Taux de détection des résiliations
-
-**Visualizations → KPI**
-
-**Build visual :**
-
-- **Value** : `Taux Détection Résiliation`
-- **Target** : `Score Max` (100% = détection parfaite)
-- **Trend axis** : `DimDate[Nom Mois]`
-
-> 💡 Un score de 70% signifie que le modèle manque 30% des intentions réelles de résiliation. Ces clients partent sans que le SAV ait été alerté.
-
----
-
-#### Visuel 5 — Scatter : Score sentiment (confiance IA) vs Précision par produit
+#### Visuel 4 — Scatter : Score sentiment (confiance IA) vs Précision par produit
 
 **Visualizations → Scatter chart**
 
@@ -825,9 +880,28 @@ Le **Scatter Chart** montre des concentrations de phénomènes en deux dimension
 
 ---
 
-#### Visuel 6 — Slicer : Filtre produit
+#### Visuel 5 — Slicer : Filtre produit
 
 **Visualizations → Slicer** → `produit` → Style : Tile
+
+---
+
+#### Visuel 6 — Tableau des appels critiques (point d'entrée drill-through)
+
+> 💡 Ce tableau est indispensable pour tester le drill-through vers la Page 5. Il expose `call_id` au niveau ligne — sans cela, le menu "Drill through" n'apparaît pas au clic droit.
+
+**Visualizations → Table**
+
+**Build visual → Columns :**
+`call_id`, `client_nom`, `ville`, `produit`, `score_risque_churn`, `sentiment_ia`, `alerte_critique`
+
+**Filter on this visual :**
+Glisser `alerte_critique` → Basic filtering → cocher **TRUE** → **Apply filter**
+
+Cliquer sur l'en-tête `score_risque_churn` pour trier par ordre décroissant.
+
+**Tester le drill-through :**
+Clic droit sur n'importe quelle ligne → **Drill through** → **Détail appel** → la Page 5 s'ouvre filtrée sur ce `call_id`.
 
 ---
 
@@ -1024,7 +1098,7 @@ import seaborn as sns
 import warnings
 warnings.filterwarnings("ignore")
 
-df = spark.table("silver_appels_enrichis").toPandas()
+df = spark.table("silver_appels_enrichis").toPandas()  # Lakehouse attaché = nom simple suffisant, ne pas utiliser LH_SolarVoix.dbo.silver_appels_enrichis
 df["date_appel"] = pd.to_datetime(df["date_appel"])
 
 PALETTE = {"negatif": "#E74C3C", "neutre": "#F39C12", "positif": "#27AE60"}
@@ -1101,22 +1175,22 @@ plt.show()
 ### Graphique 4 — Matrice de confusion : sentiment_ia vs sentiment_reel
 
 ```python
-# Calcul de la matrice de confusion
 from sklearn.metrics import confusion_matrix
 
-labels = sorted(df["sentiment_reel"].dropna().unique())
-cm = confusion_matrix(df["sentiment_reel"].dropna(), df["sentiment_ia"].dropna(), labels=labels)
+# Supprimer les lignes nulles sur les deux colonnes simultanément
+df_clean = df.dropna(subset=["sentiment_reel", "sentiment_ia"])
+
+labels = sorted(df_clean["sentiment_reel"].unique())
+cm = confusion_matrix(df_clean["sentiment_reel"], df_clean["sentiment_ia"], labels=labels)
 
 fig, ax = plt.subplots(figsize=(7, 5))
 sns.heatmap(pd.DataFrame(cm, index=labels, columns=labels),
             annot=True, fmt="d", cmap="Blues",
             linewidths=0.5, ax=ax)
 
-ax.set_xlabel("Sentiment prédit (IA)", fontsize=11)
 ax.set_ylabel("Sentiment réel", fontsize=11)
 ax.set_title("Matrice de confusion — Qualité du modèle IA", fontsize=13, fontweight="bold")
 
-# Précision globale
 precision = cm.diagonal().sum() / cm.sum()
 ax.set_xlabel(f"Sentiment prédit (IA)\nPrécision globale : {precision:.1%}", fontsize=11)
 plt.tight_layout()
@@ -1193,29 +1267,24 @@ plt.show()
 
 ## Récapitulatif de la Partie 3
 
-| Composant             | Contenu                                                             |
-| --------------------- | ------------------------------------------------------------------- |
-| `DimDate`             | Table Date calculée — année, mois, semaine, jour, week-end          |
-| 19 mesures DAX        | Constantes gauges, scores, écarts, qualité IA, intentions           |
-| Page 1 Vue d'ensemble | KPI vs seuil, Goals, Ribbon chart, tendance P90                     |
-| Page 2 Risque Churn   | 2 jauges comparées, scatter durée/score, Pie intentions, barres     |
-| Page 3 Géographie     | Carte, Top villes, scatter ville, matrice ville×produit             |
-| Page 4 Qualité IA     | Matrice confusion, KPI précision, comparaison intentions            |
-| Page 5 Détail appel   | Drill-through, sentiment_ia vs sentiment_reel, tableau complet      |
-| 5 vues T-SQL          | Distribution, clients à risque, confusion SQL, intentions, tendance |
-| 6 graphiques Python   | Histos, boxplot, heatmap, confusion, tendance, scatter produit      |
+| Composant | Contenu |
+| --- | --- |
+| `DimDate` | Table Delta dans LH_SolarVoix — année, mois, semaine, jour, week-end — plage calée sur `date_appel` |
+| 21 mesures DAX | Constantes gauges, scores, écarts, qualité IA, intentions |
+| Page 1 Vue d'ensemble | KPI vs seuil, Goals, Ribbon chart, tendance P90 |
+| Page 2 Risque Churn | 2 jauges comparées, scatter durée/score, Pie intentions, barres |
+| Page 3 Géographie | Carte, Top villes, scatter ville, matrice ville×produit |
+| Page 4 Qualité IA | Matrice confusion, KPI précision, comparaison intentions |
+| Page 5 Détail appel | Drill-through, sentiment_ia vs sentiment_reel, tableau complet |
+| 5 vues T-SQL | Distribution, clients à risque, confusion SQL, intentions, tendance |
+| 6 graphiques Python | Histos, boxplot, heatmap, confusion, tendance, scatter produit |
 
 ---
 
 ## Récapitulatif global de l'Atelier 5
 
-| Partie       | Durée    | Outils                                                 | Livrables                                             |
-| ------------ | -------- | ------------------------------------------------------ | ----------------------------------------------------- |
-| **Partie 1** | ~60 min  | Lakehouse, Notebook PySpark, Transformers              | Tables Bronze + Silver enrichies                      |
-| **Partie 2** | ~60 min  | Pipeline Data Factory, Eventstream, Activator          | Pipeline automatisé, alertes, logging                 |
-| **Partie 3** | ~120 min | Modèle sémantique, DAX, Power BI Fabric, T-SQL, Python | 5 pages rapport, 19 mesures, 5 vues SQL, 6 graphiques |
-| **Total**    | ~4h      | **8 outils Fabric distincts**                          | **Architecture analytique complète end-to-end**       |
-
----
-
-*Fin de la Partie 3 et de l'Atelier 5*
+| Partie | Durée | Outils | Livrables |
+| --- | --- | --- | --- |
+| **Partie 1** | ~60 min | Lakehouse, Notebook PySpark, Transformers | Tables Bronze + Silver enrichies |
+| **Partie 2** | ~60 min | Pipeline Data Factory, Eventstream, Activator | Pipeline automatisé, alertes, logging |
+| **Partie 3** | ~12 |     |     |
