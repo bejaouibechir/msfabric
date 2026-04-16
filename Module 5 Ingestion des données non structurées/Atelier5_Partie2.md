@@ -8,7 +8,7 @@
 
 ## Rappel et contexte
 
-La Partie 1 a créé la table `silver_appels_enrichis` avec 120 appels analysés manuellement. 
+La Partie 1 a créé la table `silver_appels_enrichis` avec 120 appels analysés manuellement.
 
 Problème : **ce traitement doit se déclencher automatiquement** à chaque nouveau fichier audio entrant. Un opérateur ne peut pas relancer manuellement le Notebook chaque jour.
 
@@ -52,9 +52,11 @@ Nouveau fichier .txt dans Files/audio_calls/
 
 ### 1.2 — Cellule 1 : Déclaration du paramètre
 
-Ajoutez cette cellule au début du Notebook pour installer `sentencepiece` 
+Ajoutez cette cellule au début du Notebook pour installer `sentencepiece`
 
-    %pip install transformers torch sentencepiece --quiet
+```
+%pip install transformers torch sentencepiece --quiet
+```
 
 ```python
 # === CELLULE 1 : Paramètre d'entrée ===
@@ -85,7 +87,7 @@ Pour tester il est pssoble d'executer cette commande
 print(call_file_path)
 ```
 
-Avec un resultat 
+Avec un resultat
 
 ```text
  Files/audio_calls/CALL_0001.txt
@@ -263,9 +265,10 @@ for k, v in resultat.items():
 # MERGE INTO est la commande Delta pour les UPSERTS.
 # Plus efficace que DELETE + INSERT car Delta ne réécrit que les fichiers concernés.
 #
-# Note : mssparkutils.notebook.exit() permet de passer une valeur de retour
-# au Pipeline Data Factory. On l'utilise ici pour transmettre le score churn
-# afin que le Pipeline puisse décider d'envoyer ou non une alerte.
+# Note : mssparkutils.notebook.exit() retourne un JSON au Pipeline Data Factory.
+# Ce JSON contient le score churn ET le chemin du fichier réellement traité.
+# Le Pipeline utilise json(...).score pour la condition d'alerte
+# et json(...).fichier pour identifier le fichier dans les logs Monitor.
 
 from datetime import datetime
 from pyspark.sql import Row
@@ -328,8 +331,14 @@ if resultat["alerte_critique"]:
 else:
     print(f"✅ Appel {call_id} traité sans alerte (score = {resultat['score_risque_churn']})")
 
-# Retourne le score au Pipeline → visible dans Monitor → panneau Output
-mssparkutils.notebook.exit(str(resultat["score_risque_churn"]))
+# Retourne un JSON au Pipeline → visible dans Monitor → panneau Output
+# Contient le score ET le fichier réellement traité (détecté automatiquement)
+# Le Pipeline lit json(...).score pour la condition et json(...).fichier pour les logs
+import json
+mssparkutils.notebook.exit(json.dumps({
+    "score": resultat["score_risque_churn"],
+    "fichier": call_file_path
+}))
 ```
 
 ---
@@ -346,61 +355,77 @@ mssparkutils.notebook.exit(str(resultat["score_risque_churn"]))
 1. Dans le canvas → **Activities** (panneau gauche) → glisser **Notebook** sur le canvas
 2. Nommer l'activité : `ACT_Analyser_Appel`
 3. Dans l'onglet **Settings** :
-   - **Notebook** : `NB_Traitement_Incremental`
-   - **Base parameters** → **+ New parameter** :
-     - Nom : `call_file_path`
-     - Valeur : @pipeline().parameters.fichier_entrant
+  - **Notebook** : `NB_Traitement_Incremental`
+  - **Base parameters** → **+ New parameter** :
+    - Nom : `call_file_path`
+    - Valeur : @pipeline().parameters.fichier_entrant
 
 > 💡 **Explication `@pipeline().parameters.fichier_entrant` :** Cette expression dynamique (langage d'expressions Data Factory) lit la valeur du paramètre `fichier_entrant` qui sera passé au Pipeline au moment du déclenchement (par l'Eventstream ou manuellement pour les tests).
 
 4. Onglet **Parameters** du Pipeline (pas de l'activité) → **+ New** :
-   - Nom : `fichier_entrant`
-   - Type : `String`
-   - Valeur par défaut : `Files/audio_calls/CALL_0001.txt`
+  - Nom : `fichier_entrant`
+  - Type : `String`
+  - Valeur par défaut : `Files/audio_calls/CALL_0001.txt`
 
 ### 2.3 — Activité 2 : Condition If (seuil alerte)
 
 1. Glisser **If Condition** sur le canvas après `ACT_Analyser_Appel`
-
+  
 2. Relier `ACT_Analyser_Appel` → `If Condition` (flèche verte = succès)
-
+  
 3. Nommer : `ACT_Condition_Alerte`
-
+  
 4. Expression :
-   
-   ```
-   @greaterOrEquals(
-     int(activity('ACT_Analyser_Appel').output.result.exitValue),
-     50
-   )
-   ```
+  
+  ```
+  @greaterOrEquals(
+    int(json(activity('ACT_Analyser_Appel').output.result.exitValue).score),
+    50
+  )
+  ```
+  
 
-> 💡 **Explication :** `activity('ACT_Analyser_Appel').output.status.Output.result.exitValue` récupère la valeur retournée par `mssparkutils.notebook.exit()` dans le Notebook. On la convertit en entier avec `int()` pour la comparer au seuil 50.
+> 💡 **Explication :** `activity('ACT_Analyser_Appel').output.result.exitValue` récupère le JSON retourné par `mssparkutils.notebook.exit()`. `json(...).score` extrait le score numérique, converti en entier avec `int()` pour la comparaison au seuil 50.
 
 **Branche TRUE — Alerte enregistrée :**
 
 1. Dans la branche TRUE → **+ Add activity** → **Set variable**
-
+  
 2. Nommer : `ACT_Log_Alerte`
-
+  
 3. Variables du Pipeline → **+ New** : nom `statut_traitement`, type `String`
-
+  
 4. Valeur :
-   
-   ```
-   @concat('ALERTE CRITIQUE — ', pipeline().parameters.fichier_entrant, ' — Score: ', activity('ACT_Analyser_Appel').output.status.Output.result.exitValue, '/100')
-   ```
-
+  
+  ```
+  @concat('ALERTE CRITIQUE — ',
+    json(activity('ACT_Analyser_Appel').output.result.exitValue).fichier,
+    ' — Score: ',
+    string(json(activity('ACT_Analyser_Appel').output.result.exitValue).score),
+    '/100')
+  ```
+  
 5. Cette valeur apparaît dans **Monitor → Pipeline runs → Output** de chaque exécution
+  
 
 > 💡 L'alerte est déjà écrite dans `alertes_critiques` par le Notebook (Cellule 4). Cette activité Set Variable sert uniquement à rendre le statut **lisible dans le panneau Monitor** de Fabric sans outil supplémentaire.
 
 **Branche FALSE — Logging normal :**
 
 1. Dans la branche FALSE → **+ Add activity** → **Set variable**
+  
 2. Nommer : `ACT_Log_Normal`
+  
 3. Même variable `statut_traitement`
-4. Valeur : `@concat('OK — ', pipeline().parameters.fichier_entrant, ' traité sans alerte')`
+  
+4. Valeur :
+  
+  ```
+  @concat('OK — ',
+    json(activity('ACT_Analyser_Appel').output.result.exitValue).fichier,
+    ' traité sans alerte')
+  ```
+  
 
 ### 2.4 — Test manuel du Pipeline
 
@@ -408,53 +433,49 @@ mssparkutils.notebook.exit(str(resultat["score_risque_churn"]))
 2. Dans la popup → **fichier_entrant** : `Files/audio_calls/CALL_0001.txt`
 3. Cliquer **OK**
 4. Observer l'exécution dans le panneau **Output** en bas :
-   - `ACT_Analyser_Appel` → statut In progress → Succeeded
-   - `ACT_Condition_Alerte` → True ou False selon le score
-   - Activité correspondante → Succeeded
+  - `ACT_Analyser_Appel` → statut In progress → Succeeded
+  - `ACT_Condition_Alerte` → True ou False selon le score
+  - Activité correspondante → Succeeded
 
---- 
+---
 
-### Bloc 3 — Déclencheur automatique (Approche hybride recommandée 2026)
+### Bloc 3 — Déclencheur automatique (trigger OneLake)
 
-> 💡 **Choix pédagogique 2026** :  
-> L’approche pure Eventstream + Activator est intéressante pour le Real-Time, mais le passage dynamique du chemin du fichier (`fichier_entrant`) reste souvent instable.  
-> Nous adoptons donc une **approche hybride** plus robuste et pédagogique :
-> 
-> - Eventstream pour la surveillance et le monitoring Real-Time
-> - Déclencheur planifié toutes les 15 minutes (fiable et simple)
-> - Détection automatique des nouveaux fichiers directement dans le Notebook
+> 💡 **Architecture retenue** :  
+> Le Pipeline se déclenche automatiquement à chaque nouveau fichier déposé dans `LH_SolarVoix/Files/audio_calls/` via un trigger OneLake Events.  
+> La détection du fichier à traiter est assurée par le Notebook lui-même (comparaison dossier vs Silver).
 
-#### 3.1 — Créer l’Eventstream (pour monitoring Real-Time)
+#### 3.1 — Configurer le trigger OneLake Events (déclenchement sur nouveau fichier)
 
-1. Dans le Workspace → **+ New item** → **Eventstream**
-2. Nommer : `ES_Nouveaux_Appels`
-3. Dans l’Eventstream → **+ Add source** → **OneLake events**
-4. Configurer :
-   - **Lakehouse** : `LH_SolarVoix`
-   - **Event type** : `Microsoft.Fabric.OneLake.FileCreated`
-5. Sélectionner le dossier `audio_calls`
-6. Ajouter les filtres recommandés :
-   - `data.api` **contains** `FlushWithClose`
-   - `data.blobUrl` **contains** `audio_calls`
-7. **Publish** l’Eventstream
+1. Ouvrir le Pipeline `PL_Traitement_Appel_Entrant`
+  
+2. Onglet **Home** → **Trigger** → **+ Add trigger**
+  
+3. **Rule name** : `TR_test`
+  
+4. **Monitor** : Select source events → **OneLake events**
+  
+5. **Select event type(s)** → `Microsoft.Fabric.OneLake.FileCreated`
+  
+6. **Add a OneLake source** → sélectionner `LH_SolarVoix`
+  
+7. **Set filters** — ajouter les deux filtres suivants via **+ Filter** :
+  
+  | Field | Operator | Value |
+  | --- | --- | --- |
+  | `data.url` | String contains | `audio_calls/` |
+  | `data.url` | String ends with | `.txt` |
+  
+  > 💡 Le premier filtre cible uniquement le dossier `audio_calls/`. Le second garantit que le trigger ne se déclenche que sur des fichiers `.txt` (pas sur des créations de dossiers ou d'autres types de fichiers).
+  
+8. Cliquer **OK** puis **Save** le Pipeline
+  
 
-> 💡 Cet Eventstream permet de visualiser les événements en temps réel dans le Real-Time Hub, même si le déclenchement principal se fait via le trigger planifié.
+> ⚠️ Ce trigger se déclenche à chaque nouveau fichier `.txt` créé dans `Files/audio_calls/`. Le Notebook détecte automatiquement lequel traiter via la comparaison dossier vs Silver.
 
-#### 3.2 — Configurer le déclencheur planifié (Solution principale recommandée)
+#### 3.2 — Modifier le Notebook pour la détection automatique des nouveaux fichiers
 
-1. Ouvre le Pipeline `PL_Traitement_Appel_Entrant`
-2. Clique sur **Manage** (en haut à droite) → **Triggers** → **+ Add trigger**
-3. Choisis **Schedule**
-4. Configure le trigger :
-   - **Name** : `TRG_Appels_Entrants`
-   - **Recurrence** : **Every 15 minutes**
-   - **Start time** : Date et heure actuelle
-   - Laisse les autres options par défaut
-5. Clique sur **Apply** puis **Publish** le Pipeline
-
-#### 3.3 — Modifier le Notebook pour la détection automatique des nouveaux fichiers
-
-Remplace la  ****Cellule 1** du Notebook `NB_Traitement_Incremental` par le code suivant :
+Remplace la ****Cellule 1** du Notebook `NB_Traitement_Incremental` par le code suivant :
 
 ```python
 # === CELLULE 1 : Paramètre + Détection automatique des nouveaux fichiers ===
@@ -502,30 +523,31 @@ print(f"Paramètre final utilisé : call_file_path = {call_file_path}")
 ### Ordre d’exécution pour le test (le plus efficace) :
 
 1. **D’abord** : Exécute le Notebook de test (`Test_Simulation_Appel_Critique`)
-   → Cela crée le fichier `CALL_0121.txt` dans le dossier `Files/audio_calls/`
-
+  → Cela crée le fichier `CALL_0121.txt` dans le dossier `Files/audio_calls/`
+  
 2. **Ensuite** : Tu as deux possibilités :
-   
-   - **Option rapide (recommandée pour tester maintenant)** :  
-     Va dans ton Pipeline `PL_Traitement_Appel_Entrant` → clique sur **Debug**  
-     → Lance l’exécution manuelle du Pipeline.
-   
-   - **Option automatique** :  
-     Attends que le trigger planifié se déclenche (toutes les 15 minutes).
+  
+  - **Option rapide (recommandée pour tester maintenant)** :  
+    Va dans ton Pipeline `PL_Traitement_Appel_Entrant` → clique sur **Debug**  
+    → Lance l’exécution manuelle du Pipeline.
+    
+  - **Option automatique** :  
+    Dépose un nouveau fichier dans `Files/audio_calls/` → le trigger OneLake Events déclenche le Pipeline automatiquement.
+    
 
 ---
 
 ### 3.4 — Test de bout en bout
 
 1. **Créer un Notebook dédié au test** :
-   
-   - Workspace → **+ New item** → **Notebook**
-   - Nom : `Test_Simulation_Appel_Critique`
-   - Attacher le Lakehouse `LH_SolarVoix`
-
+  
+  - Workspace → **+ New item** → **Notebook**
+  - Nom : `Test_Simulation_Appel_Critique`
+  - Attacher le Lakehouse `LH_SolarVoix`
 2. **Étape 0 — Initialiser la table `alertes_critiques`** (à exécuter en premier) :
-   
-   > Cette cellule crée la table vide si elle n’existe pas encore, ce qui évite l’erreur `Invalid object name` lors des vérifications SQL ultérieures.
+  
+  > Cette cellule crée la table vide si elle n’existe pas encore, ce qui évite l’erreur `Invalid object name` lors des vérifications SQL ultérieures.
+  
 
 ```python
 # === INITIALISATION — Création préventive de la table alertes_critiques ===
@@ -574,43 +596,7 @@ mssparkutils.fs.put(
 print("✅ Fichier CALL_0121.txt créé dans audio_calls/")
 ```
 
-4. **Lancer le Pipeline** :
-   
-   > 💡 **Pourquoi lancer manuellement alors qu'on a configuré un déclencheur automatique ?**
-   > 
-   > Dans cette architecture, **rien ne déclenche le Pipeline instantanément à l'arrivée du fichier** :
-   > 
-   > - L'**Eventstream** (Bloc 3.1) observe les événements OneLake mais **ne lance pas le Pipeline** — c'est un outil de monitoring visuel.
-   > - L'**Activator** (Bloc 4) réagit à des **données dans une table Delta** (score churn ≥ 50) — il n'écoute pas les fichiers.
-   > - Le **trigger planifié** (Bloc 3.2) est le seul qui lance vraiment le Pipeline, mais toutes les 15 minutes.
-   > 
-   > En **production** : déposer le fichier suffit — le trigger planifié le traitera dans les 15 min.
-   > En **test** : on utilise **Debug** pour déclencher immédiatement sans attendre.
-   
-   - **Pour tester maintenant** : Pipeline `PL_Traitement_Appel_Entrant` → **Run**
-   - **En production** : rien à faire — le trigger planifié `TRG_Appels_Entrants` s'en charge automatiquement
-
-5. **Vérifier le résultat** :
-   
-   **a) Vérifier l'exécution du Pipeline via le Monitoring Fabric**
-   
-   Le **Monitor** est le panneau de surveillance centralisé de Microsoft Fabric. Il affiche l'historique de toutes les exécutions de Pipelines, Notebooks et Dataflows de votre workspace.
-   
-   Pour y accéder :
-   
-   1. Dans la barre latérale gauche de Fabric → cliquez sur l'icône **Monitor** (icône chronomètre/horloge)
-   2. Section **Pipeline runs** → cherchez `PL_Traitement_Appel_Entrant`
-   3. Vérifiez que le statut est **Succeeded** (cercle vert)
-   4. Cliquez sur le nom de l'exécution pour voir le détail activité par activité
-   
-   **b) Vérifier les données dans le Lakehouse** 
-
-```sql
-SELECT * FROM silver_appels_enrichis WHERE call_id = ‘CALL_0121’;
-SELECT * FROM alertes_critiques WHERE call_id = ‘CALL_0121’;
-```
-
----
+--
 
 **Résumé simple :**
 
