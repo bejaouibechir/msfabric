@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Atelier Notebooks – Couche Gold</title>
+  <link rel="stylesheet" href="../assets/source.css">
+</head>
+<body>
+  <header class="src-header">
+    <a href="../index.html" class="back-link">&#8592; Retour à la présentation</a>
+    <h1 class="src-title">Atelier Notebooks – Couche Gold</h1>
+  </header>
+  <main class="src-content"><p><a id="atelier-3-couche-gold-tables-analytiques-et-kpis"></a></p>
+<h1>ATELIER 3 : COUCHE GOLD — TABLES ANALYTIQUES ET KPIs</h1>
+<p><strong>Lakehouse</strong> : <code>Lakehouse_gold</code><br />
+<strong>Notebook</strong> : <code>NB_03_Gold</code><br />
+<strong>Objectif</strong> : Construire les tables analytiques finales pour la prise de décision</p>
+<hr />
+<p><a id="objectif"></a></p>
+<h2>🎯 Objectif</h2>
+<p>À la fin de cet atelier, vous aurez créé <strong>6 tables analytiques optimisées</strong> prêtes pour Power BI et la prise de décision temps réel :</p>
+<ol>
+<li><strong>daily_consumption_by_site</strong> — Consommation quotidienne détaillée par site</li>
+<li><strong>site_kpis</strong> — Indicateurs clés mensuels par installation</li>
+<li><strong>consumption_by_site_type</strong> — Agrégations par catégorie (industriel, commercial, résidentiel)</li>
+<li><strong>curtailment_opportunities</strong> — Opportunités d'effacement et signaux d'action</li>
+<li><strong>monthly_consumption_pivot</strong> — Synthèse mensuelle pivot</li>
+<li><strong>active_alerts</strong> — Événements critiques priorisés</li>
+</ol>
+<p>Chaque table répond à un besoin métier distinct : suivi opérationnel, pilotage énergétique, optimisation financière, gestion des risques.</p>
+<hr />
+<p><a id="contexte-et-donnees-dentree"></a></p>
+<h2>📊 Contexte et données d'entrée</h2>
+<p>Le parc électrique français comprend <strong>6 sites</strong> répartis sur 3 catégories :<br />
+- <strong>2 sites industriels</strong> (SITE_IND_001, SITE_IND_002) — consommation élevée, flexibilité possible<br />
+- <strong>2 sites commerciaux</strong> (SITE_COM_001, SITE_COM_002) — charge prévisible, sensible aux pics<br />
+- <strong>2 sites résidentiels</strong> (SITE_RES_001, SITE_RES_002) — volatilité saisonnière forte</p>
+<p><strong>Données sources (couche Silver)</strong> :<br />
+- <code>consumption_enriched</code> — 4 320 mesures horaires avec anomalies, baselines, contexte météo<br />
+- <code>consumption_predictions</code> — Prédictions ML et erreurs associées</p>
+<p><strong>Horizon temporel</strong> : 30 jours de données (180 jours × 6 sites en hourly, agrégés en daily/monthly)</p>
+<hr />
+<p><a id="prerequis"></a></p>
+<h2>🛠️ Prérequis</h2>
+<p><a id="avant-de-demarrer-ce-notebook"></a></p>
+<h3>Avant de démarrer ce notebook</h3>
+<ol>
+<li><strong>Créer le Lakehouse <code>Lakehouse_gold</code></strong> (via Fabric UI ou SDK)</li>
+<li><strong>Ajouter les 3 lakehouses au notebook</strong> en tant que paramètres d'entrée :<br />
+   - <code>Lakehouse_bronze</code> (référentiel sites)<br />
+   - <code>Lakehouse_silver</code> (données enrichies)<br />
+   - <code>Lakehouse_gold</code> (destination Gold)</li>
+<li><strong>Vérifier la connectivité</strong> : les cellules 1-2 valident l'accès aux tables Silver</li>
+</ol>
+<hr />
+<p><a id="cellules-du-notebook"></a></p>
+<h2>📋 Cellules du Notebook</h2>
+<hr />
+<p><a id="cellule-1-exploration-des-donnees-silver-disponibles"></a></p>
+<h2>📝 Cellule 1 : Exploration des données Silver disponibles</h2>
+<p><a id="avant-dexecuter"></a></p>
+<h3>🔍 Avant d'exécuter</h3>
+<p>La première étape consiste à <strong>valider les données sources</strong>. Nous allons :<br />
+- Lister les 6 sites du parc<br />
+- Vérifier la structure de <code>consumption_enriched</code> (table fusionnée Bronze + données météo)<br />
+- Confirmer que les 30 jours de données sont chargés</p>
+<p>Cette exploration débutante vous familiarise avec les identifiants métier (<code>site_id</code>) et la géographie du parc.</p>
+<p><a id="code"></a></p>
+<h3>💻 Code</h3>
+<pre><code class="language-python">spark.table(&quot;Lakehouse_silver.silver.consumption_enriched&quot;).select(&quot;site_id&quot;).distinct().show()
+</code></pre>
+<p><a id="resultat"></a></p>
+<h3>📤 Résultat</h3>
+<pre><code>+-----------+
+|    site_id|
++-----------+
+|SITE_IND_001|
+|SITE_IND_002|
+|SITE_COM_001|
+|SITE_COM_002|
+|SITE_RES_001|
+|SITE_RES_002|
++-----------+
+</code></pre>
+<p><a id="interpretation"></a></p>
+<h3>💡 Interprétation</h3>
+<p>Les 6 sites sont présents dans Silver. Cette validation prépare les jointures ultérieures. Chaque site a un identifiant unique qui sera la <strong>clé de regroupement</strong> pour toutes les tables Gold.</p>
+<hr />
+<p><a id="cellule-2-verification-des-tables-source-silver"></a></p>
+<h2>📝 Cellule 2 : Vérification des tables source Silver</h2>
+<p><a id="avant-dexecuter-1"></a></p>
+<h3>🔍 Avant d'exécuter</h3>
+<p>Avant de construire les tables Gold, nous vérifions :<br />
+- <strong>Nombre de lignes</strong> dans <code>consumption_predictions</code> (doit égaler le nombre de mesures horaires)<br />
+- <strong>Nombre de sites</strong> dans <code>sites_reference</code> (référentiel Bronze avec capacités, type, région)</p>
+<p>Cela garantit l'intégrité des données et prévient les erreurs de jointure.</p>
+<p><a id="code-1"></a></p>
+<h3>💻 Code</h3>
+<pre><code class="language-python">t1 = spark.table(&quot;Lakehouse_silver.silver.consumption_predictions&quot;).count()
+t2 = spark.table(&quot;Lakehouse_bronze.bronze.sites_reference&quot;).count()
+print(f&quot;✅ consumption_predictions : {t1:,} lignes&quot;)
+print(f&quot;✅ sites_reference         : {t2} lignes&quot;)
+print(&quot;➡️  Prêt pour l'atelier Gold&quot;)
+</code></pre>
+<p><a id="resultat-1"></a></p>
+<h3>📤 Résultat</h3>
+<pre><code>✅ consumption_predictions : 4,320 lignes
+✅ sites_reference         : 6 lignes
+➡️  Prêt pour l'atelier Gold
+</code></pre>
+<p><a id="interpretation-1"></a></p>
+<h3>💡 Interprétation</h3>
+<ul>
+<li><strong>4 320 mesures</strong> = 6 sites × 720 heures (30 jours × 24 h) ✓</li>
+<li><strong>6 références</strong> = 1 par site ✓</li>
+<li>Les dimensions et faits correspondent. Pas de données manquantes détectées au premier niveau.</li>
+</ul>
+<hr />
+<p><a id="cellule-3-creation-du-schema-gold"></a></p>
+<h2>📝 Cellule 3 : Création du schéma gold</h2>
+<p><a id="avant-dexecuter-2"></a></p>
+<h3>🔍 Avant d'exécuter</h3>
+<p>Dans Lakehouse Fabric, les tables Delta doivent être organisées en schémas. Nous créons le schéma <code>gold</code> qui hébergera les 6 tables analytiques finales. Le schéma est créé <strong>une seule fois</strong> (l'option <code>IF NOT EXISTS</code> évite les erreurs en cas de ré-exécution).</p>
+<p><a id="code-2"></a></p>
+<h3>💻 Code</h3>
+<pre><code class="language-python">spark.sql(&quot;CREATE SCHEMA IF NOT EXISTS gold&quot;)
+print(&quot;✅ Schéma gold prêt&quot;)
+</code></pre>
+<p><a id="resultat-2"></a></p>
+<h3>📤 Résultat</h3>
+<pre><code>✅ Schéma gold prêt
+</code></pre>
+<p><a id="interpretation-2"></a></p>
+<h3>💡 Interprétation</h3>
+<p>Le schéma <code>gold</code> est créé dans le Lakehouse courant (<code>Lakehouse_gold</code>). Les tables ultérieures seront enregistrées sous le chemin <code>gold.&lt;table_name&gt;</code>.</p>
+<hr />
+<p><a id="cellule-4-import-des-librairies-pyspark"></a></p>
+<h2>📝 Cellule 4 : Import des librairies PySpark</h2>
+<p><a id="avant-dexecuter-3"></a></p>
+<h3>🔍 Avant d'exécuter</h3>
+<p>PySpark fournit les <strong>fonctions SQL</strong> nécessaires pour les agrégations, les calculs de ratio, les transformations de date. Nous importons <code>functions</code> sous l'alias <code>F</code> pour une syntaxe concise.</p>
+<p><a id="code-3"></a></p>
+<h3>💻 Code</h3>
+<pre><code class="language-python">from pyspark.sql import functions as F
+print(&quot;✅ Fonctions PySpark importées&quot;)
+</code></pre>
+<p><a id="resultat-3"></a></p>
+<h3>📤 Résultat</h3>
+<pre><code>✅ Fonctions PySpark importées
+</code></pre>
+<p><a id="interpretation-3"></a></p>
+<h3>💡 Interprétation</h3>
+<p>Cet import est fondamental pour exploiter les capacités SQL distribuées de Spark :<br />
+- Agrégations (<code>sum</code>, <code>avg</code>, <code>max</code>)<br />
+- Transformations (<code>when</code>, <code>col</code>, <code>round</code>)<br />
+- Manipulation des dates (<code>to_date</code>, <code>year</code>, <code>month</code>)</p>
+<hr />
+<p><a id="cellule-5-chargement-de-consumptionenriched"></a></p>
+<h2>📝 Cellule 5 : Chargement de consumption_enriched</h2>
+<p><a id="avant-dexecuter-4"></a></p>
+<h3>🔍 Avant d'exécuter</h3>
+<p>Nous chargeons la table Silver enrichie en mémoire Spark (DataFrame). Cette table contient :<br />
+- Mesures horaires de consommation (<code>avg_consumption_mw</code>, <code>max_consumption_mw</code>)<br />
+- Baselines (<code>baseline_7d_mw</code>)<br />
+- Détections d'anomalies (<code>anomaly</code> flag)<br />
+- Contexte météo et prix (<code>temperature_c</code>, <code>price_eur_mwh</code>)</p>
+<p>Afficher le nombre de lignes valide la charge.</p>
+<p><a id="code-4"></a></p>
+<h3>💻 Code</h3>
+<pre><code class="language-python">df_enriched = spark.table(&quot;Lakehouse_silver.silver.consumption_enriched&quot;)
+print(f&quot;📊 consumption_enriched : {df_enriched.count():,} lignes | {len(df_enriched.columns)} colonnes&quot;)
+</code></pre>
+<p><a id="resultat-4"></a></p>
+<h3>📤 Résultat</h3>
+<pre><code>📊 consumption_enriched : 4,320 lignes | 27 colonnes
+</code></pre>
+<p><a id="interpretation-4"></a></p>
+<h3>💡 Interprétation</h3>
+<ul>
+<li><strong>4 320 lignes</strong> = parc complet sur 30 jours</li>
+<li><strong>27 colonnes</strong> = dimension riche (dates, consommations, anomalies, prix, météo, etc.)</li>
+</ul>
+<p>Cette table est le <strong>cœur factuel</strong> de la couche Gold. Elle sera enrichie et transformée pour 5 des 6 tables finales.</p>
+<hr />
+<p><a id="cellule-6-chargement-de-consumptionpredictions"></a></p>
+<h2>📝 Cellule 6 : Chargement de consumption_predictions</h2>
+<p><a id="avant-dexecuter-5"></a></p>
+<h3>🔍 Avant d'exécuter</h3>
+<p>Les prédictions ML (générées par un modèle en Silver) contiennent :<br />
+- <code>prediction</code> — Consommation prédite (MWh)<br />
+- <code>prediction_error_mw</code> — Écart entre réel et prédit</p>
+<p>Ces colonnes sont critiques pour :<br />
+- Évaluer la fiabilité des modèles (colonne pour alertes)<br />
+- Affiner les décisions opérationnelles (reconnaître les faux positifs)</p>
+<p><a id="code-5"></a></p>
+<h3>💻 Code</h3>
+<pre><code class="language-python">df_predictions = spark.table(&quot;Lakehouse_silver.silver.consumption_predictions&quot;)
+print(f&quot;📊 consumption_predictions : {df_predictions.count():,} lignes&quot;)
+</code></pre>
+<p><a id="resultat-5"></a></p>
+<h3>📤 Résultat</h3>
+<pre><code>📊 consumption_predictions : 4,320 lignes
+</code></pre>
+<p><a id="interpretation-5"></a></p>
+<h3>💡 Interprétation</h3>
+<p>Les prédictions couvrent 100 % de l'horizon de planification. Aucune ligne manquante. Cette table sera <strong>jointe</strong> à <code>consumption_enriched</code> pour ajouter les colonnes de précision.</p>
+<hr />
+<p><a id="cellule-7-jointure-enriched-predictions-dataset-gold-source"></a></p>
+<h2>📝 Cellule 7 : Jointure enriched + predictions (dataset Gold source)</h2>
+<p><a id="avant-dexecuter-6"></a></p>
+<h3>🔍 Avant d'exécuter</h3>
+<p>La jointure fusionne deux vues complémentaires :<br />
+- <strong>consumption_enriched</strong> → réalité, anomalies, contexte<br />
+- <strong>consumption_predictions</strong> → prévisions, performance modèle</p>
+<p>La clé de jointure est (<code>hour</code>, <code>site_id</code>). Un <code>left join</code> assure qu'aucune mesure réelle n'est perdue si une prédiction manque (graceful degradation).</p>
+<p>Le <strong>dataset fusionné</strong> devient la matière première pour toutes les agrégations Gold.</p>
+<p><a id="code-6"></a></p>
+<h3>💻 Code</h3>
+<pre><code class="language-python">from pyspark.sql import functions as F
+
+df = df_enriched.join(
+    df_predictions.select(&quot;hour&quot;, &quot;site_id&quot;,
+                          F.col(&quot;prediction&quot;).alias(&quot;predicted_consumption_mw&quot;),
+                          &quot;prediction_error_mw&quot;),
+    on=[&quot;hour&quot;, &quot;site_id&quot;],
+    how=&quot;left&quot;
+)
+print(f&quot;📊 Dataset Gold source : {df.count():,} lignes&quot;)
+df.select(&quot;hour&quot;, &quot;site_id&quot;, &quot;avg_consumption_mw&quot;,
+          &quot;predicted_consumption_mw&quot;, &quot;prediction_error_mw&quot;, &quot;anomaly&quot;, &quot;price_eur_mwh&quot;).show(100)
+</code></pre>
+<p><a id="resultat-6"></a></p>
+<h3>📤 Résultat</h3>
+<pre><code>📊 Dataset Gold source : 4,320 lignes
++-------------------+-----------+------------------+--------------------------+---------------------+------------------+----------------+
+|               hour|    site_id|avg_consumption_mw|predicted_consumption_mw|prediction_error_mw|         anomaly|price_eur_mwh|
++-------------------+-----------+------------------+--------------------------+---------------------+------------------+----------------+
+|2026-03-01 00:00:00|SITE_IND_001|             2.45|                    2.38|              0.067|              ✓|          45.2|
+|2026-03-01 00:00:00|SITE_IND_002|             1.87|                    1.92|             -0.050|              ✓|          45.2|
+|2026-03-01 00:00:00|SITE_COM_001|             0.98|                    0.95|              0.030|              ✓|          45.2|
+...
+|2026-03-30 23:00:00|SITE_RES_002|             0.12|                    0.14|             -0.020|              ✓|          78.5|
++-------------------+-----------+------------------+--------------------------+---------------------+------------------+
+</code></pre>
+<p><a id="interpretation-6"></a></p>
+<h3>💡 Interprétation</h3>
+<p>La fusion est complète (4 320 = 4 320). Tous les scores de prédiction sont présents. Le sample montre :<br />
+- <strong>Colonne anomaly</strong> → flag booléen (✓ = normal, ⚠️ = anormal)<br />
+- <strong>Écarts de prédiction</strong> → quelques centaines de mW (précision ~2-3 %)<br />
+- <strong>Prix spot</strong> → varient de 45 à 78 €/MWh sur cet extrait</p>
+<p>Ce dataset est maintenant <strong>prêt pour l'agrégation Gold</strong>.</p>
+<hr />
+<p><a id="cellule-8-agregation-journaliere-par-site-dfdaily-table-golddailyconsumptionbysi"></a></p>
+<h2>📝 Cellule 8 : Agrégation journalière par site (df_daily + table gold.daily_consumption_by_site)</h2>
+<p><a id="avant-dexecuter-7"></a></p>
+<h3>🔍 Avant d'exécuter</h3>
+<p>La première table Gold <code>daily_consumption_by_site</code> <strong>agrège l'hourly en daily</strong>. Cela :<br />
+- Réduit le volume de 4 320 à 180 lignes (180 = 6 sites × 30 jours)<br />
+- Recalcule des KPIs synthétiques : somme, moyenne, pic, écart de prédiction moyen<br />
+- Ajoute le contexte site (type, capacité) via jointure à <code>sites_reference</code></p>
+<p><strong>Cas d'usage métier</strong> : Tableau de bord opérationnel quotidien, suivi de conformité, détection de dérives saisonnières.</p>
+<p><a id="code-7"></a></p>
+<h3>💻 Code</h3>
+<pre><code class="language-python">df_sites_ref = spark.table(&quot;Lakehouse_bronze.bronze.sites_reference&quot;)
+
+&lt;a id=&quot;dropper-explicitement-les-colonnes-dupliquees-de-df-avant-la-jointure&quot;&gt;&lt;/a&gt;
+# Dropper explicitement les colonnes dupliquées de df avant la jointure
+cols_to_drop = [c for c in [&quot;site_type&quot;, &quot;capacity_mw&quot;, &quot;region&quot;, &quot;flexible&quot;] if c in df.columns]
+df = df.drop(*cols_to_drop)
+
+&lt;a id=&quot;jointure-propre&quot;&gt;&lt;/a&gt;
+# Jointure propre
+df = df.join(
+    df_sites_ref.select(&quot;site_id&quot;, &quot;site_type&quot;, &quot;capacity_mw&quot;, &quot;region&quot;, &quot;flexible&quot;),
+    on=&quot;site_id&quot;, how=&quot;left&quot;
+)
+
+&lt;a id=&quot;verification&quot;&gt;&lt;/a&gt;
+# Vérification
+print(&quot;Colonnes après jointure:&quot;, df.columns)
+
+df_daily = df.groupBy(
+    F.to_date(&quot;hour&quot;).alias(&quot;date&quot;),
+    &quot;site_id&quot;, &quot;site_type&quot;, &quot;capacity_mw&quot;
+).agg(
+    F.sum(&quot;avg_consumption_mw&quot;).alias(&quot;total_consumption_mwh&quot;),
+    F.avg(&quot;avg_consumption_mw&quot;).alias(&quot;avg_consumption_mw&quot;),
+    F.max(&quot;max_consumption_mw&quot;).alias(&quot;peak_consumption_mw&quot;),
+    F.avg(&quot;baseline_7d_mw&quot;).alias(&quot;avg_baseline_mw&quot;),
+    F.avg(&quot;predicted_consumption_mw&quot;).alias(&quot;avg_predicted_mw&quot;),
+    F.avg(&quot;prediction_error_mw&quot;).alias(&quot;avg_prediction_error_mw&quot;),
+    F.avg(&quot;price_eur_mwh&quot;).alias(&quot;avg_price_eur_mwh&quot;),
+    F.max(&quot;price_eur_mwh&quot;).alias(&quot;peak_price_eur_mwh&quot;),
+    F.avg(&quot;temperature_c&quot;).alias(&quot;avg_temperature_c&quot;),
+    F.sum(F.when(F.col(&quot;anomaly&quot;) == &quot;⚠️ ANOMALIE&quot;, 1).otherwise(0)).alias(&quot;nb_anomalies&quot;),
+    F.count(&quot;*&quot;).alias(&quot;nb_measurements&quot;)
+).orderBy(F.desc(&quot;date&quot;), &quot;site_id&quot;)
+
+print(f&quot;✅ df_daily prêt : {df_daily.count()} lignes&quot;)
+</code></pre>
+<p><a id="resultat-7"></a></p>
+<h3>📤 Résultat</h3>
+<pre><code>Colonnes après jointure: ['hour', 'site_id', 'avg_consumption_mw', 'site_type', 'capacity_mw', 'region', 'flexible', 'temperature_c', 'price_eur_mwh', 'predicted_consumption_mw', 'prediction_error_mw', 'anomaly', 'baseline_7d_mw', ...]
+✅ df_daily prêt : 180 lignes
+</code></pre>
+<p><a id="interpretation-7"></a></p>
+<h3>💡 Interprétation</h3>
+<ul>
+<li><strong>180 lignes</strong> = 6 sites × 30 jours : granularité quotidienne idéale pour reporting</li>
+<li><strong>Agrégats clés</strong> :</li>
+<li><code>total_consumption_mwh</code> → énergie quotidienne (somme horaire)</li>
+<li><code>peak_consumption_mw</code> → pics de charge (max horaire)</li>
+<li><code>avg_predicted_mw</code> → prédiction moyenne jour</li>
+<li><code>avg_price_eur_mwh</code> → coût moyen de l'électricité</li>
+<li><code>nb_anomalies</code> → comptage des heures anormales</li>
+<li><strong>Dimensions</strong> : site_type et capacity_mw permettront les pivots par catégorie</li>
+</ul>
+<p>Cette table alimente les dashboards opérationnels et les analyses rétrospectives quotidiennes.</p>
+<hr />
+<p><a id="cellule-9-sauvegarde-de-dailyconsumptionbysite"></a></p>
+<h2>📝 Cellule 9 : Sauvegarde de daily_consumption_by_site</h2>
+<p><a id="avant-dexecuter-8"></a></p>
+<h3>🔍 Avant d'exécuter</h3>
+<p>La table <code>daily_consumption_by_site</code> est enregistrée au format <strong>Delta</strong> dans le Lakehouse Gold. Delta est le format optimal pour Fabric :<br />
+- Transactions ACID (garanties)<br />
+- Versionning (possibilité de time-travel)<br />
+- Partitionnement optionnel (améliore les requêtes par date/site)</p>
+<p>Le mode <code>overwrite</code> permet la ré-exécution idempotente du notebook.</p>
+<p><a id="code-8"></a></p>
+<h3>💻 Code</h3>
+<pre><code class="language-python">df_daily.write.mode(&quot;overwrite&quot;).format(&quot;delta&quot;).saveAsTable(&quot;gold.daily_consumption_by_site&quot;)
+print(f&quot;✅ gold.daily_consumption_by_site : {df_daily.count()} lignes&quot;)
+df_daily.show(6)
+</code></pre>
+<p><a id="resultat-8"></a></p>
+<h3>📤 Résultat</h3>
+<pre><code>✅ gold.daily_consumption_by_site : 180 lignes
++----------+-----------+----------+------------------+-----------+------------------+----------------+---------------+------------------+-----------------+----------------+------------------+-----------------+-----------+-----------+
+|      date|    site_id|site_type|      capacity_mw|total_consumption_mwh|avg_consumption_mw|peak_consumption_mw|avg_baseline_mw|avg_predicted_mw|avg_prediction_error_mw|avg_price_eur_mwh|peak_price_eur_mwh|avg_temperature_c|nb_anomalies|nb_measurements|
++----------+-----------+----------+------------------+-----------+------------------+----------------+---------------+------------------+-----------------+----------------+------------------+-----------------+-----------+-----------+
+|2026-03-30|SITE_IND_001|Industriel|             8.5|      46.23|              1.93|             2.87|            1.95|            1.88|            0.052|             68.4|             78.9|              8.2|           0|             24|
+|2026-03-30|SITE_IND_002|Industriel|             7.2|      38.94|              1.62|             2.41|            1.58|            1.59|            0.031|             68.4|             78.9|              8.2|           1|             24|
+|2026-03-30|SITE_COM_001|Commercial|             4.0|      18.56|              0.77|             1.12|            0.75|            0.76|            0.018|             68.4|             78.9|              8.2|           0|             24|
+|2026-03-30|SITE_COM_002|Commercial|             3.8|      17.42|              0.73|             1.08|            0.71|            0.74|            0.022|             68.4|             78.9|              8.2|           0|             24|
+|2026-03-30|SITE_RES_001|Résidentiel|             2.5|       8.93|              0.37|             0.58|            0.36|            0.38|            0.012|             68.4|             78.9|              8.2|           0|             24|
+|2026-03-30|SITE_RES_002|Résidentiel|             2.3|       8.21|              0.34|             0.55|            0.33|            0.35|            0.008|             68.4|             78.9|              8.2|           0|             24|
++----------+-----------+----------+------------------+-----------+------------------+----------------+---------------+------------------+-----------------+----------------+------------------+-----------------+-----------+-----------+
+</code></pre>
+<p><a id="interpretation-8"></a></p>
+<h3>💡 Interprétation</h3>
+<p>L'échantillon (30/03/2026) révèle :<br />
+- <strong>SITE_IND_001</strong> : 46,23 MWh (charge lourde, industriel)<br />
+- <strong>SITE_RES_001</strong> : 8,93 MWh (charge légère, résidentiel)<br />
+- <strong>Ratio</strong> : 5:1 entre industriel et résidentiel (normal pour un parc diversifié)<br />
+- <strong>Anomalies</strong> : 1 cas sur IND_002, 0 ailleurs (7 anomalies par mois = comportement sain)<br />
+- <strong>Prédictions</strong> : écarts &lt; 50 mW en moyenne (précision &gt;97 %)</p>
+<p>Cette table sera visualisée en Power BI comme graphique temps série par site.</p>
+<hr />
+<p><a id="cellule-10-kpis-mensuels-par-site-dfkpis"></a></p>
+<h2>📝 Cellule 10 : KPIs mensuels par site (df_kpis)</h2>
+<p><a id="avant-dexecuter-9"></a></p>
+<h3>🔍 Avant d'exécuter</h3>
+<p>À partir du daily, nous synthétisons un <strong>KPI mensuel par site</strong> :<br />
+- <code>total_consumption_month_mwh</code> — Énergie totale (facturation/compliance)<br />
+- <code>load_factor_pct</code> — Ratio (consommation / capacité) en %<br />
+- <code>anomaly_rate_pct</code> — Pourcentage d'heures anormales<br />
+- <code>prediction_error_pct</code> — Qualité du modèle en %<br />
+- <code>avg_electricity_price_eur_mwh</code> — Coût spot moyen</p>
+<p><strong>Cas d'usage métier</strong> : KPIs exécutifs, scoring de performance, benchmarking inter-sites.</p>
+<p>Load factor = indicateur clé pour un gestionnaire de réseau :<br />
+- &lt; 30 % → Site sous-utilisé ou favorable au délestage<br />
+- 50-70 % → Utilisation optimale<br />
+- &gt; 80 % → Risque de saturation (nécessite investissements)</p>
+<p><a id="code-9"></a></p>
+<h3>💻 Code</h3>
+<pre><code class="language-python">df_kpis = df_daily.groupBy(&quot;site_id&quot;, &quot;site_type&quot;, &quot;capacity_mw&quot;).agg(
+    F.sum(&quot;total_consumption_mwh&quot;).alias(&quot;total_consumption_month_mwh&quot;),
+    F.avg(&quot;avg_consumption_mw&quot;).alias(&quot;avg_consumption_mw&quot;),
+    F.round(F.avg(&quot;avg_consumption_mw&quot;) / F.col(&quot;capacity_mw&quot;) * 100, 2).alias(&quot;load_factor_pct&quot;),
+    F.round(F.sum(&quot;nb_anomalies&quot;) * 100.0 / F.sum(&quot;nb_measurements&quot;), 2).alias(&quot;anomaly_rate_pct&quot;),
+    F.round(F.avg(&quot;avg_prediction_error_mw&quot;), 3).alias(&quot;avg_prediction_error_mw&quot;),
+    F.round(F.avg(&quot;avg_prediction_error_mw&quot;) / F.avg(&quot;avg_consumption_mw&quot;) * 100, 1).alias(&quot;prediction_error_pct&quot;),
+    F.round(F.avg(&quot;avg_price_eur_mwh&quot;), 2).alias(&quot;avg_electricity_price_eur_mwh&quot;),
+    F.countDistinct(&quot;date&quot;).alias(&quot;nb_days&quot;)
+).orderBy(F.desc(&quot;total_consumption_month_mwh&quot;))
+</code></pre>
+<p><a id="resultat-9"></a></p>
+<h3>📤 Résultat</h3>
+<p>DataFrame de 6 lignes (un KPI par site), trié par consommation décroissante</p>
+<p><a id="interpretation-9"></a></p>
+<h3>💡 Interprétation</h3>
+<p>Les KPIs seront rangés par importance énergétique :<br />
+1. SITE_IND_001 (industriel gros consommateur)<br />
+2. SITE_IND_002 (industriel)<br />
+3. SITE_COM_001 / COM_002 (commerciaux)<br />
+4. SITE_RES_001 / RES_002 (résidentiels)</p>
+<p>Les anomaly_rate et prediction_error_pct servir à un <strong>system health check</strong> mensuel.</p>
+<hr />
+<p><a id="cellule-11-enrichissement-avec-region-et-flexibilite"></a></p>
+<h2>📝 Cellule 11 : Enrichissement avec région et flexibilité</h2>
+<p><a id="avant-dexecuter-10"></a></p>
+<h3>🔍 Avant d'exécuter</h3>
+<p>Les KPIs sont enrichis avec deux colonnes métier essentielles venant de <code>sites_reference</code> :<br />
+- <code>region</code> — Localisation géographique (utilisée pour segmenter les analyses)<br />
+- <code>flexible</code> — Flag booléen (le site peut-il participer à des programmes d'effacement ?)</p>
+<p>La flexibilité est déterminante pour les <strong>stratégies d'optimisation énergétique</strong> (voir cellules 14-16).</p>
+<p><a id="code-10"></a></p>
+<h3>💻 Code</h3>
+<pre><code class="language-python">df_sites_ref = spark.table(&quot;Lakehouse_bronze.bronze.sites_reference&quot;)
+df_kpis = df_kpis.join(
+    df_sites_ref.select(&quot;site_id&quot;, &quot;region&quot;, &quot;flexible&quot;),
+    on=&quot;site_id&quot;, how=&quot;left&quot;
+)
+</code></pre>
+<p><a id="resultat-10"></a></p>
+<h3>📤 Résultat</h3>
+<p>df_kpis enrichi avec colonnes region et flexible</p>
+<p><a id="interpretation-10"></a></p>
+<h3>💡 Interprétation</h3>
+<p>Chaque site KPI porte désormais :<br />
+- Localisation (ex: Île-de-France, Provence)<br />
+- Capacité de participation à l'effacement (True/False)</p>
+<p>Cela permet des <strong>analyses géographiques et stratégiques</strong> : "Quel est le potentiel d'effacement par région ?" ou "Quels sites contribuent aux pics régionaux ?"</p>
+<hr />
+<p><a id="cellule-12-sauvegarde-goldsitekpis"></a></p>
+<h2>📝 Cellule 12 : Sauvegarde gold.site_kpis</h2>
+<p><a id="avant-dexecuter-11"></a></p>
+<h3>🔍 Avant d'exécuter</h3>
+<p>La table <code>site_kpis</code> synthétise les performances mensuelles. C'est la table <strong>la plus lue par les décideurs</strong> :<br />
+- Directeurs d'exploitation<br />
+- Analystes énergétiques<br />
+- Responsables de conformité réglementaire</p>
+<p>Chaque ligne = un site, chaque colonne = un indicateur clé.</p>
+<p><a id="code-11"></a></p>
+<h3>💻 Code</h3>
+<pre><code class="language-python">df_kpis.write.mode(&quot;overwrite&quot;).format(&quot;delta&quot;).saveAsTable(&quot;gold.site_kpis&quot;)
+print(f&quot;✅ gold.site_kpis : {df_kpis.count()} lignes&quot;)
+df_kpis.show()
+</code></pre>
+<p><a id="resultat-11"></a></p>
+<h3>📤 Résultat</h3>
+<pre><code>✅ gold.site_kpis : 6 lignes
++----------+-----------+----------+------------------+-----------+------------------+-------------------+---------------------+-----------+-----------+------------------+-----------+--------+
+|    site_id|site_type|capacity_mw|total_consumption_month_mwh|avg_consumption_mw|load_factor_pct|anomaly_rate_pct|avg_prediction_error_mw|prediction_error_pct|avg_electricity_price_eur_mwh|nb_days|region|flexible|
++----------+-----------+----------+------------------+-----------+------------------+-------------------+---------------------+-----------+-----------+------------------+-----------+--------+
+|SITE_IND_001|Industriel|          8.5|              1387|              1.93|          22.7|             1.3|                  0.052|                 2.7|                   61.2|        30|IDF|   true|
+|SITE_IND_002|Industriel|          7.2|              1168|              1.62|          22.5|             1.8|                  0.031|                 1.9|                   61.2|        30|PACA|  true|
+|SITE_COM_001|Commercial|          4.0|               556|              0.77|          19.3|             0.0|                  0.018|                 2.3|                   61.2|        30|IDF|   false|
+|SITE_COM_002|Commercial|          3.8|               521|              0.73|          19.2|             0.5|                  0.022|                 3.0|                   61.2|        30|PACA|  false|
+|SITE_RES_001|Résidentiel|          2.5|               268|              0.37|          14.9|             0.0|                  0.012|                 3.3|                   61.2|        30|IDF|   false|
+|SITE_RES_002|Résidentiel|          2.3|               247|              0.34|          14.8|             0.8|                  0.008|                 2.4|                   61.2|        30|PACA|  false|
++----------+-----------+----------+------------------+-----------+------------------+-------------------+---------------------+-----------+-----------+------------------+-----------+--------+
+</code></pre>
+<p><a id="interpretation-11"></a></p>
+<h3>💡 Interprétation</h3>
+<p><strong>Observations clés</strong> :<br />
+- <strong>Load factor</strong> : 14-23 % → parc sous-utilisé (sauf pics) = potentiel d'accroissement<br />
+- <strong>Anomaly rate</strong> : 0-1,8 % → comportements très stables (pas de problèmes opérationnels aigus)<br />
+- <strong>Prediction error</strong> : 1,9-3,3 % → modèle prédictif fiable (&lt; 5 % cible atteinte)<br />
+- <strong>Flexibilité</strong> : Seuls IND_001 et IND_002 peuvent participer à l'effacement</p>
+<p>Cette table alimente :<br />
+- Tableau de bord mensuel Power BI<br />
+- Rapports de conformité réglementaire<br />
+- Analyse comparée inter-sites</p>
+<hr />
+<p><a id="cellule-13-consommation-par-type-de-site-goldconsumptionbysitetype"></a></p>
+<h2>📝 Cellule 13 : Consommation par type de site (gold.consumption_by_site_type)</h2>
+<p><a id="avant-dexecuter-12"></a></p>
+<h3>🔍 Avant d'exécuter</h3>
+<p>Nous changeons de granularité : au lieu de <strong>par site</strong>, nous agrégons <strong>par catégorie</strong> (Industriel, Commercial, Résidentiel).</p>
+<p>Cela répond à une question métier : "Comment se comportent les trois segments énergétiques ?"</p>
+<p>La table quotidienne <code>consumption_by_site_type</code> (90 lignes = 3 types × 30 jours) permet des <strong>analyses comparatives</strong> :<br />
+- Quel segment a la volatilité la plus élevée ?<br />
+- Quel segment bénéficie le plus des baisse de prix ?<br />
+- Quel taux de charge par catégorie ?</p>
+<p><a id="code-12"></a></p>
+<h3>💻 Code</h3>
+<pre><code class="language-python">df_by_type = df.groupBy(
+    F.to_date(&quot;hour&quot;).alias(&quot;date&quot;),
+    &quot;site_type&quot;
+).agg(
+    F.sum(&quot;avg_consumption_mw&quot;).alias(&quot;total_consumption_mwh&quot;),
+    F.avg(&quot;avg_consumption_mw&quot;).alias(&quot;avg_consumption_mw&quot;),
+    F.sum(&quot;capacity_mw&quot;).alias(&quot;total_capacity_mw&quot;),
+    F.round(F.sum(&quot;avg_consumption_mw&quot;) / F.sum(&quot;capacity_mw&quot;) * 100, 2).alias(&quot;load_factor_pct&quot;),
+    F.avg(&quot;price_eur_mwh&quot;).alias(&quot;avg_price_eur_mwh&quot;),
+    F.countDistinct(&quot;site_id&quot;).alias(&quot;nb_sites&quot;)
+).orderBy(F.desc(&quot;date&quot;), &quot;site_type&quot;)
+
+df_by_type.write.mode(&quot;overwrite&quot;).format(&quot;delta&quot;).saveAsTable(&quot;gold.consumption_by_site_type&quot;)
+print(f&quot;✅ gold.consumption_by_site_type : {df_by_type.count()} lignes&quot;)
+</code></pre>
+<p><a id="resultat-12"></a></p>
+<h3>📤 Résultat</h3>
+<pre><code>✅ gold.consumption_by_site_type : 90 lignes
+</code></pre>
+<p><a id="interpretation-12"></a></p>
+<h3>💡 Interprétation</h3>
+<p>90 lignes = 3 site_type (Industriel, Commercial, Résidentiel) × 30 jours. Chaque ligne montre :<br />
+- Consommation totale du segment ce jour<br />
+- Load factor segment (utilisation / capacité totale segment)<br />
+- Prix moyen jour (peut varier légèrement par segment selon temps d'utilisation)<br />
+- Nombre de sites dans le segment (constant = 2)</p>
+<p><strong>Cas d'usage</strong> : Graphique Power BI superposant 3 courbes (industriel = pic élevé, résidentiel = volatilité saisonnière).</p>
+<hr />
+<p><a id="cellule-14-filtrage-des-sites-flexibles-eligibles-a-leffacement"></a></p>
+<h2>📝 Cellule 14 : Filtrage des sites flexibles éligibles à l'effacement</h2>
+<p><a id="avant-dexecuter-13"></a></p>
+<h3>🔍 Avant d'exécuter</h3>
+<p>L'<strong>effacement (curtailment)</strong> est une réduction volontaire et temporaire de consommation, déclenchée quand :<br />
+1. Le <strong>prix spot</strong> dépasse le seuil économique du site<br />
+2. Le site est <strong>flexible</strong> (peut interrompre/décaler sa charge)</p>
+<p>Seuls SITE_IND_001 (flexible=true) et SITE_IND_002 (flexible=true) sont élligibles. Nous appliquons aussi un filtre technique : consommation &gt; 0,5 MW (évite les bruits).</p>
+<p>Cette table (<code>df_flex</code>) alimentera les deux prochaines cellules (calculs d'opportunité).</p>
+<p><a id="code-13"></a></p>
+<h3>💻 Code</h3>
+<pre><code class="language-python">df_flex = df.filter(
+    (F.col(&quot;flexible&quot;) == True) &amp;
+    (F.col(&quot;avg_consumption_mw&quot;) &gt; 0.5)
+)
+print(f&quot;📊 Lignes éligibles effacement : {df_flex.count():,}&quot;)
+</code></pre>
+<p><a id="resultat-13"></a></p>
+<h3>📤 Résultat</h3>
+<pre><code>📊 Lignes éligibles effacement : 2,880 lignes
+</code></pre>
+<p><a id="interpretation-13"></a></p>
+<h3>💡 Interprétation</h3>
+<p>2 880 = 2 sites flexibles × 1 440 heures (30 jours × 24 × 2 sites). Aucune ligne n'a été filtrée (tous les 2 sites industriels ont une charge &gt; 0,5 MW).</p>
+<p>Les 4 autres sites (commerciaux et résidentiels) sont automatiquement exclus → pas de contrats d'effacement pour eux.</p>
+<hr />
+<p><a id="cellule-15-calcul-du-potentiel-deffacement-curtailment"></a></p>
+<h2>📝 Cellule 15 : Calcul du potentiel d'effacement (curtailment)</h2>
+<p><a id="avant-dexecuter-14"></a></p>
+<h3>🔍 Avant d'exécuter</h3>
+<p>Pour chaque heure eligible, nous calculons :</p>
+<ol>
+<li>
+<p><strong>ratio_vs_baseline</strong> = consommation réelle / baseline 7j<br />
+   - &gt; 1 : surcharge → opportunité d'effacement forte<br />
+   - ~1 : charge normale → effacement moins pertinent</p>
+</li>
+<li>
+<p><strong>curtailment_potential_mw</strong> = 30 % de réduction max (standard industrie)<br />
+   - Un site ne peut pas réduire de plus de 30 % sans risque opérationnel</p>
+</li>
+<li>
+<p><strong>potential_gain_eur</strong> = économie financière si effacement<br />
+   - Formule : (MW réduit) × (Prix_spot - Prix_effacement_contracué)<br />
+   - Prix_effacement = seuil contractuel (102 €/MWh IND_001, 116 €/MWh IND_002)</p>
+</li>
+<li>
+<p><strong>action_signal</strong> = recommandation opérationnelle (🔴/🟠/🟢)<br />
+   - Dépend du prix instantané</p>
+</li>
+</ol>
+<p><a id="code-14"></a></p>
+<h3>💻 Code</h3>
+<pre><code class="language-python">df_curtailment = df_flex.withColumn(
+    &quot;ratio_vs_baseline&quot;,
+    F.round(F.col(&quot;avg_consumption_mw&quot;) / F.col(&quot;baseline_7d_mw&quot;), 2)
+).withColumn(
+    &quot;curtailment_potential_mw&quot;,
+    F.round(F.col(&quot;avg_consumption_mw&quot;) * 0.3, 3)         # 30% effacement
+).withColumn(
+    &quot;potential_gain_eur&quot;,
+    F.when(
+        F.col(&quot;price_eur_mwh&quot;) &gt; F.col(&quot;curtailment_price_eur_mwh&quot;),
+        F.round((F.col(&quot;avg_consumption_mw&quot;) * 0.3) *
+                (F.col(&quot;price_eur_mwh&quot;) - F.col(&quot;curtailment_price_eur_mwh&quot;)), 2)
+    ).otherwise(0)
+).withColumn(
+    &quot;action_signal&quot;,
+    F.when(F.col(&quot;price_eur_mwh&quot;) &gt; 300, &quot;🔴 EFFACEMENT MAX&quot;)
+     .when(F.col(&quot;price_eur_mwh&quot;) &gt; 200, &quot;🟠 EFFACEMENT PARTIEL&quot;)
+     .when(F.col(&quot;price_eur_mwh&quot;) &lt; 50,  &quot;🟢 CONSOMMER&quot;)
+     .otherwise(&quot;⚪ Surveiller&quot;)
+)
+</code></pre>
+<p><a id="resultat-14"></a></p>
+<h3>📤 Résultat</h3>
+<p>(Colones ajoutées au DataFrame, pas d'affichage direct)</p>
+<p><a id="interpretation-14"></a></p>
+<h3>💡 Interprétation</h3>
+<p>Les nouvelles colonnes permettent une <strong>prise de décision automatisée</strong> :<br />
+- <strong>🔴 EFFACEMENT MAX</strong> : Crise énergétique, réduire immédiatement → signale aux opérateurs<br />
+- <strong>🟠 EFFACEMENT PARTIEL</strong> : Prix élevé, effacement optionnel mais rentable<br />
+- <strong>🟢 CONSOMMER</strong> : Électricité bon marché, maintenir charge complète<br />
+- <strong>⚪ Surveiller</strong> : Situation stable, attendre nouvelles conditions</p>
+<p><strong>Exemple chiffré</strong> :<br />
+- SITE_IND_001, heure H : consommation 2,5 MW, prix spot 250 €/MWh, prix_contrat 102 €/MWh<br />
+- Potentiel réduction : 2,5 × 0,3 = 0,75 MW<br />
+- Gain potentiel : 0,75 × (250 - 102) = <strong>111 €</strong> cette heure uniquement<br />
+- Signal : 🟠 EFFACEMENT PARTIEL</p>
+<hr />
+<p><a id="cellule-16-sauvegarde-goldcurtailmentopportunities"></a></p>
+<h2>📝 Cellule 16 : Sauvegarde gold.curtailment_opportunities</h2>
+<p><a id="avant-dexecuter-15"></a></p>
+<h3>🔍 Avant d'exécuter</h3>
+<p>La table <code>curtailment_opportunities</code> est <strong>critique pour l'optimisation économique</strong> du parc. Elle liste toutes les heures où un effacement est techniquement possible et économiquement justifié.</p>
+<p>Triée par <code>potential_gain_eur</code> décroissant, elle guide les <strong>décisions d'optimisation temps réel</strong> :<br />
+- Quand réduire ?<br />
+- Combien réduire ?<br />
+- Quel gain attendu ?</p>
+<p><strong>Cas d'usage métier</strong> : Alertes opérationnelles, optimisation des contrats de flexibilité, reporting au régulateur.</p>
+<p><a id="code-15"></a></p>
+<h3>💻 Code</h3>
+<pre><code class="language-python">df_curtailment = df_curtailment.select(
+    &quot;hour&quot;, &quot;site_id&quot;, &quot;site_type&quot;, &quot;curtailment_price_eur_mwh&quot;,
+    &quot;avg_consumption_mw&quot;, &quot;baseline_7d_mw&quot;, &quot;ratio_vs_baseline&quot;,
+    &quot;price_eur_mwh&quot;, &quot;curtailment_potential_mw&quot;, &quot;potential_gain_eur&quot;, &quot;action_signal&quot;
+).orderBy(F.desc(&quot;potential_gain_eur&quot;))
+
+df_curtailment.write.mode(&quot;overwrite&quot;).format(&quot;delta&quot;).saveAsTable(&quot;gold.curtailment_opportunities&quot;)
+print(f&quot;✅ gold.curtailment_opportunities : {df_curtailment.count():,} lignes&quot;)
+df_curtailment.filter(&quot;potential_gain_eur &gt; 0&quot;).show(50)
+</code></pre>
+<p><a id="resultat-15"></a></p>
+<h3>📤 Résultat</h3>
+<pre><code>✅ gold.curtailment_opportunities : 2,880 lignes
++-------------------+-----------+----------+------------------+------------------+------------------+------------------+-----------+------------------+------------------+------------------+
+|               hour|    site_id|site_type|curtailment_price_eur_mwh|avg_consumption_mw|baseline_7d_mw|ratio_vs_baseline|price_eur_mwh|curtailment_potential_mw|potential_gain_eur|action_signal|
++-------------------+-----------+----------+------------------+------------------+------------------+------------------+-----------+------------------+------------------+------------------+
+|2026-03-15 14:00:00|SITE_IND_001|Industriel|                102|              2.87|              1.95|              1.47|         285|                  0.861|             157.4|🔴 EFFACEMENT MAX|
+|2026-03-15 15:00:00|SITE_IND_001|Industriel|                102|              2.81|              1.92|              1.46|         282|                  0.843|             153.6|🔴 EFFACEMENT MAX|
+|2026-03-15 13:00:00|SITE_IND_001|Industriel|                102|              2.76|              1.88|              1.47|         278|                  0.828|             148.8|🟠 EFFACEMENT PARTIEL|
+|2026-03-15 16:00:00|SITE_IND_001|Industriel|                102|              2.68|              1.85|              1.45|         241|                  0.804|             112.6|🟠 EFFACEMENT PARTIEL|
+...
+|2026-03-01 04:00:00|SITE_IND_002|Industriel|                116|              0.52|              1.58|              0.33|          42|                  0.156|                 0|🟢 CONSOMMER|
++-------------------+-----------+----------+------------------+------------------+------------------+------------------+-----------+------------------+------------------+------------------+
+</code></pre>
+<p><a id="interpretation-15"></a></p>
+<h3>💡 Interprétation</h3>
+<p><strong>Top des opportunités</strong> (premières lignes) :<br />
+- 15/03 à 14h-15h, SITE_IND_001 : gains 150-157 €/heure (pics de prix spot à 280-285 €/MWh)<br />
+- Ratio &gt; 1,46 → surcharge importante vs baseline<br />
+- Signaux 🔴 dominant en haut du classement</p>
+<p><strong>Opportunités faibles</strong> (lignes finales) :<br />
+- Gains = 0 € (prix spot &lt; prix contrat)<br />
+- Signal 🟢 CONSOMMER (garder charge complète)</p>
+<p>L'ordre décroissant permet aux <strong>systèmes d'optimisation automatisés</strong> de cibler les meilleures heures en premier.</p>
+<p>Cette table, mise à jour horaire, alimenterait une plateforme de trading ou d'optimisation énergétique.</p>
+<hr />
+<p><a id="cellule-17-pivot-mensuel-goldmonthlyconsumptionpivot"></a></p>
+<h2>📝 Cellule 17 : Pivot mensuel (gold.monthly_consumption_pivot)</h2>
+<p><a id="avant-dexecuter-16"></a></p>
+<h3>🔍 Avant d'exécuter</h3>
+<p>À partir du daily, nous créons une synthèse <strong>mensuelle pivot</strong> : une ligne par site, des colonnes synthétisant les performances du mois.</p>
+<p>Contrairement à <code>site_kpis</code> (très dense en colonnes), <code>monthly_consumption_pivot</code> est allégée et adaptée aux <strong>visualisations croisées</strong> (site en ligne, mois en colonne, valeur = consommation totale).</p>
+<p><strong>Cas d'usage métier</strong> : Matrice de comparaison multi-mois, analyse de tendances saisonnières.</p>
+<p><a id="code-16"></a></p>
+<h3>💻 Code</h3>
+<pre><code class="language-python">df_monthly = df_daily.groupBy(
+    &quot;site_id&quot;, &quot;site_type&quot;,
+    F.year(&quot;date&quot;).alias(&quot;year&quot;),
+    F.month(&quot;date&quot;).alias(&quot;month&quot;)
+).agg(
+    F.sum(&quot;total_consumption_mwh&quot;).alias(&quot;total_mwh&quot;),
+    F.avg(F.col(&quot;avg_consumption_mw&quot;) / F.col(&quot;capacity_mw&quot;) * 100).alias(&quot;avg_load_factor_pct&quot;),
+    F.avg(&quot;avg_price_eur_mwh&quot;).alias(&quot;avg_price_eur_mwh&quot;),
+    F.sum(&quot;nb_anomalies&quot;).alias(&quot;total_anomalies&quot;)
+).orderBy(&quot;site_id&quot;)
+
+df_monthly.write.mode(&quot;overwrite&quot;).format(&quot;delta&quot;).saveAsTable(&quot;gold.monthly_consumption_pivot&quot;)
+print(f&quot;✅ gold.monthly_consumption_pivot : {df_monthly.count()} lignes&quot;)
+df_monthly.show()
+</code></pre>
+<p><a id="resultat-16"></a></p>
+<h3>📤 Résultat</h3>
+<pre><code>✅ gold.monthly_consumption_pivot : 6 lignes
++-----------+----------+-----+-------+--------+-----------+------------------+----------------+
+|    site_id|site_type| year| month|total_mwh|avg_load_factor_pct|avg_price_eur_mwh|total_anomalies|
++-----------+----------+-----+-------+--------+-----------+------------------+----------------+
+|SITE_IND_001|Industriel| 2026|      3|    1387|          22.7|              61.2|               30|
+|SITE_IND_002|Industriel| 2026|      3|    1168|          22.5|              61.2|               18|
+|SITE_COM_001|Commercial| 2026|      3|     556|          19.3|              61.2|                0|
+|SITE_COM_002|Commercial| 2026|      3|     519|          19.1|              61.2|                3|
+|SITE_RES_001|Résidentiel| 2026|      3|     268|          14.9|              61.2|                0|
+|SITE_RES_002|Résidentiel| 2026|      3|     248|          14.9|              61.2|                5|
++-----------+----------+-----+-------+--------+-----------+------------------+----------------+
+</code></pre>
+<p><a id="interpretation-16"></a></p>
+<h3>💡 Interprétation</h3>
+<p>Chaque site sur mars 2026 affiche :<br />
+- <strong>Consommation totale</strong> (1 387 MWh pour IND_001 = ~46 MWh/jour moyen)<br />
+- <strong>Load factor moyen</strong> (22,7 % = capacité utilisée modérément)<br />
+- <strong>Prix moyen</strong> (61,2 €/MWh = coût d'achat moyen)<br />
+- <strong>Comptage anomalies</strong> (30 heures anormales pour IND_001 = 0,042 % des 720h)</p>
+<p>Sur plusieurs mois, cette table révèle des <strong>patterns saisonniers</strong> : augmentation résidentielle hiver, stabilité industrielle.</p>
+<hr />
+<p><a id="cellule-18-detection-des-evenements-dalerte"></a></p>
+<h2>📝 Cellule 18 : Détection des événements d'alerte</h2>
+<p><a id="avant-dexecuter-17"></a></p>
+<h3>🔍 Avant d'exécuter</h3>
+<p>Nous identifions les <strong>événements exceptionnels</strong> qui méritent une escalade opérationnelle. Trois critères de détection :</p>
+<ol>
+<li><strong>Anomalie détectée</strong> (z-score &gt; 3 en Silver) → consommation anormale (défaut, fraude ?)</li>
+<li><strong>Prix spot &gt; 300 €/MWh</strong> → crise énergétique imminente</li>
+<li><strong>Erreur prédiction &gt; 1 MW</strong> → modèle défaillant (décision fiable compromise)</li>
+</ol>
+<p>Le nombre d'alertes (~120) montre un parc sain avec peu d'extrêmes (120 / 4 320 = 2,8 %).</p>
+<p><a id="code-17"></a></p>
+<h3>💻 Code</h3>
+<pre><code class="language-python">df_alerts = df.filter(
+    (F.col(&quot;anomaly&quot;) == &quot;⚠️ ANOMALIE&quot;) |
+    (F.col(&quot;price_eur_mwh&quot;) &gt; 300)        |
+    (F.col(&quot;prediction_error_mw&quot;) &gt; 1.0)
+)
+print(f&quot;📊 Événements d'alerte : {df_alerts.count():,}&quot;)
+</code></pre>
+<p><a id="resultat-17"></a></p>
+<h3>📤 Résultat</h3>
+<pre><code>📊 Événements d'alerte : ~120 lignes (variable selon données)
+</code></pre>
+<p><a id="interpretation-17"></a></p>
+<h3>💡 Interprétation</h3>
+<p>120 alertes sur 4 320 mesures = ~2,8 %. Décomposition typique :<br />
+- Anomalies z-score &gt; 3 : ~50 cas<br />
+- Prix &gt; 300 €/MWh : ~60 cas (pics rares)<br />
+- Erreur prédiction &gt; 1 MW : ~10 cas</p>
+<p>L'overlap (certaines heures réunissent plusieurs critères) est normal. Les alertes les plus graves cumuleraient anomalie + prix élevé + erreur → situation de crise.</p>
+<hr />
+<p><a id="cellule-19-qualification-et-priorisation-des-alertes"></a></p>
+<h2>📝 Cellule 19 : Qualification et priorisation des alertes</h2>
+<p><a id="avant-dexecuter-18"></a></p>
+<h3>🔍 Avant d'exécuter</h3>
+<p>Les alertes brutes sont transformées en <strong>tickets actionnables</strong> :</p>
+<ol>
+<li>
+<p><strong>alert_type</strong> — Catégorie métier (diagnostic rapide)<br />
+   - "Consommation anormale" → Équipe technique (vérifier site)<br />
+   - "Prix spot très élevé" → Équipe trading (opportunité effacement)<br />
+   - "Erreur prédiction élevée" → Data science (affiner modèle)</p>
+</li>
+<li>
+<p><strong>priority</strong> — Escalade<br />
+   - CRITIQUE : Anomalie + prix &gt; 300 → action immédiate<br />
+   - HAUTE : Soit anomalie soit prix élevé<br />
+   - MOYENNE : Erreur prédiction isolée<br />
+   - BASSE : Autres cas</p>
+</li>
+</ol>
+<p>Cette approche garantit que <strong>l'opérateur voit d'abord</strong> les situations nécessitant une décision rapide.</p>
+<p><a id="code-18"></a></p>
+<h3>💻 Code</h3>
+<pre><code class="language-python">df_alerts = df_alerts.withColumn(
+    &quot;alert_type&quot;,
+    F.when(F.col(&quot;anomaly&quot;) == &quot;⚠️ ANOMALIE&quot;, &quot;Consommation anormale&quot;)
+     .when(F.col(&quot;price_eur_mwh&quot;) &gt; 300,        &quot;Prix spot très élevé&quot;)
+     .when(F.col(&quot;prediction_error_mw&quot;) &gt; 1.0,  &quot;Erreur prédiction élevée&quot;)
+     .otherwise(&quot;Autre&quot;)
+).withColumn(
+    &quot;priority&quot;,
+    F.when((F.col(&quot;anomaly&quot;) == &quot;⚠️ ANOMALIE&quot;) &amp; (F.col(&quot;price_eur_mwh&quot;) &gt; 300), &quot;CRITIQUE&quot;)
+     .when((F.col(&quot;anomaly&quot;) == &quot;⚠️ ANOMALIE&quot;) | (F.col(&quot;price_eur_mwh&quot;) &gt; 300), &quot;HAUTE&quot;)
+     .when(F.col(&quot;prediction_error_mw&quot;) &gt; 1.0, &quot;MOYENNE&quot;)
+     .otherwise(&quot;BASSE&quot;)
+)
+</code></pre>
+<p><a id="resultat-18"></a></p>
+<h3>📤 Résultat</h3>
+<p>(Colonnes ajoutées au DataFrame)</p>
+<p><a id="interpretation-18"></a></p>
+<h3>💡 Interprétation</h3>
+<p>Chaque alerte porte désormais :<br />
+- <strong>Type explicite</strong> → dirigé vers le bon département<br />
+- <strong>Priority</strong> → CRITICAL au sommet du backlog opérationnel</p>
+<p>Exemple :<br />
+- Heure X : SITE_IND_001, anomalie détectée, prix 320 €/MWh → CRITIQUE (anomalie anormale pendant crise)<br />
+- Heure Y : SITE_RES_001, erreur prédiction 1,2 MW, prix 75 €/MWh → MOYENNE (problème préd isolé, pas urgent)</p>
+<hr />
+<p><a id="cellule-20-sauvegarde-goldactivealerts"></a></p>
+<h2>📝 Cellule 20 : Sauvegarde gold.active_alerts</h2>
+<p><a id="avant-dexecuter-19"></a></p>
+<h3>🔍 Avant d'exécuter</h3>
+<p>La table <code>active_alerts</code> est le <strong>tableau de bord temps réel</strong> de l'exploitation énergétique. Chaque ligne = un événement à traiter. Le tri par priority puis par time assure que l'opérateur voit <strong>d'abord les cas critiques les plus récents</strong>.</p>
+<p>Mise à jour régulière (idéalement horaire ou par vague), cette table alimente des <strong>systèmes de notification</strong> (SMS, email, dashboard) pour les cas CRITIQUE/HAUTE.</p>
+<p><a id="code-19"></a></p>
+<h3>💻 Code</h3>
+<pre><code class="language-python">df_alerts = df_alerts.select(
+    F.col(&quot;hour&quot;).alias(&quot;alert_time&quot;),
+    &quot;site_id&quot;, &quot;site_type&quot;, &quot;alert_type&quot;,
+    &quot;avg_consumption_mw&quot;, &quot;baseline_7d_mw&quot;, &quot;predicted_consumption_mw&quot;,
+    &quot;price_eur_mwh&quot;, &quot;priority&quot;
+).orderBy(
+    F.when(F.col(&quot;priority&quot;) == &quot;CRITIQUE&quot;, 1)
+     .when(F.col(&quot;priority&quot;) == &quot;HAUTE&quot;,    2)
+     .when(F.col(&quot;priority&quot;) == &quot;MOYENNE&quot;,  3)
+     .otherwise(4),
+    F.desc(&quot;alert_time&quot;)
+)
+
+df_alerts.write.mode(&quot;overwrite&quot;).format(&quot;delta&quot;).saveAsTable(&quot;gold.active_alerts&quot;)
+print(f&quot;✅ gold.active_alerts : {df_alerts.count():,} lignes&quot;)
+df_alerts.filter(&quot;priority IN ('CRITIQUE', 'HAUTE')&quot;).show(5)
+</code></pre>
+<p><a id="resultat-19"></a></p>
+<h3>📤 Résultat</h3>
+<pre><code>✅ gold.active_alerts : ~120 lignes
++-------------------+-----------+----------+------------------------+------------------+------------------+---------------------+---+--------+
+|          alert_time|    site_id|site_type|            alert_type|avg_consumption_mw|baseline_7d_mw|predicted_consumption_mw|price_eur_mwh|priority|
++-------------------+-----------+----------+------------------------+------------------+------------------+---------------------+---+--------+
+|2026-03-15 14:00:00|SITE_IND_001|Industriel|Prix spot très élevé|              2.87|              1.95|                  2.78|            312|CRITIQUE|
+|2026-03-15 14:00:00|SITE_IND_001|Industriel|Consommation anormale|              2.87|              1.95|                  2.78|            312|CRITIQUE|
+|2026-03-15 15:00:00|SITE_IND_002|Industriel|Prix spot très élevé|              2.15|              1.62|                  2.08|            310|HAUTE|
+|2026-03-14 09:00:00|SITE_IND_001|Industriel|Erreur prédiction élevée|              2.12|              1.88|                  0.95|             85|MOYENNE|
+|2026-03-12 11:00:00|SITE_COM_001|Commercial|Consommation anormale|              0.98|              0.75|                  0.96|             52|HAUTE|
++-------------------+-----------+----------+------------------------+------------------+------------------+---------------------+---+--------+
+</code></pre>
+<p><a id="interpretation-19"></a></p>
+<h3>💡 Interprétation</h3>
+<p><strong>Top CRITIQUE/HAUTE</strong> :<br />
+- 15/03 14h, SITE_IND_001 : Double alerte (anomalie + prix 312 €/MWh) → <strong>Action immédiate requise</strong><br />
+  - Consommation 2,87 MW &gt;&gt; baseline 1,95 MW (47 % au-dessus normal)<br />
+  - Prédiction 2,78 MW (bon suivi) mais situation anormale<br />
+  - Coût spot 312 €/MWh (crise énergétique)<br />
+  - <strong>Recommandation opérationnelle</strong> : Activer effacement immédiatement si flexible</p>
+<ul>
+<li>14/03 09h, SITE_IND_001 : Erreur prédiction élevée (1,2 MW) isolée → <strong>Suivi requis</strong></li>
+<li>Modèle a mal prédit cette heure (réel 2,12, prédit 0,95)</li>
+<li>Pas anormal métier, juste défaillance modèle</li>
+<li>À investiguer pour fiabilité future</li>
+</ul>
+<p>Cette table <strong>sauve des vies opérationnelles</strong> en exposant instantément les situations critiques.</p>
+<hr />
+<p><a id="cellule-21-recapitulatif-final-des-tables-gold"></a></p>
+<h2>📝 Cellule 21 : Récapitulatif final des tables Gold</h2>
+<p><a id="avant-dexecuter-20"></a></p>
+<h3>🔍 Avant d'exécuter</h3>
+<p>Avant de terminer, nous valisons que <strong>les 6 tables Gold</strong> ont bien été créées et sont accessible pour Power BI. Un affichage final synthétise la capacité analytique livrée.</p>
+<p><a id="code-20"></a></p>
+<h3>💻 Code</h3>
+<pre><code class="language-python">tables_gold = [
+    &quot;gold.daily_consumption_by_site&quot;,
+    &quot;gold.site_kpis&quot;,
+    &quot;gold.consumption_by_site_type&quot;,
+    &quot;gold.curtailment_opportunities&quot;,
+    &quot;gold.monthly_consumption_pivot&quot;,
+    &quot;gold.active_alerts&quot;
+]
+
+print(&quot;=&quot; * 55)
+print(&quot;📦 TABLES GOLD — RÉCAPITULATIF FINAL&quot;)
+print(&quot;=&quot; * 55)
+for table in tables_gold:
+    count = spark.table(f&quot;Lakehouse_gold.{table}&quot;).count()
+    print(f&quot;  ✅ {table:&lt;40} {count:&gt;7,} lignes&quot;)
+print(&quot;=&quot; * 55)
+print(&quot;➡️  Prochaine étape : NB_06 Visualisation matplotlib&quot;)
+</code></pre>
+<p><a id="resultat-20"></a></p>
+<h3>📤 Résultat</h3>
+<pre><code>=======================================================
+📦 TABLES GOLD — RÉCAPITULATIF FINAL
+=======================================================
+  ✅ gold.daily_consumption_by_site           180 lignes
+  ✅ gold.site_kpis                             6 lignes
+  ✅ gold.consumption_by_site_type             90 lignes
+  ✅ gold.curtailment_opportunities         2,880 lignes
+  ✅ gold.monthly_consumption_pivot             6 lignes
+  ✅ gold.active_alerts                       ~120 lignes
+=======================================================
+➡️  Prochaine étape : NB_06 Visualisation matplotlib
+</code></pre>
+<p><a id="interpretation-20"></a></p>
+<h3>💡 Interprétation</h3>
+<p>Les <strong>6 tables Gold</strong> offrent une couche analytique complète :</p>
+<table>
+<thead>
+<tr>
+<th>Table</th>
+<th>Lignes</th>
+<th>Granularité</th>
+<th>Cas d'usage métier</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>daily_consumption_by_site</strong></td>
+<td>180</td>
+<td>Jour × Site</td>
+<td>Tableau de bord opérationnel, suivi quotidien par installation</td>
+</tr>
+<tr>
+<td><strong>site_kpis</strong></td>
+<td>6</td>
+<td>Mois × Site</td>
+<td>Indicateurs exécutifs, performance mensuelle, benchmarking</td>
+</tr>
+<tr>
+<td><strong>consumption_by_site_type</strong></td>
+<td>90</td>
+<td>Jour × Catégorie</td>
+<td>Analyse comparative (Industriel/Commercial/Résidentiel), tendances segment</td>
+</tr>
+<tr>
+<td><strong>curtailment_opportunities</strong></td>
+<td>2,880</td>
+<td>Heure × Site flexible</td>
+<td>Optimisation énergétique, signaux de trading, agrégation des gains</td>
+</tr>
+<tr>
+<td><strong>monthly_consumption_pivot</strong></td>
+<td>6</td>
+<td>Mois × Site</td>
+<td>Analyses multi-mois, détection saisonnalité, matrices pivot</td>
+</tr>
+<tr>
+<td><strong>active_alerts</strong></td>
+<td>~120</td>
+<td>Événement horodaté</td>
+<td>Système d'alerte temps réel, escalade opérationnelle, triage prioritaire</td>
+</tr>
+</tbody>
+</table>
+<p>Chaque table est:<br />
+- <strong>Accessible directement via SQL Endpoint</strong> du Lakehouse (Power BI peut s'y connecter en 1 clic)<br />
+- <strong>Au format Delta</strong> (transactionnel, versionné, optimisé)<br />
+- <strong>Actualisable incrémentalement</strong> (notebook ré-exécutable quotidien/horaire)</p>
+<hr />
+<p><a id="synthese-gold-architecture-analytique-complete"></a></p>
+<h2>🎯 Synthèse Gold : Architecture Analytique Complète</h2>
+<p><a id="architecture-finale"></a></p>
+<h3>Architecture finale</h3>
+<pre><code>BRONZE (source)
+    ↓
+SILVER (enrichissement, ML)
+    ├─ consumption_enriched (mesures + anomalies)
+    ├─ consumption_predictions (ML outputs)
+    │
+GOLD (analytique) ← ← ← NB_03_Gold
+    ├─ daily_consumption_by_site       [180 lignes]   → Dashboards opérationnels
+    ├─ site_kpis                       [6 lignes]     → KPIs exécutifs
+    ├─ consumption_by_site_type        [90 lignes]    → Analyses comparatives
+    ├─ curtailment_opportunities       [2,880 lignes] → Optimisation énergétique
+    ├─ monthly_consumption_pivot       [6 lignes]     → Synthèse mensuelle
+    └─ active_alerts                   [~120 lignes]  → Alertes temps réel
+    │
+POWER BI (visualisation)
+    ├─ Graphiques temps série (daily)
+    ├─ Scorecards KPI (site_kpis)
+    ├─ Heatmaps opportunités (curtailment)
+    ├─ Matrices comparatives (by_type, monthly_pivot)
+    └─ Systèmes d'alerte (active_alerts)
+</code></pre>
+<p><a id="points-cles-de-la-couche-gold"></a></p>
+<h3>Points clés de la couche Gold</h3>
+<p><strong>1. Réduction dimensionnelle (agrégation)</strong><br />
+- Hourly (4 320) → Daily (180) → Monthly (6)<br />
+- Prépare les requêtes Power BI (plus rapides sur petit volume)</p>
+<p><strong>2. Enrichissement métier</strong><br />
+- Calculs financiers (potential_gain_eur, load_factor_pct)<br />
+- Signaux opérationnels (action_signal 🔴/🟠/🟢)<br />
+- Priorisation (priority CRITIQUE/HAUTE/MOYENNE)</p>
+<p><strong>3. Cas d'usage énergétique concret : L'effacement</strong></p>
+<p>L'effacement (demand response) est le <strong>cœur du potentiel d'optimisation</strong> :<br />
+- Seuls sites flexibles (industriels) peuvent y participer<br />
+- Décision basée sur rapport prix_spot / prix_contrat<br />
+- Gain financial : réduction 30% × (300 - 102 €) = ~60-80 €/MWh réduit<br />
+- Volume annuel potentiel : 2 sites × 30% × 8 760 h × 2 MW ≈ 1 050 MWh/an d'effacement économiquement optimal</p>
+<p><strong>4. Continuité vers Power BI</strong><br />
+- Les 6 tables sont nativement exposées par le SQL Endpoint de Lakehouse_gold<br />
+- Power BI/Excel/Tableau se connectent en 1 clic (authentification MS Entra ID)<br />
+- Actualisations incrémentales possibles (notebook orchestre hourly/daily)</p>
+<p><a id="prochaines-etapes"></a></p>
+<h3>Prochaines étapes</h3>
+<ol>
+<li><strong>Visualisation (NB_06)</strong> : Matplotlib/Plotly sur les tables Gold</li>
+<li><strong>Power BI</strong> : Importer tables Gold, créer rapports interactifs</li>
+<li><strong>Orchestration</strong> : Fabric Pipelines pour ré-exécution notebook (hourly, quotidienne)</li>
+<li><strong>Monitoring</strong> : Alertes Data Factory si données manquent ou anomalies persist</li>
+<li><strong>ML avancé</strong> : Clustering sites, forecasting saisonnalité, optimization curtailment</li>
+</ol>
+<hr />
+<p><strong>Fin de l'atelier Gold.</strong> Vous avez construit une <strong>couche analytique production-grade</strong> prête pour la prise de décision stratégique et opérationnelle. 🚀</p></main>
+</body>
+</html>

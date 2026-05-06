@@ -1,0 +1,2383 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Atelier Warehouse</title>
+  <link rel="stylesheet" href="../assets/source.css">
+</head>
+<body>
+  <header class="src-header">
+    <a href="../index.html" class="back-link">&#8592; Retour à la présentation</a>
+    <h1 class="src-title">Atelier Warehouse</h1>
+  </header>
+  <main class="src-content"><p><a id="atelier-warehouse-gestion-des-ventes-dun-distributeur-dequipements-energetiques"></a></p>
+<h1>Atelier Warehouse — Gestion des Ventes d'un Distributeur d'Équipements Énergétiques</h1>
+<p><a id="contexte"></a></p>
+<h2>Contexte:</h2>
+<p><strong>EnergiDistrib</strong> Europe distribue des équipements énergétiques (panneaux solaires, onduleurs, batteries, câbles) à <strong>2 500 clients professionnels dans 6 pays de l'UE</strong>. Le directeur commercial veut un tableau de bord hebdomadaire <u>qui lui prend aujourd'hui 2 jours à construire manuellement.</u></p>
+<p><a id="problematique"></a></p>
+<h2>Problematique:</h2>
+<p>Les ruptures de stock coûtent des clients, les marges s'érodent sans explication, et personne n'a de vue consolidée multi-pays.</p>
+<p><strong>Architecture</strong> :</p>
+<pre><code>CSV (données fournies) → Lakehouse (Bronze)
+        ↓
+Pipeline Data Factory (Dataflow Gen2 + Notebook)
+        ↓
+Lakehouse (Silver)
+        ↓
+Warehouse (schéma étoile Gold) ← MERGE SCD Type 2
+        ↓
+Modèle sémantique (relations + mesures DAX)
+        ↓
+Rapport Power BI (3 pages, étape par étape)
+</code></pre>
+<hr />
+<p><a id="partie-1"></a></p>
+<h1>PARTIE 1</h1>
+<hr />
+<p><a id="bloc-1-mise-en-place"></a></p>
+<h2>Bloc 1 — Mise en place</h2>
+<p><a id="11-les-fichiers-de-donnees"></a></p>
+<h3>1.1 — Les fichiers de données</h3>
+<p>Les fichiers CSV suivants sont fournis (générés par le script en annexe). Téléchargez-les et gardez-les à portée de main.</p>
+<table>
+<thead>
+<tr>
+<th>Fichier</th>
+<th>Contenu</th>
+<th>Lignes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>orders.csv</code></td>
+<td>Commandes clients (fait principal)</td>
+<td>113 215</td>
+</tr>
+<tr>
+<td><code>order_lines.csv</code></td>
+<td>Lignes de commande (détail produit)</td>
+<td>283 097</td>
+</tr>
+<tr>
+<td><code>customers.csv</code></td>
+<td>Clients professionnels</td>
+<td>2 500</td>
+</tr>
+<tr>
+<td><code>products.csv</code></td>
+<td>Catalogue produits</td>
+<td>800</td>
+</tr>
+<tr>
+<td><code>warehouses.csv</code></td>
+<td>Entrepôts</td>
+<td>12</td>
+</tr>
+<tr>
+<td><code>sales_reps.csv</code></td>
+<td>Vendeurs</td>
+<td>60</td>
+</tr>
+<tr>
+<td><code>stock_levels.csv</code></td>
+<td>Niveaux de stock quotidiens</td>
+<td>128 800</td>
+</tr>
+<tr>
+<td><code>customers_update_batch2.csv</code></td>
+<td>Mise à jour clients (pour SCD Type 2)</td>
+<td>150</td>
+</tr>
+</tbody>
+</table>
+<p><a id="12-creer-le-lakehouse"></a></p>
+<h3>1.2 — Créer le Lakehouse</h3>
+<ol>
+<li><strong>app.fabric.microsoft.com</strong> → votre workspace</li>
+<li><strong>+ New item</strong> → <strong>Lakehouse</strong></li>
+<li>Nom : <strong><code>LH_EnergiDistrib</code></strong></li>
+<li>Cliquer <strong>Create</strong></li>
+</ol>
+<p><a id="13-charger-les-csv"></a></p>
+<h3>1.3 — Charger les CSV</h3>
+<ol>
+<li>Dans <strong>LH_EnergiDistrib</strong> → <strong>Files</strong> → <strong>Upload</strong> → <strong>Upload folder</strong></li>
+<li>Sélectionner le dossier contenant tous les CSV</li>
+<li>Vérifier que les 8 fichiers apparaissent dans <strong>Files/</strong></li>
+</ol>
+<blockquote>
+<p>💡 <strong>Astuce</strong> : Pas besoin de créer des sous-dossiers. Tous les CSV vont dans Files/ directement. Le Notebook les lira depuis là.</p>
+</blockquote>
+<hr />
+<p><a id="bloc-2-notebook-bronze-silver"></a></p>
+<h2>Bloc 2 — Notebook : Bronze → Silver</h2>
+<p><a id="21-creer-le-notebook"></a></p>
+<h3>2.1 — Créer le Notebook</h3>
+<ol>
+<li>Workspace → <strong>+ New item</strong> → <strong>Notebook</strong></li>
+<li>Nommer : <strong><code>NB_Bronze_to_Silver</code></strong></li>
+<li>Dans le panneau <strong>Lakehouses</strong> à gauche → <strong>Add</strong> → sélectionner <strong>LH_EnergiDistrib</strong></li>
+</ol>
+<p><a id="22-cellule-1-charger-les-csv-en-tables-bronze"></a></p>
+<h3>2.2 — Cellule 1 : Charger les CSV en tables Bronze</h3>
+<pre><code class="language-python">&lt;a id=&quot;cellule-1-chargement-bronze&quot;&gt;&lt;/a&gt;
+# === CELLULE 1 : Chargement Bronze ===
+#
+&lt;a id=&quot;objectif-lire-les-7-fichiers-csv-depuis-le-stockage-du-lakehouse-files&quot;&gt;&lt;/a&gt;
+# OBJECTIF : Lire les 7 fichiers CSV depuis le stockage du Lakehouse (Files/)
+&lt;a id=&quot;et-les-ecrire-en-tables-delta-cest-la-couche-bronze&quot;&gt;&lt;/a&gt;
+# et les écrire en tables Delta — c'est la couche Bronze.
+#
+&lt;a id=&quot;principe-bronze-on-ne-touche-pas-aux-donnees-on-ingere-brut&quot;&gt;&lt;/a&gt;
+# Principe Bronze : on ne touche pas aux données. On ingère brut.
+&lt;a id=&quot;le-format-delta-parquet-transaction-log-permet-les-lectures-sql&quot;&gt;&lt;/a&gt;
+# Le format Delta (Parquet + transaction log) permet les lectures SQL
+&lt;a id=&quot;ulterieures-depuis-le-warehouse-via-cross-database-query&quot;&gt;&lt;/a&gt;
+# ultérieures depuis le Warehouse via cross-database query.
+#
+&lt;a id=&quot;headertrue-la-1ere-ligne-du-csv-est-len-tete-de-colonne&quot;&gt;&lt;/a&gt;
+# &quot;header=True&quot;      → la 1ère ligne du CSV est l'en-tête de colonne
+&lt;a id=&quot;inferschematrue-spark-detecte-automatiquement-les-types-int-date-etc&quot;&gt;&lt;/a&gt;
+# &quot;inferSchema=True&quot; → Spark détecte automatiquement les types (INT, DATE, etc.)
+&lt;a id=&quot;attention-peut-etre-lent-sur-de-gros-fichiers-en-prod&quot;&gt;&lt;/a&gt;
+# Attention : peut être lent sur de gros fichiers ; en prod
+&lt;a id=&quot;on-prefere-un-schema-explicite-avec-structtype&quot;&gt;&lt;/a&gt;
+# on préfère un schéma explicite avec StructType.
+&lt;a id=&quot;modeoverwrite-remplace-la-table-si-elle-existe-deja-idempotent&quot;&gt;&lt;/a&gt;
+# &quot;mode=overwrite&quot;   → remplace la table si elle existe déjà (idempotent)
+
+tables_csv = {
+    &quot;bronze_orders&quot;:       &quot;Files/orders.csv&quot;,        # 113 215 commandes
+    &quot;bronze_order_lines&quot;:  &quot;Files/order_lines.csv&quot;,   # 283 097 lignes de commande
+    &quot;bronze_customers&quot;:    &quot;Files/customers.csv&quot;,     # 2 500 clients
+    &quot;bronze_products&quot;:     &quot;Files/products.csv&quot;,      # 800 produits
+    &quot;bronze_warehouses&quot;:   &quot;Files/warehouses.csv&quot;,    # 12 entrepôts
+    &quot;bronze_sales_reps&quot;:   &quot;Files/sales_reps.csv&quot;,    # 60 vendeurs
+    &quot;bronze_stock_levels&quot;: &quot;Files/stock_levels.csv&quot;,  # 128 800 niveaux de stock
+}
+
+for table_name, path in tables_csv.items():
+    df = (spark.read
+        .option(&quot;header&quot;, True)
+        .option(&quot;inferSchema&quot;, True)
+        .csv(path))
+    # saveAsTable écrit dans le Lakehouse en format Delta
+    # La table est accessible via SQL (SELECT * FROM bronze_orders)
+    df.write.mode(&quot;overwrite&quot;).format(&quot;delta&quot;).saveAsTable(table_name)
+    print(f&quot;{table_name}: {df.count():,} lignes, {len(df.columns)} colonnes&quot;)
+
+print(&quot;\nToutes les tables Bronze sont chargees.&quot;)
+</code></pre>
+<p><a id="23-cellule-2-diagnostic-qualite-des-donnees"></a></p>
+<h3>2.3 — Cellule 2 : Diagnostic qualité des données</h3>
+<p><strong>Problème terrain</strong> : Les données viennent de 6 filiales avec des conventions différentes. Il faut identifier les problèmes avant de nettoyer.</p>
+<pre><code class="language-python">&lt;a id=&quot;cellule-2-diagnostic-qualite&quot;&gt;&lt;/a&gt;
+# === CELLULE 2 : Diagnostic qualite ===
+#
+&lt;a id=&quot;objectif-scanner-les-tables-bronze-pour-identifier-deux-types-de-problemes&quot;&gt;&lt;/a&gt;
+# OBJECTIF : Scanner les tables Bronze pour identifier deux types de problèmes
+&lt;a id=&quot;avant-de-commencer-le-nettoyage&quot;&gt;&lt;/a&gt;
+# avant de commencer le nettoyage :
+&lt;a id=&quot;1-valeurs-null-dans-des-colonnes-qui-ne-devraient-pas-en-avoir&quot;&gt;&lt;/a&gt;
+# 1. Valeurs NULL dans des colonnes qui ne devraient pas en avoir
+&lt;a id=&quot;2-doublons-sur-les-cles-primaires-signe-de-donnees-corrompues-ou-dupliquees&quot;&gt;&lt;/a&gt;
+# 2. Doublons sur les clés primaires (signe de données corrompues ou dupliquées)
+#
+&lt;a id=&quot;bonne-pratique-toujours-diagnostiquer-avant-de-nettoyer&quot;&gt;&lt;/a&gt;
+# Bonne pratique : toujours diagnostiquer AVANT de nettoyer.
+&lt;a id=&quot;on-ne-peut-pas-corriger-ce-quon-na-pas-mesure&quot;&gt;&lt;/a&gt;
+# On ne peut pas corriger ce qu'on n'a pas mesuré.
+#
+&lt;a id=&quot;note-sparktablenom-charge-une-table-delta-enregistree-dans-le-lakehouse&quot;&gt;&lt;/a&gt;
+# Note : spark.table(&quot;nom&quot;) charge une table Delta enregistrée dans le Lakehouse.
+&lt;a id=&quot;cest-equivalent-a-sparkreadformatdeltaloadcheminverstable&quot;&gt;&lt;/a&gt;
+# C'est équivalent à spark.read.format(&quot;delta&quot;).load(&quot;chemin/vers/table&quot;)
+&lt;a id=&quot;mais-plus-simple-car-le-lakehouse-gere-les-chemins&quot;&gt;&lt;/a&gt;
+# mais plus simple car le Lakehouse gère les chemins.
+
+from pyspark.sql import functions as F
+
+&lt;a id=&quot;redeclaration-des-noms-de-tables-independance-vis-a-vis-de-la-cellule-1&quot;&gt;&lt;/a&gt;
+# Redéclaration des noms de tables (indépendance vis-à-vis de la Cellule 1)
+&lt;a id=&quot;permet-dexecuter-cette-cellule-seule-sans-avoir-a-reexecuter-la-cellule-1&quot;&gt;&lt;/a&gt;
+# → permet d'exécuter cette cellule seule sans avoir à réexécuter la Cellule 1
+tables_bronze = [
+    &quot;bronze_orders&quot;, &quot;bronze_order_lines&quot;, &quot;bronze_customers&quot;,
+    &quot;bronze_products&quot;, &quot;bronze_warehouses&quot;, &quot;bronze_sales_reps&quot;, &quot;bronze_stock_levels&quot;
+]
+
+&lt;a id=&quot;-verification-1-valeurs-null-colonne-par-colonne-&quot;&gt;&lt;/a&gt;
+# --- Vérification 1 : Valeurs NULL colonne par colonne ---
+&lt;a id=&quot;pour-chaque-table-on-compte-les-nulls-dans-chaque-colonne&quot;&gt;&lt;/a&gt;
+# Pour chaque table, on compte les nulls dans chaque colonne.
+&lt;a id=&quot;dffilterfcolcolnameisnullcount-nombre-de-lignes-ou-la-colonne-est-null&quot;&gt;&lt;/a&gt;
+# df.filter(F.col(col_name).isNull()).count() = nombre de lignes où la colonne est null
+for table_name in tables_bronze:
+    df = spark.table(table_name)
+    null_counts = []
+    for col_name in df.columns:
+        null_count = df.filter(F.col(col_name).isNull()).count()
+        if null_count &gt; 0:
+            null_counts.append(f&quot;  {col_name}: {null_count} nulls&quot;)
+    if null_counts:
+        print(f&quot;\n{table_name} — colonnes avec nulls:&quot;)
+        for nc in null_counts:
+            print(nc)
+    else:
+        print(f&quot;{table_name} — OK (aucun null)&quot;)
+
+&lt;a id=&quot;-verification-2-doublons-sur-les-cles-primaires-&quot;&gt;&lt;/a&gt;
+# --- Vérification 2 : Doublons sur les clés primaires ---
+&lt;a id=&quot;logique-si-totallignes-lignesdistinctes-sur-la-pk-il-y-a-des-doublons&quot;&gt;&lt;/a&gt;
+# Logique : si total_lignes != lignes_distinctes sur la PK → il y a des doublons
+&lt;a id=&quot;on-verifie-uniquement-les-tables-avec-une-cle-primaire-connue&quot;&gt;&lt;/a&gt;
+# On vérifie uniquement les tables avec une clé primaire connue.
+print(&quot;\n--- Doublons ---&quot;)
+for table_name, pk in [
+    (&quot;bronze_orders&quot;,    &quot;order_id&quot;),
+    (&quot;bronze_customers&quot;, &quot;customer_id&quot;),
+    (&quot;bronze_products&quot;,  &quot;product_id&quot;),
+    (&quot;bronze_sales_reps&quot;,&quot;rep_id&quot;)
+]:
+    df = spark.table(table_name)
+    total    = df.count()
+    distinct = df.select(pk).distinct().count()
+    dupes    = total - distinct
+    print(f&quot;{table_name}.{pk}: {dupes} doublons&quot; + (&quot; ⚠️&quot; if dupes &gt; 0 else &quot; ✅&quot;))
+</code></pre>
+<p><strong>Interprétation</strong> : Ce diagnostic révèle les problèmes typiques d'un ERP multi-filiales : des champs nulls sur <code>address</code> (114), <code>city</code> (82) et <code>contact_email</code> (80) dans la table clients. Les clés primaires sont propres — aucun doublon détecté. Le nettoyage qui suit corrige les valeurs manquantes et standardise les codes pays.</p>
+<p><a id="24-cellule-3-nettoyage-et-standardisation"></a></p>
+<h3>2.4 — Cellule 3 : Nettoyage et standardisation</h3>
+<pre><code class="language-python">&lt;a id=&quot;cellule-3-nettoyage-donnees&quot;&gt;&lt;/a&gt;
+# === CELLULE 3 : Nettoyage donnees ===
+#
+&lt;a id=&quot;objectif-transformer-les-tables-bronze-en-tables-silver&quot;&gt;&lt;/a&gt;
+# OBJECTIF : Transformer les tables Bronze en tables Silver.
+&lt;a id=&quot;la-couche-silver-donnees-propres-standardisees-enrichies&quot;&gt;&lt;/a&gt;
+# La couche Silver = données propres, standardisées, enrichies.
+&lt;a id=&quot;on-ne-supprime-pas-de-lignes-sauf-erreurs-graves-on-corrige&quot;&gt;&lt;/a&gt;
+# On ne supprime pas de lignes (sauf erreurs graves) — on corrige
+&lt;a id=&quot;et-on-enrichit-avec-des-colonnes-calculees&quot;&gt;&lt;/a&gt;
+# et on enrichit avec des colonnes calculées.
+#
+&lt;a id=&quot;pattern-pyspark-utilise-transformation-en-chaine-avec-withcolumn&quot;&gt;&lt;/a&gt;
+# Pattern PySpark utilisé : transformation en chaîne avec .withColumn()
+&lt;a id=&quot;chaque-withcolumnnom-expression-ajoute-ou-remplace-une-colonne&quot;&gt;&lt;/a&gt;
+# Chaque .withColumn(nom, expression) ajoute ou remplace une colonne.
+&lt;a id=&quot;le-resultat-est-un-nouveau-dataframe-immutabilite-pyspark&quot;&gt;&lt;/a&gt;
+# Le résultat est un nouveau DataFrame (immutabilité PySpark).
+
+&lt;a id=&quot;-&quot;&gt;&lt;/a&gt;
+# -------------------------------------------------------
+&lt;a id=&quot;clients-standardisation-pays-nettoyage-noms-nulls&quot;&gt;&lt;/a&gt;
+# CLIENTS : Standardisation pays + nettoyage noms + nulls
+&lt;a id=&quot;--1&quot;&gt;&lt;/a&gt;
+# -------------------------------------------------------
+df_customers = spark.table(&quot;bronze_customers&quot;)
+
+df_customers_clean = (df_customers
+
+    # Problème : la colonne &quot;country&quot; contient des valeurs hétérogènes
+    # selon les filiales (ex: &quot;France&quot;, &quot;FR&quot;, &quot;FRANCE&quot;, &quot;france&quot;)
+    # Solution : normaliser vers un code ISO 2 lettres via F.when / .isin()
+    # F.upper() rend la comparaison insensible à la casse
+    .withColumn(&quot;country_code&quot;,
+        F.when(F.upper(F.col(&quot;country&quot;)).isin([&quot;FRANCE&quot;, &quot;FR&quot;]),             &quot;FR&quot;)
+        .when(F.upper(F.col(&quot;country&quot;)).isin([&quot;GERMANY&quot;, &quot;ALLEMAGNE&quot;, &quot;DE&quot;]), &quot;DE&quot;)
+        .when(F.upper(F.col(&quot;country&quot;)).isin([&quot;SPAIN&quot;, &quot;ESPAGNE&quot;, &quot;ES&quot;]),     &quot;ES&quot;)
+        .when(F.upper(F.col(&quot;country&quot;)).isin([&quot;ITALY&quot;, &quot;ITALIE&quot;, &quot;IT&quot;]),      &quot;IT&quot;)
+        .when(F.upper(F.col(&quot;country&quot;)).isin([&quot;BELGIUM&quot;, &quot;BELGIQUE&quot;, &quot;BE&quot;]),  &quot;BE&quot;)
+        .when(F.upper(F.col(&quot;country&quot;)).isin([&quot;NETHERLANDS&quot;, &quot;PAYS-BAS&quot;, &quot;NL&quot;]), &quot;NL&quot;)
+        .otherwise(F.upper(F.col(&quot;country&quot;))))   # Fallback : garder en majuscules
+
+    # F.trim() supprime les espaces en début/fin de chaîne
+    # F.initcap() met en Title Case (1ère lettre de chaque mot en majuscule)
+    # Exemple : &quot;  solartech europe &quot; → &quot;Solartech Europe&quot;
+    .withColumn(&quot;company_name&quot;, F.initcap(F.trim(F.col(&quot;company_name&quot;))))
+
+    # F.coalesce(a, b) retourne a si a n'est pas NULL, sinon b
+    # Remplace les NULLs par une valeur par défaut lisible
+    .withColumn(&quot;address&quot;, F.coalesce(F.col(&quot;address&quot;), F.lit(&quot;Adresse non renseignee&quot;)))
+    .withColumn(&quot;city&quot;,    F.coalesce(F.col(&quot;city&quot;),    F.lit(&quot;Ville non renseignee&quot;)))
+)
+
+df_customers_clean.write.mode(&quot;overwrite&quot;).format(&quot;delta&quot;).saveAsTable(&quot;silver_customers&quot;)
+print(f&quot;silver_customers: {df_customers_clean.count():,} lignes&quot;)
+
+
+&lt;a id=&quot;--2&quot;&gt;&lt;/a&gt;
+# -------------------------------------------------------
+&lt;a id=&quot;produits-validation-des-prix-marge-calculee-segment&quot;&gt;&lt;/a&gt;
+# PRODUITS : Validation des prix + marge calculée + segment
+&lt;a id=&quot;--3&quot;&gt;&lt;/a&gt;
+# -------------------------------------------------------
+df_products = spark.table(&quot;bronze_products&quot;)
+
+df_products_clean = (df_products
+
+    # Invalider les prix négatifs ou nuls (erreurs de saisie)
+    # → remplacés par NULL pour ne pas fausser les calculs de marge
+    .withColumn(&quot;unit_cost_eur&quot;,
+        F.when(F.col(&quot;unit_cost_eur&quot;) &lt;= 0, None).otherwise(F.col(&quot;unit_cost_eur&quot;)))
+    .withColumn(&quot;list_price_eur&quot;,
+        F.when(F.col(&quot;list_price_eur&quot;) &lt;= 0, None).otherwise(F.col(&quot;list_price_eur&quot;)))
+
+    # Calculer le % de marge : (prix_vente - coût) / prix_vente * 100
+    # F.round(..., 1) arrondit à 1 décimale
+    # NULL si le prix de vente est 0 ou NULL (évite la division par zéro)
+    .withColumn(&quot;margin_pct&quot;,
+        F.when(F.col(&quot;list_price_eur&quot;) &gt; 0,
+               F.round((F.col(&quot;list_price_eur&quot;) - F.col(&quot;unit_cost_eur&quot;))
+                       / F.col(&quot;list_price_eur&quot;) * 100, 1))
+        .otherwise(None))
+
+    # Segmentation tarifaire pour le rapport Power BI (axe de filtrage)
+    # Seuils définis métier : &gt; 5000€ = Premium, &gt; 1000€ = Mid-range, etc.
+    .withColumn(&quot;price_segment&quot;,
+        F.when(F.col(&quot;list_price_eur&quot;) &gt; 5000, &quot;Premium&quot;)
+        .when(F.col(&quot;list_price_eur&quot;) &gt; 1000,  &quot;Mid-range&quot;)
+        .when(F.col(&quot;list_price_eur&quot;) &gt; 100,   &quot;Standard&quot;)
+        .otherwise(&quot;Accessoire&quot;))
+)
+
+df_products_clean.write.mode(&quot;overwrite&quot;).format(&quot;delta&quot;).saveAsTable(&quot;silver_products&quot;)
+print(f&quot;silver_products: {df_products_clean.count():,} lignes&quot;)
+</code></pre>
+<p><a id="25-cellule-4-nettoyage-des-commandes-et-lignes"></a></p>
+<h3>2.5 — Cellule 4 : Nettoyage des commandes et lignes</h3>
+<pre><code class="language-python">&lt;a id=&quot;cellule-4-nettoyage-commandes-et-lignes&quot;&gt;&lt;/a&gt;
+# === CELLULE 4 : Nettoyage commandes et lignes ===
+#
+&lt;a id=&quot;objectif-enrichir-les-deux-tables-transactionnelles-principales&quot;&gt;&lt;/a&gt;
+# OBJECTIF : Enrichir les deux tables transactionnelles principales :
+&lt;a id=&quot;-bronzeorders-silverorders-en-tete-de-commande&quot;&gt;&lt;/a&gt;
+# - bronze_orders → silver_orders  (en-tête de commande)
+&lt;a id=&quot;-bronzeorderlines-silverorderlines-detail-produitmontants&quot;&gt;&lt;/a&gt;
+# - bronze_order_lines → silver_order_lines  (détail produit/montants)
+#
+&lt;a id=&quot;pour-les-commandes-on-calcule-des-colonnes-temporelles-utiles-au-rapport&quot;&gt;&lt;/a&gt;
+# Pour les commandes : on calcule des colonnes temporelles utiles au rapport
+&lt;a id=&quot;pour-les-lignes-on-calcule-les-montants-derives-ca-cout-marge&quot;&gt;&lt;/a&gt;
+# Pour les lignes : on calcule les montants dérivés (CA, coût, marge)
+&lt;a id=&quot;ces-montants-precalcules-evitent-des-calculs-repetes-dans-dax-performance&quot;&gt;&lt;/a&gt;
+# Ces montants précalculés évitent des calculs répétés dans DAX (performance).
+
+&lt;a id=&quot;--4&quot;&gt;&lt;/a&gt;
+# -------------------------------------------------------
+&lt;a id=&quot;commandes-conversion-dates-colonnes-temporelles&quot;&gt;&lt;/a&gt;
+# COMMANDES : Conversion dates + colonnes temporelles
+&lt;a id=&quot;--5&quot;&gt;&lt;/a&gt;
+# -------------------------------------------------------
+df_orders = spark.table(&quot;bronze_orders&quot;)
+
+df_orders_clean = (df_orders
+
+    # F.to_date() convertit une chaîne &quot;2025-04-15&quot; en type Date Spark
+    # Sans cette conversion, les fonctions date (year, month...) ne fonctionnent pas
+    .withColumn(&quot;order_date&quot;, F.to_date(&quot;order_date&quot;))
+    .withColumn(&quot;ship_date&quot;,  F.to_date(&quot;ship_date&quot;))
+
+    # Délai de livraison en jours : ship_date - order_date
+    # F.datediff(fin, debut) retourne un entier (peut être négatif si ship &lt; order → erreur données)
+    .withColumn(&quot;delivery_lead_days&quot;,
+        F.datediff(F.col(&quot;ship_date&quot;), F.col(&quot;order_date&quot;)))
+
+    # Colonnes temporelles extraites de order_date
+    # Utiles pour les agrégations dans le Dataflow Gen2 et le rapport Power BI
+    .withColumn(&quot;order_year&quot;,    F.year(&quot;order_date&quot;))
+    .withColumn(&quot;order_month&quot;,   F.month(&quot;order_date&quot;))       # 1 à 12
+    .withColumn(&quot;order_quarter&quot;, F.quarter(&quot;order_date&quot;))     # 1 à 4
+
+    # Flag de retard : livraison &gt; 7 jours = considérée comme tardive
+    # BooleanType dans Spark → s'affiche comme true/false en Delta
+    .withColumn(&quot;is_late&quot;,
+        F.when(F.col(&quot;delivery_lead_days&quot;) &gt; 7, True).otherwise(False))
+)
+
+df_orders_clean.write.mode(&quot;overwrite&quot;).format(&quot;delta&quot;).saveAsTable(&quot;silver_orders&quot;)
+print(f&quot;silver_orders: {df_orders_clean.count():,} lignes&quot;)
+
+
+&lt;a id=&quot;--6&quot;&gt;&lt;/a&gt;
+# -------------------------------------------------------
+&lt;a id=&quot;lignes-de-commande-calcul-des-montants&quot;&gt;&lt;/a&gt;
+# LIGNES DE COMMANDE : Calcul des montants
+&lt;a id=&quot;--7&quot;&gt;&lt;/a&gt;
+# -------------------------------------------------------
+df_lines = spark.table(&quot;bronze_order_lines&quot;)
+
+df_lines_clean = (df_lines
+
+    # CA de la ligne = quantité × prix unitaire de vente
+    # F.round(..., 2) arrondit à 2 décimales (centimes)
+    .withColumn(&quot;line_total_eur&quot;,
+        F.round(F.col(&quot;quantity&quot;) * F.col(&quot;unit_price_eur&quot;), 2))
+
+    # Coût de la ligne = quantité × coût unitaire d'achat
+    .withColumn(&quot;line_cost_eur&quot;,
+        F.round(F.col(&quot;quantity&quot;) * F.col(&quot;unit_cost_eur&quot;), 2))
+
+    # Marge absolue = CA - Coût (peut être négative si vente à perte)
+    .withColumn(&quot;line_margin_eur&quot;,
+        F.round(F.col(&quot;line_total_eur&quot;) - F.col(&quot;line_cost_eur&quot;), 2))
+
+    # Taux de marge = marge / CA × 100
+    # NULL si CA = 0 (évite la division par zéro)
+    # Valeur négative = vente en dessous du prix de revient
+    .withColumn(&quot;line_margin_pct&quot;,
+        F.when(F.col(&quot;line_total_eur&quot;) &gt; 0,
+               F.round(F.col(&quot;line_margin_eur&quot;) / F.col(&quot;line_total_eur&quot;) * 100, 1))
+        .otherwise(None))
+
+    # Flag remise : True si un % de remise a été accordé (&gt; 0)
+    # Permet de filtrer rapidement les lignes avec remise dans Power BI
+    .withColumn(&quot;is_discount&quot;,
+        F.when(F.col(&quot;discount_pct&quot;) &gt; 0, True).otherwise(False))
+)
+
+df_lines_clean.write.mode(&quot;overwrite&quot;).format(&quot;delta&quot;).saveAsTable(&quot;silver_order_lines&quot;)
+print(f&quot;silver_order_lines: {df_lines_clean.count():,} lignes&quot;)
+</code></pre>
+<p><a id="26-cellule-5-detection-des-anomalies-de-prix"></a></p>
+<h3>2.6 — Cellule 5 : Détection des anomalies de prix</h3>
+<p><strong>Problème terrain</strong> : Certains vendeurs bradent les prix en dessous du coût de revient. Le directeur commercial veut savoir qui et sur quels produits.</p>
+<pre><code class="language-python">&lt;a id=&quot;cellule-5-detection-anomalies-de-prix&quot;&gt;&lt;/a&gt;
+# === CELLULE 5 : Detection anomalies de prix ===
+#
+&lt;a id=&quot;objectif-identifier-les-lignes-de-commande-vendues-en-dessous-du-cout&quot;&gt;&lt;/a&gt;
+# OBJECTIF : Identifier les lignes de commande vendues en dessous du coût
+&lt;a id=&quot;de-revient-marge-negative-cest-un-indicateur-de-guerre-des-prix&quot;&gt;&lt;/a&gt;
+# de revient (marge négative). C'est un indicateur de &quot;guerre des prix&quot;
+&lt;a id=&quot;ou-derreur-de-saisie&quot;&gt;&lt;/a&gt;
+# ou d'erreur de saisie.
+#
+&lt;a id=&quot;technique-sparksql-permet-decrire-du-sql-standard-sur-les-tables-delta&quot;&gt;&lt;/a&gt;
+# Technique : spark.sql() permet d'écrire du SQL standard sur les tables Delta
+&lt;a id=&quot;du-lakehouse-cest-plus-lisible-quenchainer-des-transformations&quot;&gt;&lt;/a&gt;
+# du Lakehouse. C'est plus lisible qu'enchaîner des transformations
+&lt;a id=&quot;pyspark-pour-des-requetes-analytiques-complexes&quot;&gt;&lt;/a&gt;
+# PySpark pour des requêtes analytiques complexes.
+#
+&lt;a id=&quot;jointures-utilisees&quot;&gt;&lt;/a&gt;
+# Jointures utilisées :
+&lt;a id=&quot;silverorderlines-ol-silverorders-o-relier-la-ligne-a-sa-commande&quot;&gt;&lt;/a&gt;
+# silver_order_lines (ol) → silver_orders (o) : relier la ligne à sa commande
+&lt;a id=&quot;silverorders-silverproducts-p-retrouver-le-produit-concerne&quot;&gt;&lt;/a&gt;
+# silver_orders → silver_products (p)           : retrouver le produit concerné
+&lt;a id=&quot;silverorders-bronzesalesreps-sr-retrouver-le-vendeur-responsable&quot;&gt;&lt;/a&gt;
+# silver_orders → bronze_sales_reps (sr)        : retrouver le vendeur responsable
+#
+&lt;a id=&quot;filtre-linemarginpct-0-prix-de-vente-cout-de-revient&quot;&gt;&lt;/a&gt;
+# Filtre : line_margin_pct &lt; 0 → prix de vente &lt; coût de revient
+
+df_anomalies = spark.sql(&quot;&quot;&quot;
+    SELECT
+        ol.order_id,
+        ol.product_id,
+        p.product_name,
+        p.category,
+        ol.unit_price_eur  AS prix_vente,
+        ol.unit_cost_eur   AS cout_revient,
+        ol.line_margin_pct,          -- Négatif = vente à perte
+        o.rep_id,
+        sr.rep_name,
+        o.customer_id,
+        o.order_date
+    FROM silver_order_lines ol
+    JOIN silver_orders      o  ON ol.order_id  = o.order_id
+    JOIN silver_products    p  ON ol.product_id = p.product_id
+    JOIN bronze_sales_reps  sr ON o.rep_id      = sr.rep_id
+    WHERE ol.line_margin_pct &lt; 0          -- Filtre : uniquement les ventes à perte
+    ORDER BY ol.line_margin_eur ASC       -- Trié du pire au moins pire
+&quot;&quot;&quot;)
+
+print(f&quot;Lignes vendues a perte: {df_anomalies.count()}&quot;)
+
+&lt;a id=&quot;grouper-par-vendeur-qui-accorde-le-plus-de-remises-sous-le-cout&quot;&gt;&lt;/a&gt;
+# Grouper par vendeur : qui accorde le plus de remises sous le coût ?
+&lt;a id=&quot;fdesccount-tri-decroissant-pour-voir-les-plus-problematiques-en-premier&quot;&gt;&lt;/a&gt;
+# F.desc(&quot;count&quot;) → tri décroissant pour voir les plus problématiques en premier
+df_anomalies.groupBy(&quot;rep_name&quot;).count().orderBy(F.desc(&quot;count&quot;)).show(10, truncate=False)
+
+&lt;a id=&quot;grouper-par-categorie-quelles-familles-de-produits-sont-les-plus-touchees&quot;&gt;&lt;/a&gt;
+# Grouper par catégorie : quelles familles de produits sont les plus touchées ?
+df_anomalies.groupBy(&quot;category&quot;).count().orderBy(F.desc(&quot;count&quot;)).show(10, truncate=False)
+</code></pre>
+<p><strong>Interprétation</strong> : Les ventes à perte se concentrent sur 2-3 vendeurs et sur la catégorie « Onduleurs » — confirmation de la guerre des prix sur ce segment. Ces informations remonteront dans le rapport Power BI final.</p>
+<p><a id="27-cellule-6-segmentation-clients-rfm-simplifie"></a></p>
+<h3>2.7 — Cellule 6 : Segmentation clients (RFM simplifié)</h3>
+<pre><code class="language-python">&lt;a id=&quot;cellule-6-segmentation-clients-rfm&quot;&gt;&lt;/a&gt;
+# === CELLULE 6 : Segmentation clients RFM ===
+#
+&lt;a id=&quot;objectif-segmenter-les-2-500-clients-selon-3-dimensions-comportementales&quot;&gt;&lt;/a&gt;
+# OBJECTIF : Segmenter les 2 500 clients selon 3 dimensions comportementales :
+&lt;a id=&quot;r-recency-nombre-de-jours-depuis-la-derniere-commande&quot;&gt;&lt;/a&gt;
+# R (Recency)   → Nombre de jours depuis la dernière commande
+&lt;a id=&quot;petit-bon-client-recemment-actif&quot;&gt;&lt;/a&gt;
+# (petit = bon → client récemment actif)
+&lt;a id=&quot;f-frequency-nombre-de-commandes-distinctes&quot;&gt;&lt;/a&gt;
+# F (Frequency) → Nombre de commandes distinctes
+&lt;a id=&quot;grand-bon-client-regulier&quot;&gt;&lt;/a&gt;
+# (grand = bon → client régulier)
+&lt;a id=&quot;m-monetary-ca-total-genere&quot;&gt;&lt;/a&gt;
+# M (Monetary)  → CA total généré
+&lt;a id=&quot;grand-bon-client-a-fort-enjeu-financier&quot;&gt;&lt;/a&gt;
+# (grand = bon → client à fort enjeu financier)
+#
+&lt;a id=&quot;la-segmentation-rfm-est-une-technique-marketing-standard-pour-prioriser&quot;&gt;&lt;/a&gt;
+# La segmentation RFM est une technique marketing standard pour prioriser
+&lt;a id=&quot;les-actions-commerciales-fidelisation-reactivation-up-sell-etc&quot;&gt;&lt;/a&gt;
+# les actions commerciales (fidélisation, réactivation, up-sell, etc.)
+#
+&lt;a id=&quot;technique-window-functions-fntile-pour-decouper-chaque-dimension&quot;&gt;&lt;/a&gt;
+# Technique : Window Functions (F.ntile) pour découper chaque dimension
+&lt;a id=&quot;en-4-quartiles-rang-1-meilleur-rang-4-moins-bon&quot;&gt;&lt;/a&gt;
+# en 4 quartiles (rang 1 = meilleur, rang 4 = moins bon)
+
+from pyspark.sql.window import Window
+from pyspark.sql import functions as F
+
+&lt;a id=&quot;-etape-1-calculer-les-3-metriques-r-f-m-par-client-&quot;&gt;&lt;/a&gt;
+# --- Étape 1 : Calculer les 3 métriques R, F, M par client ---
+&lt;a id=&quot;reference-temporelle-fixe-au-31122025-fin-de-periode-des-donnees&quot;&gt;&lt;/a&gt;
+# Référence temporelle fixe au 31/12/2025 (fin de période des données)
+&lt;a id=&quot;datediff2025-12-31-maxorderdate-jours-depuis-la-derniere-commande&quot;&gt;&lt;/a&gt;
+# DATEDIFF('2025-12-31', MAX(order_date)) = jours depuis la dernière commande
+df_rfm = spark.sql(&quot;&quot;&quot;
+    SELECT
+        o.customer_id,
+        DATEDIFF('2025-12-31', MAX(o.order_date)) AS recency_days,   -- R : récence en jours
+        COUNT(DISTINCT o.order_id)                 AS frequency,      -- F : nb commandes
+        ROUND(SUM(ol.line_total_eur), 2)            AS monetary_eur   -- M : CA total
+    FROM silver_orders o
+    JOIN silver_order_lines ol ON o.order_id = ol.order_id
+    GROUP BY o.customer_id
+&quot;&quot;&quot;)
+
+&lt;a id=&quot;-etape-2-scorer-chaque-dimension-par-quartile-1-a-4-&quot;&gt;&lt;/a&gt;
+# --- Étape 2 : Scorer chaque dimension par quartile (1 à 4) ---
+&lt;a id=&quot;fntile4-divise-les-clients-en-4-groupes-de-taille-egale&quot;&gt;&lt;/a&gt;
+# F.ntile(4) divise les clients en 4 groupes de taille égale.
+&lt;a id=&quot;pour-r-recencydays-trier-asc-car-moins-de-jours-plus-recent-meilleur-rang-1&quot;&gt;&lt;/a&gt;
+# Pour R (recency_days) : trier ASC car moins de jours = plus récent = meilleur (rang 1)
+&lt;a id=&quot;pour-f-et-m-trier-desc-car-plus-grand-meilleur-rang-1&quot;&gt;&lt;/a&gt;
+# Pour F et M : trier DESC car plus grand = meilleur (rang 1)
+for metric in [&quot;recency_days&quot;, &quot;frequency&quot;, &quot;monetary_eur&quot;]:
+    ascending = metric == &quot;recency_days&quot;   # True pour Recency, False pour F et M
+    w = Window.orderBy(F.col(metric).asc() if ascending else F.col(metric).desc())
+    df_rfm = df_rfm.withColumn(
+        f&quot;{metric}_rank&quot;,
+        F.ntile(4).over(w)   # Rang 1 = meilleur quartile, Rang 4 = pire
+    )
+
+&lt;a id=&quot;-etape-3-score-global-et-segment-&quot;&gt;&lt;/a&gt;
+# --- Étape 3 : Score global et segment ---
+&lt;a id=&quot;score-rfm-somme-des-3-rangs-min3-triple-vip-max12-triple-dormant&quot;&gt;&lt;/a&gt;
+# Score RFM = somme des 3 rangs (min=3 → triple VIP, max=12 → triple Dormant)
+&lt;a id=&quot;les-seuils-de-segmentation-sont-definis-metier&quot;&gt;&lt;/a&gt;
+# Les seuils de segmentation sont définis métier :
+&lt;a id=&quot;4-vip-top-25-sur-les-3-dimensions&quot;&gt;&lt;/a&gt;
+# ≤ 4 = VIP (top 25% sur les 3 dimensions)
+&lt;a id=&quot;7-fidele&quot;&gt;&lt;/a&gt;
+# ≤ 7 = Fidèle
+&lt;a id=&quot;9-occasionnel&quot;&gt;&lt;/a&gt;
+# ≤ 9 = Occasionnel
+&lt;a id=&quot;9-dormant-a-reactiver&quot;&gt;&lt;/a&gt;
+# &gt; 9 = Dormant (à réactiver)
+df_rfm = (df_rfm
+    .withColumn(&quot;rfm_score&quot;,
+        F.col(&quot;recency_days_rank&quot;) + F.col(&quot;frequency_rank&quot;) + F.col(&quot;monetary_eur_rank&quot;))
+    .withColumn(&quot;customer_segment&quot;,
+        F.when(F.col(&quot;rfm_score&quot;) &lt;= 4,  &quot;VIP&quot;)
+        .when(F.col(&quot;rfm_score&quot;) &lt;= 7,   &quot;Fidele&quot;)
+        .when(F.col(&quot;rfm_score&quot;) &lt;= 9,   &quot;Occasionnel&quot;)
+        .otherwise(&quot;Dormant&quot;))
+)
+
+df_rfm.write.mode(&quot;overwrite&quot;).format(&quot;delta&quot;).saveAsTable(&quot;silver_customer_rfm&quot;)
+
+&lt;a id=&quot;resume-des-4-segments-nb-clients-ca-moyen-frequence-score&quot;&gt;&lt;/a&gt;
+# Résumé des 4 segments : nb clients, CA moyen, fréquence, score
+&lt;a id=&quot;fcount-compter-toutes-les-lignes-du-groupe-equivalent-count-en-sql&quot;&gt;&lt;/a&gt;
+# F.count(&quot;*&quot;) = compter toutes les lignes du groupe (équivalent COUNT(*) en SQL)
+&lt;a id=&quot;favg-moyenne-arithmetique&quot;&gt;&lt;/a&gt;
+# F.avg() = moyenne arithmétique
+df_rfm.groupBy(&quot;customer_segment&quot;).agg(
+    F.count(&quot;*&quot;).alias(&quot;nb_clients&quot;),
+    F.round(F.avg(&quot;monetary_eur&quot;), 0).alias(&quot;ca_moyen_eur&quot;),
+    F.round(F.avg(&quot;frequency&quot;),    1).alias(&quot;freq_moyenne&quot;),
+    F.round(F.avg(&quot;rfm_score&quot;),    2).alias(&quot;rfm_score_moyen&quot;)
+).orderBy(&quot;rfm_score_moyen&quot;).show(truncate=False)
+</code></pre>
+<p><strong>Interprétation</strong> : La segmentation RFM donne 4 groupes actionnables. Les VIP (top 25%) génèrent ~60% du CA — ce sont les clients à protéger. Les Dormants n'ont pas commandé depuis longtemps → campagne de réactivation. Ce segment sera intégré à la dimension client dans le Warehouse.</p>
+<p><a id="28-cellule-7-agregation-des-stocks"></a></p>
+<h3>2.8 — Cellule 7 : Agrégation des stocks</h3>
+<pre><code class="language-python">&lt;a id=&quot;cellule-7-analyse-stock&quot;&gt;&lt;/a&gt;
+# === CELLULE 7 : Analyse stock ===
+#
+&lt;a id=&quot;objectif-transformer-les-niveaux-de-stock-bruts-en-indicateurs-dalerte&quot;&gt;&lt;/a&gt;
+# OBJECTIF : Transformer les niveaux de stock bruts en indicateurs d'alerte
+&lt;a id=&quot;exploitables-par-la-direction-logistique&quot;&gt;&lt;/a&gt;
+# exploitables par la direction logistique.
+#
+&lt;a id=&quot;source-bronzestocklevels-128-800-lignes-1-ligne-par-produit-entrepot-et-date&quot;&gt;&lt;/a&gt;
+# Source : bronze_stock_levels (128 800 lignes = 1 ligne par produit, entrepôt et date)
+&lt;a id=&quot;destination-silverstocklevels&quot;&gt;&lt;/a&gt;
+# Destination : silver_stock_levels
+#
+&lt;a id=&quot;colonnes-calculees-ajoutees&quot;&gt;&lt;/a&gt;
+# Colonnes calculées ajoutées :
+&lt;a id=&quot;stockvalueeur-valorisation-du-stock-en-euros-immobilisation-de-capital&quot;&gt;&lt;/a&gt;
+# stock_value_eur  : valorisation du stock en euros (immobilisation de capital)
+&lt;a id=&quot;stockstatus-categorie-dalerte-4-niveaux&quot;&gt;&lt;/a&gt;
+# stock_status     : catégorie d'alerte (4 niveaux)
+&lt;a id=&quot;daysofstock-autonomie-en-jours-avant-rupture-a-demande-constante&quot;&gt;&lt;/a&gt;
+# days_of_stock    : autonomie en jours avant rupture (à demande constante)
+#
+&lt;a id=&quot;regles-metier-pour-stockstatus&quot;&gt;&lt;/a&gt;
+# Règles métier pour stock_status :
+&lt;a id=&quot;ruptureimminente-stock-reorderpoint-seuil-bas-de-reapprovisionnement&quot;&gt;&lt;/a&gt;
+# RUPTURE_IMMINENTE : stock ≤ reorder_point  (seuil bas de réapprovisionnement)
+&lt;a id=&quot;bas-stock-reorderpoint-15-zone-de-vigilance&quot;&gt;&lt;/a&gt;
+# BAS               : stock ≤ reorder_point × 1.5  (zone de vigilance)
+&lt;a id=&quot;surstock-stock-maxstock-90-capital-immobilise&quot;&gt;&lt;/a&gt;
+# SURSTOCK          : stock ≥ max_stock × 90%  (capital immobilisé)
+&lt;a id=&quot;normal-tous-les-autres-cas&quot;&gt;&lt;/a&gt;
+# NORMAL            : tous les autres cas
+
+df_stock = spark.table(&quot;bronze_stock_levels&quot;)
+
+df_stock_analysis = (df_stock
+
+    # Conversion de la colonne stock_date (string → Date)
+    .withColumn(&quot;stock_date&quot;, F.to_date(&quot;stock_date&quot;))
+
+    # Valorisation : quantité en stock × coût unitaire
+    # Donne une vision financière du stock (capital immobilisé)
+    .withColumn(&quot;stock_value_eur&quot;,
+        F.round(F.col(&quot;quantity_on_hand&quot;) * F.col(&quot;unit_cost_eur&quot;), 2))
+
+    # Classification du statut de stock (ordre des conditions important !)
+    # On teste les cas critiques en premier (rupture avant bas avant surstock)
+    .withColumn(&quot;stock_status&quot;,
+        F.when(F.col(&quot;quantity_on_hand&quot;) &lt;= F.col(&quot;reorder_point&quot;),         &quot;RUPTURE_IMMINENTE&quot;)
+        .when(F.col(&quot;quantity_on_hand&quot;) &lt;= F.col(&quot;reorder_point&quot;) * 1.5,    &quot;BAS&quot;)
+        .when(F.col(&quot;quantity_on_hand&quot;) &gt;= F.col(&quot;max_stock&quot;) * 0.9,        &quot;SURSTOCK&quot;)
+        .otherwise(&quot;NORMAL&quot;))
+
+    # Autonomie en jours : combien de jours avant rupture à la demande actuelle ?
+    # NULL si avg_daily_demand = 0 (évite la division par zéro)
+    # F.round(..., 0) → nombre entier de jours
+    .withColumn(&quot;days_of_stock&quot;,
+        F.when(F.col(&quot;avg_daily_demand&quot;) &gt; 0,
+               F.round(F.col(&quot;quantity_on_hand&quot;) / F.col(&quot;avg_daily_demand&quot;), 0))
+        .otherwise(None))
+)
+
+df_stock_analysis.write.mode(&quot;overwrite&quot;).format(&quot;delta&quot;).saveAsTable(&quot;silver_stock_levels&quot;)
+
+&lt;a id=&quot;resume-au-31122025-vue-snapshot-de-fin-dannee-pour-le-rapport&quot;&gt;&lt;/a&gt;
+# Résumé au 31/12/2025 : vue snapshot de fin d'année pour le rapport
+&lt;a id=&quot;filter-equivalent-dun-where-en-sql&quot;&gt;&lt;/a&gt;
+# filter() = équivalent d'un WHERE en SQL
+&lt;a id=&quot;affiche-le-nombre-de-lignes-et-la-valeur-financiere-par-statut&quot;&gt;&lt;/a&gt;
+# Affiche le nombre de lignes et la valeur financière par statut
+(df_stock_analysis
+    .filter(F.col(&quot;stock_date&quot;) == &quot;2025-12-31&quot;)
+    .groupBy(&quot;stock_status&quot;)
+    .agg(
+        F.count(&quot;*&quot;).alias(&quot;nb_lignes&quot;),
+        F.round(F.sum(&quot;stock_value_eur&quot;), 0).alias(&quot;valeur_stock_eur&quot;))
+    .orderBy(&quot;stock_status&quot;)
+    .show(truncate=False))
+</code></pre>
+<p><strong>Interprétation</strong> : Ce résumé donne une vue “pilotage” des stocks au <strong>31/12/2025</strong> :</p>
+<ul>
+<li><code>RUPTURE_IMMINENTE</code> = articles à risque de rupture (à prioriser en réappro / arbitrage inter-entrepôts). Dans le scénario injecté, ce statut remontera surtout sur certains <strong>onduleurs</strong> en décembre.</li>
+<li><code>BAS</code> = stock faible (surveillance + commandes fournisseurs).</li>
+<li><code>SURSTOCK</code> = surstock (capital immobilisé → actions promo / transferts / ajustement des min-max).</li>
+<li><code>NORMAL</code> = situation saine.</li>
+</ul>
+<p>Cette table <code>silver_stock_levels</code> pourra alimenter une page “Stocks” optionnelle du rapport (non couverte dans la version “sans colonnes calculées”).</p>
+<p><a id="29-cellule-8-vendeurs-table-silver-enrichie"></a></p>
+<h3>2.9 — Cellule 8 : Vendeurs — table Silver enrichie</h3>
+<pre><code class="language-python">&lt;a id=&quot;cellule-8-table-silver-vendeurs-enrichie&quot;&gt;&lt;/a&gt;
+# === CELLULE 8 : Table Silver vendeurs enrichie ===
+#
+&lt;a id=&quot;objectif-creer-une-table-silver-des-vendeurs-qui-agrege-leurs-performances&quot;&gt;&lt;/a&gt;
+# OBJECTIF : Créer une table Silver des vendeurs qui agrège leurs performances
+&lt;a id=&quot;sur-toute-la-periode-cette-table-servira-a-la-fois&quot;&gt;&lt;/a&gt;
+# sur toute la période. Cette table servira à la fois :
+&lt;a id=&quot;-dans-la-dimsalesrep-du-warehouse-attributs-statiques&quot;&gt;&lt;/a&gt;
+# - Dans la Dim_SalesRep du Warehouse (attributs statiques)
+&lt;a id=&quot;-dans-les-vues-analytiques-kpis-de-performance&quot;&gt;&lt;/a&gt;
+# - Dans les vues analytiques (KPIs de performance)
+#
+&lt;a id=&quot;pattern-on-part-de-bronzesalesreps-referentiel-des-vendeurs&quot;&gt;&lt;/a&gt;
+# Pattern : on part de bronze_sales_reps (référentiel des vendeurs)
+&lt;a id=&quot;et-on-y-rattache-les-commandes-lignes-via-left-join&quot;&gt;&lt;/a&gt;
+# et on y rattache les commandes + lignes via LEFT JOIN.
+&lt;a id=&quot;left-join-garantit-que-tous-les-vendeurs-apparaissent&quot;&gt;&lt;/a&gt;
+# LEFT JOIN garantit que tous les vendeurs apparaissent,
+&lt;a id=&quot;meme-ceux-qui-nont-aucune-commande-cas-possible-avec-un-nouveau-vendeur&quot;&gt;&lt;/a&gt;
+# même ceux qui n'ont aucune commande (cas possible avec un nouveau vendeur).
+#
+&lt;a id=&quot;colonnes-calculees&quot;&gt;&lt;/a&gt;
+# Colonnes calculées :
+&lt;a id=&quot;totalorders-nb-commandes-distinctes-traitees-par-le-vendeur&quot;&gt;&lt;/a&gt;
+# total_orders     : nb commandes distinctes traitées par le vendeur
+&lt;a id=&quot;totalclients-nb-clients-distincts-servis&quot;&gt;&lt;/a&gt;
+# total_clients    : nb clients distincts servis
+&lt;a id=&quot;totalrevenueeur-ca-total-genere&quot;&gt;&lt;/a&gt;
+# total_revenue_eur: CA total généré
+&lt;a id=&quot;totalmargineur-marge-totale-generee&quot;&gt;&lt;/a&gt;
+# total_margin_eur : marge totale générée
+&lt;a id=&quot;marginpct-taux-de-marge-moyen-nullif-evite-la-div0&quot;&gt;&lt;/a&gt;
+# margin_pct       : taux de marge moyen (NULLIF évite la div/0)
+&lt;a id=&quot;avgdiscountpct-remise-moyenne-accordee-indicateur-de-politique-tarifaire&quot;&gt;&lt;/a&gt;
+# avg_discount_pct : remise moyenne accordée (indicateur de politique tarifaire)
+&lt;a id=&quot;nblosslines-nb-de-lignes-vendues-a-perte-case-when-simulant-un-count-filter&quot;&gt;&lt;/a&gt;
+# nb_loss_lines    : nb de lignes vendues à perte (CASE WHEN simulant un COUNT FILTER)
+
+df_reps_enriched = spark.sql(&quot;&quot;&quot;
+    SELECT
+        sr.*,                                          -- Tous les attributs du référentiel vendeur
+        COUNT(DISTINCT o.order_id)                                       AS total_orders,
+        COUNT(DISTINCT o.customer_id)                                    AS total_clients,
+        ROUND(SUM(ol.line_total_eur), 0)                                 AS total_revenue_eur,
+        ROUND(SUM(ol.line_margin_eur), 0)                                AS total_margin_eur,
+        -- NULLIF(SUM(CA), 0) → retourne NULL si CA=0 pour éviter la division par zéro
+        ROUND(SUM(ol.line_margin_eur) / NULLIF(SUM(ol.line_total_eur), 0) * 100, 1) AS margin_pct,
+        ROUND(AVG(ol.discount_pct), 1)                                   AS avg_discount_pct,
+        -- CASE WHEN dans un SUM : compte 1 si vente à perte, 0 sinon → somme = nb de lignes à perte
+        SUM(CASE WHEN ol.line_margin_pct &lt; 0 THEN 1 ELSE 0 END)         AS nb_loss_lines
+    FROM bronze_sales_reps sr
+    LEFT JOIN silver_orders      o  ON sr.rep_id   = o.rep_id
+    LEFT JOIN silver_order_lines ol ON o.order_id  = ol.order_id
+    GROUP BY sr.rep_id, sr.rep_name, sr.region, sr.hire_date, sr.annual_target_eur
+&quot;&quot;&quot;)
+
+df_reps_enriched.write.mode(&quot;overwrite&quot;).format(&quot;delta&quot;).saveAsTable(&quot;silver_sales_reps&quot;)
+
+&lt;a id=&quot;afficher-les-10-meilleurs-vendeurs-par-ca-decroissant&quot;&gt;&lt;/a&gt;
+# Afficher les 10 meilleurs vendeurs par CA décroissant
+&lt;a id=&quot;fdesctotalrevenueeur-order-by-totalrevenueeur-desc&quot;&gt;&lt;/a&gt;
+# F.desc(&quot;total_revenue_eur&quot;) = ORDER BY total_revenue_eur DESC
+df_reps_enriched.orderBy(F.desc(&quot;total_revenue_eur&quot;)).show(10, truncate=False)
+</code></pre>
+<p><strong>Interprétation</strong> : Les 3 premiers vendeurs font ~30% du CA. La colonne <code>nb_loss_lines</code> révèle les vendeurs qui bradent le plus — le vendeur « DUBOIS » a 45 lignes à perte, presque toutes sur les onduleurs. C'est une information concrète pour le directeur commercial.</p>
+<hr />
+<p><a id="bloc-3-dataflow-gen2"></a></p>
+<h2>Bloc 3 — Dataflow Gen2</h2>
+<p>Le Notebook a créé les tables Silver. Maintenant on va créer un Dataflow Gen2 pour montrer l'approche <strong>no-code</strong> sur la table <code>silver_orders</code>. L'objectif est d'enrichir les commandes avec des colonnes calculées en Power Query.</p>
+<p><a id="31-creer-le-dataflow"></a></p>
+<h3>3.1 — Créer le Dataflow</h3>
+<ol>
+<li>Workspace → <strong>+ New item</strong> → <strong>Dataflow Gen2</strong></li>
+<li>Nommer : <strong>DF_EnrichOrders</strong></li>
+</ol>
+<p><a id="32-connecter-la-source-lakehouse"></a></p>
+<h3>3.2 — Connecter la source Lakehouse</h3>
+<ol>
+<li>Dans l'éditeur Power Query → <strong>Get data</strong> → <strong>More...</strong></li>
+<li>Chercher <strong>OneLake</strong> → <strong>Lakehouse (LH_EnergiDistrib)</strong> → sélectionner</li>
+<li>Connexion → signer avec votre compte organisationnel</li>
+<li>Naviguer → votre workspace → <strong>LH_EnergiDistrib</strong> → <strong>silver_orders</strong></li>
+<li>Cliquer <strong>Create</strong></li>
+</ol>
+<p><a id="33-transformation-1-supprimer-les-colonnes-inutiles"></a></p>
+<h3>3.3 — Transformation 1 : Supprimer les colonnes inutiles</h3>
+<p>Dans ce Dataflow, la source est la table <strong><code>silver_orders</code></strong> produite par le Notebook. Les colonnes visibles correspondent aux colonnes métier/enrichies (pas de colonnes “techniques” type <code>__delta_log</code>).</p>
+<ol>
+<li>Onglet <strong>Home</strong> → <strong>Choose columns</strong></li>
+<li><strong>Conserver</strong> (à minima) :<br />
+  - <code>order_id</code>, <code>customer_id</code>, <code>rep_id</code>, <code>warehouse_id</code><br />
+  - <code>order_date</code>, <code>ship_date</code>, <code>status</code>, <code>delivery_lead_days</code><br />
+  - <code>order_year</code>, <code>order_month</code> (nécessaires pour l’agrégation mensuelle plus loin)</li>
+<li><strong>Optionnel</strong> : décocher <code>order_quarter</code> et <code>is_late</code> (non utilisés dans ce Dataflow)</li>
+<li>Cliquer <strong>OK</strong></li>
+</ol>
+<blockquote>
+<p>💡 <strong>Note</strong> : Si vous préférez, vous pouvez aussi <strong>tout garder</strong> (aucun impact fonctionnel). L’objectif ici est juste d’illustrer une étape “Choose columns” et de ne pas casser l’agrégation mensuelle.</p>
+</blockquote>
+<p><a id="34-transformation-2-renommer-les-colonnes-pour-le-warehouse"></a></p>
+<h3>3.4 — Transformation 2 : Renommer les colonnes pour le Warehouse</h3>
+<ol>
+<li>Double-cliquer sur l'en-tête <strong>order_date</strong> → renommer en <strong>OrderDate</strong></li>
+<li>Idem : <strong>ship_date</strong> → <strong>ShipDate</strong></li>
+<li><strong>customer_id</strong> → <strong>CustomerKey</strong></li>
+<li><strong>rep_id</strong> → <strong>SalesRepKey</strong></li>
+<li><strong>order_id</strong> → <strong>OrderKey</strong></li>
+</ol>
+<p><a id="35-transformation-3-colonne-conditionnelle-priorite-livraison"></a></p>
+<h3>3.5 — Transformation 3 : Colonne conditionnelle — Priorité livraison</h3>
+<ol>
+<li>Onglet <strong>Add column</strong> → <strong>Conditional column</strong></li>
+<li>Configurer :<br />
+  - <strong>New column name</strong> : <code>DeliveryPriority</code><br />
+  - <strong>If</strong> <code>delivery_lead_days</code> <strong>is less than</strong> <code>3</code> <strong>then</strong> <code>Express</code><br />
+  - <strong>Else if</strong> <code>delivery_lead_days</code> <strong>is less than</strong> <code>7</code> <strong>then</strong> <code>Standard</code><br />
+  - <strong>Else if</strong> <code>delivery_lead_days</code> <strong>is less than</strong> <code>14</code> <strong>then</strong> <code>Lent</code><br />
+  - <strong>Else</strong> <code>Critique</code></li>
+<li>Cliquer <strong>OK</strong></li>
+</ol>
+<p><a id="36-transformation-4-colonne-personnalisee-trimestre-formate"></a></p>
+<h3>3.6 — Transformation 4 : Colonne personnalisée — Trimestre formaté</h3>
+<ol>
+<li>
+<p>Onglet <strong>Add column</strong> → <strong>Custom column</strong></p>
+</li>
+<li>
+<p><strong>New column name</strong> : <code>QuarterLabel</code></p>
+</li>
+<li>
+<p><strong>Formula</strong> :</p>
+</li>
+</ol>
+<p><code>"Q" &amp; Text.From(Date.QuarterOfYear([OrderDate])) &amp; " " &amp; Text.From(Date.Year([OrderDate]))</code></p>
+<ol start="4">
+<li>Cliquer <strong>OK</strong></li>
+</ol>
+<p><a id="37-transformation-5-filtrer-les-commandes-annulees"></a></p>
+<h3>3.7 — Transformation 5 : Filtrer les commandes annulées</h3>
+<ol>
+<li>Cliquer sur le filtre (flèche) de la colonne <strong>status</strong></li>
+<li>Décocher <strong>cancelled</strong> (ne garder que <code>completed</code>, <code>shipped</code>, <code>processing</code>)</li>
+<li>Cliquer <strong>OK</strong></li>
+</ol>
+<p><a id="38-transformation-6-changer-les-types-de-donnees"></a></p>
+<h3>3.8 — Transformation 6 : Changer les types de données</h3>
+<ol>
+<li>Sélectionner la colonne <strong>OrderDate</strong> → onglet <strong>Transform</strong> → <strong>Data type</strong> → <strong>Date</strong></li>
+<li>Sélectionner <strong>ShipDate</strong> → <strong>Data type</strong> → <strong>Date</strong></li>
+<li>Sélectionner <strong>delivery_lead_days</strong> → <strong>Data type</strong> → <strong>Whole number</strong></li>
+</ol>
+<p><a id="39-transformation-7-grouper-par-mois-nouvelle-requete"></a></p>
+<h3>3.9 — Transformation 7 : Grouper par mois (nouvelle requête)</h3>
+<ol>
+<li>Clic droit sur la requête <strong>silver_orders</strong> dans le panneau gauche → <strong>Duplicate</strong></li>
+<li>Renommer la nouvelle requête : <strong><code>MonthlyOrderSummary</code></strong></li>
+<li>Onglet <strong>Transform</strong> → <strong>Group By</strong> → <strong>Advanced</strong></li>
+<li>Dans <strong>Group by</strong> : garder <strong>uniquement</strong> <code>order_year</code> et <code>order_month</code><br />
+  - Si <code>CustomerKey</code> apparaît aussi dans la liste “Group by” (ça arrive si vous l’aviez sélectionné avant d’ouvrir Group By) → cliquez sur la ligne <code>CustomerKey</code> puis <strong>Remove grouping</strong></li>
+<li>Agrégations :<br />
+  - <strong>NbOrders</strong> : Operation = <strong>Count rows</strong> (normal que la zone <strong>Column</strong> soit désactivée)<br />
+  - <strong>NbCustomers</strong> : Operation = <strong>Count distinct values</strong>, Column = <strong>CustomerKey</strong></li>
+<li>Cliquer <strong>OK</strong></li>
+</ol>
+<blockquote>
+<p>💡 <strong>Pourquoi ne pas grouper par CustomerKey ?</strong> On veut un résumé <strong>mensuel</strong> (année/mois). Si on groupe aussi par <code>CustomerKey</code>, on obtient une ligne <em>par client et par mois</em> et le “nb customers” devient trivial (souvent 1).</p>
+<p>💡 <strong>Si la zone Column reste grisée</strong> : vérifiez que l’opération choisie est bien <strong>Count distinct values</strong> (et pas <strong>Count distinct rows</strong>). “Count distinct rows” n’a pas besoin de colonne, donc Power Query désactive la zone.</p>
+</blockquote>
+<p><a id="310-transformation-8-tri-et-index"></a></p>
+<h3>3.10 — Transformation 8 : Tri et index</h3>
+<ol>
+<li>Sur la requête <strong>MonthlyOrderSummary</strong> → cliquer sur l'en-tête <strong>order_year</strong> → <strong>Sort ascending</strong></li>
+<li>Puis <strong>order_month</strong> → <strong>Sort ascending</strong></li>
+<li>Onglet <strong>Add column</strong> → <strong>Index column</strong> → <strong>From 1</strong></li>
+</ol>
+<blockquote>
+<p>💡 <strong>Note</strong> : Le tri appliqué ici dans Power Query garantit que la colonne <strong>Index</strong> sera numérotée dans l'ordre chronologique (Jan 2024 = 1, Fév 2024 = 2, etc.). En revanche, le tri physique des lignes dans la table Delta de destination n'est pas garanti — Fabric optimise le stockage indépendamment. Pour ordonner les résultats dans un rapport, utilisez toujours un <strong>Sort</strong> côté Power BI ou DAX.</p>
+</blockquote>
+<p><a id="311-configurer-la-destination"></a></p>
+<h3>3.11 — Configurer la destination</h3>
+<p><strong>Pour la requête silver_orders enrichie</strong> :</p>
+<ol>
+<li>En bas du panneau <strong>Query settings</strong> → cliquer <strong>Choose data destination</strong></li>
+<li>Sélectionner <strong>Lakehouse</strong></li>
+<li>Naviguer → votre workspace → <strong>LH_EnergiDistrib</strong></li>
+<li><strong>New table</strong> : <code>silver_orders_enriched</code></li>
+<li><strong>Next</strong> → désactiver <strong>Use automatic settings</strong> → choisir <strong>Replace</strong> → <strong>Save settings</strong></li>
+</ol>
+<blockquote>
+<p>💡 <strong>Note (options Destination)</strong> :</p>
+<ul>
+<li><strong>Use automatic settings</strong> : Fabric choisit automatiquement la méthode de mise à jour et les options de schéma. Pour un atelier, on le désactive pour garder un comportement prévisible.</li>
+<li><strong>Update method</strong> :</li>
+<li><strong>Append</strong> = ajoute les nouvelles lignes à la table existante (risque de doublons si vous republiez plusieurs fois).</li>
+<li><strong>Replace</strong> = remplace entièrement la table à chaque Publish (idempotent, idéal pour itérer pendant l’atelier).</li>
+<li><strong>Schema options on publish</strong> :</li>
+<li><strong>Dynamic schema</strong> = adapte le schéma de la table cible si la requête change (pratique en prototypage).</li>
+<li><strong>Fixed schema</strong> = conserve le schéma existant et échoue si de nouvelles colonnes apparaissent (plus “production”). Dans cet atelier, les deux conviennent car le schéma est stable.</li>
+</ul>
+</blockquote>
+<p><strong>Pour la requête MonthlyOrderSummary</strong> :</p>
+<ol>
+<li>Cliquer sur la requête <strong>MonthlyOrderSummary</strong> dans le panneau gauche</li>
+<li>En bas → <strong>Choose data destination</strong> → <strong>Lakehouse</strong> → <strong>LH_EnergiDistrib</strong></li>
+<li><strong>New table</strong> : <code>silver_monthly_summary</code></li>
+<li><strong>Replace</strong> → <strong>Save settings</strong></li>
+</ol>
+<p><a id="312-publier-le-dataflow"></a></p>
+<h3>3.12 — Publier le Dataflow</h3>
+<ol>
+<li>En bas à droite → <strong>Publish</strong></li>
+<li>Attendre que le rafraîchissement se termine (barre de progression dans le workspace)</li>
+</ol>
+<blockquote>
+<p>⚠️ <strong>Piège</strong> : Le premier Publish peut prendre 2-3 minutes. Ne pas fermer l'onglet pendant ce temps.</p>
+</blockquote>
+<hr />
+<p><a id="bloc-4-pipeline-data-factory"></a></p>
+<h2>Bloc 4 — Pipeline Data Factory</h2>
+<p>Le Pipeline orchestre tout le flux : Dataflow Gen2 → Notebook → validation.</p>
+<p><a id="41-creer-le-pipeline"></a></p>
+<h3>4.1 — Créer le Pipeline</h3>
+<ol>
+<li>Workspace → <strong>+ New item</strong> → <strong>Data pipeline</strong></li>
+<li>Nommer : <strong><code>PL_EnergiDistrib_ETL</code></strong></li>
+<li>Cliquer <strong>Create</strong></li>
+</ol>
+<p><a id="42-activite-1-dataflow-gen2"></a></p>
+<h3>4.2 — Activité 1 : Dataflow Gen2</h3>
+<ol>
+<li>Dans le canevas du pipeline → onglet <strong>Activities</strong> → <strong>Dataflow</strong></li>
+<li>Glisser sur le canevas</li>
+<li>En bas → onglet <strong>General</strong> → Nom : <strong><code>Enrichissement_Orders</code></strong></li>
+<li>Onglet <strong>Settings</strong> → <strong>Dataflow</strong> → sélectionner <strong>DF_EnrichOrders</strong></li>
+</ol>
+<p><a id="43-activite-2-notebook"></a></p>
+<h3>4.3 — Activité 2 : Notebook</h3>
+<ol>
+<li>Onglet <strong>Activities</strong> → <strong>Notebook</strong></li>
+<li>Glisser sur le canevas, <strong>à droite</strong> du Dataflow</li>
+<li><strong>Relier</strong> : cliquer sur la <strong>coche verte</strong> (✓ On success) du Dataflow → glisser vers le Notebook</li>
+<li>En bas → onglet <strong>General</strong> → Nom : <strong><code>Transformation_Silver</code></strong></li>
+<li>Onglet <strong>Settings</strong> → <strong>Notebook</strong> → sélectionner <strong>NB_Bronze_to_Silver</strong></li>
+<li><strong>Lakehouse</strong> → sélectionner <strong>LH_EnergiDistrib</strong></li>
+</ol>
+<p><a id="44-activite-3-script-chargement-warehouse"></a></p>
+<h3>4.4 — Activité 3 : Script (chargement Warehouse)</h3>
+<blockquote>
+<p>💡 <strong>Note</strong> : Cette activité sera configurée après la création du Warehouse dans le Bloc 5. Pour l'instant, on la <strong>prépare</strong> en tant que placeholder.</p>
+<p>⚠️ <strong>Important (UI Fabric)</strong> : Dans Fabric, une activité <strong>Script</strong> est considérée <strong>invalide</strong> tant qu’une <strong>Connection</strong> n’est pas renseignée. Donc si le Warehouse n’existe pas encore, vous ne pourrez pas <em>Validate/Save</em> le pipeline avec cette activité active. Solution : <strong>désactiver temporairement</strong> l’activité <code>Chargement_Warehouse</code> (voir Bloc 4.8), puis la réactiver et la configurer après le Bloc 5.</p>
+<p>⚠️ <strong>Attention</strong> : Dans Fabric Data Factory, il n'existe pas d'activité <strong>Stored Procedure</strong> pour un Warehouse Fabric. Utilisez exclusivement l'activité <strong>Script</strong> qui permet d'exécuter du T-SQL directement sur un Warehouse. L'activité "Stored Procedure" est réservée aux sources externes (Azure SQL Database, SQL Server...).</p>
+</blockquote>
+<ol>
+<li>Onglet <strong>Activities</strong> → <strong>Script</strong> (sous la section <strong>General</strong>)</li>
+<li>Glisser à droite du Notebook → relier avec la <strong>coche verte</strong></li>
+<li>Nom : <strong><code>Chargement_Warehouse</code></strong></li>
+<li>On configurera le script T-SQL dans le Bloc 5</li>
+</ol>
+<p><a id="45-activite-4-validation-set-variable"></a></p>
+<h3>4.5 — Activité 4 : Validation — Set Variable</h3>
+<ol>
+<li>Onglet <strong>Activities</strong> → <strong>Set variable</strong></li>
+<li>Glisser à droite du Script → relier avec la <strong>coche verte</strong></li>
+<li>Nom : <strong><code>Flag_Succes</code></strong></li>
+<li>Onglet <strong>Settings</strong> → <strong>Variable type</strong> : <strong>Pipeline variable</strong></li>
+<li>Dans la section <strong>Variables</strong> du pipeline (en bas), cliquer <strong>+ New</strong> :<br />
+  - <strong>Name</strong> : <code>etl_status</code><br />
+  - <strong>Type</strong> : <strong>String</strong><br />
+  - <strong>Default value</strong> : <code>pending</code></li>
+<li>Revenir sur l'activité <strong>Flag_Succes</strong> (Set variable) :<br />
+  - <strong>Name</strong> : <code>etl_status</code><br />
+  - <strong>Value</strong> : <code>success</code></li>
+</ol>
+<blockquote>
+<p>💡 <strong>Clarification</strong> :</p>
+<ul>
+<li>Le <strong>Default value = <code>pending</code></strong> est la valeur <strong>au démarrage du run</strong> (avant exécution des activités). Ce n’est pas une “valeur à choisir” à la fin : c’est juste un état initial lisible.</li>
+<li>L’activité <strong>Flag_Succes</strong> sert à <strong>écraser</strong> cette valeur en <code>success</code> uniquement si tout le flux arrive jusqu’ici (chemin ✓).</li>
+<li>En cas d’échec (chemin ✗), on mettra <code>failed</code> dans une activité séparée (Bloc 4.6).</li>
+<li>Cette variable est surtout utile pour le suivi/diagnostic ; elle ne remplace pas le statut natif “Succeeded/Failed” du pipeline.</li>
+</ul>
+</blockquote>
+<p><a id="46-activite-5-gestion-derreur"></a></p>
+<h3>4.6 — Activité 5 : Gestion d'erreur</h3>
+<ol>
+<li>Glisser vers une <strong>nouvelle activité Set Variable</strong>, cliquer sur la <strong>croix rouge</strong> (✗ On failure) du Notebook →</li>
+<li>Nom : <strong><code>Flag_Echec</code></strong></li>
+<li><strong>Name</strong> : <code>etl_status</code> → <strong>Value</strong> : <code>failed</code></li>
+</ol>
+<blockquote>
+<p>💡 <strong>Note</strong> : Dans cet atelier, la gestion d'erreur est configurée uniquement sur le Notebook (l'activité la plus critique). Dans un pipeline de production, vous ajouteriez également des branches d'erreur sur le Dataflow et le Script pour couvrir l'ensemble des points de défaillance.</p>
+</blockquote>
+<p><a id="47-vue-densemble-du-pipeline"></a></p>
+<h3>4.7 — Vue d'ensemble du Pipeline</h3>
+<p>Le pipeline doit ressembler à ceci :</p>
+<pre><code>[Enrichissement_Orders] --✓--&gt; [Transformation_Silver] --✓--&gt; [Chargement_Warehouse] --✓--&gt; [Flag_Succes]
+         (Dataflow)                  (Notebook)                    (Script)                (Set Variable)
+                                       |
+                                       ✗
+                                       |
+                                 [Flag_Echec]
+                                (Set Variable)
+</code></pre>
+<p><a id="48-valider-et-sauvegarder"></a></p>
+<h3>4.8 — Valider et sauvegarder</h3>
+<ol>
+<li>Onglet <strong>Home</strong> → <strong>Validate</strong></li>
+<li>Si la validation échoue avec : <code>Script activity ... Connection is required</code> sur <code>Chargement_Warehouse</code> :<br />
+  - Dans le panneau de validation, cliquer <strong>Deactivate activities</strong><br />
+  - Sélectionner/désactiver <strong>Chargement_Warehouse</strong> (et uniquement celle-ci)<br />
+  - Relancer <strong>Validate</strong></li>
+<li><strong>Save</strong></li>
+</ol>
+<blockquote>
+<p>💡 Après le Bloc 5 (Warehouse créé), revenez sur le pipeline, <strong>réactivez</strong> <code>Chargement_Warehouse</code>, renseignez la <strong>Connection</strong> vers <code>WH_EnergiDistrib</code> et collez le T‑SQL de chargement, puis revalidez et sauvegardez.</p>
+<p>⚠️ <strong>Piège</strong> : Ne pas cliquer <strong>Run</strong> maintenant. Le Script du Warehouse n'est pas encore configuré. On le fera après le Bloc 5.</p>
+<p>💡 <strong>Astuce Pipeline</strong> : L'activité <strong>Script</strong> dans un Pipeline permet d'exécuter du T-SQL directement sur un Warehouse Fabric. C'est l'équivalent du <code>Stored Procedure activity</code> mais plus flexible — vous pouvez y mettre n'importe quel script T-SQL.</p>
+</blockquote>
+<hr />
+<p>Le Lakehouse contient les tables Bronze et Silver. Le Dataflow Gen2 enrichit les commandes. Le Pipeline orchestre le flux.**</p>
+<p>On crée le Warehouse avec le schéma étoile, on implémente le SCD Type 2, puis on construit le modèle sémantique et le rapport Power BI.</p>
+<hr />
+<p><a id="partie-2"></a></p>
+<h1>PARTIE 2</h1>
+<hr />
+<p><a id="bloc-5-warehouse-schema-etoile-vues-analytiques"></a></p>
+<h2>Bloc 5 — Warehouse : Schéma étoile + Vues analytiques</h2>
+<p><a id="51-creer-le-warehouse"></a></p>
+<h3>5.1 — Créer le Warehouse</h3>
+<ol>
+<li>Workspace → <strong>+ New item</strong> → <strong>Warehouse</strong></li>
+<li>Nom : <strong><code>WH_EnergiDistrib</code></strong></li>
+<li>Cliquer <strong>Create</strong></li>
+</ol>
+<p><a id="52-creer-le-schema-etoile-dimensions-fait"></a></p>
+<h3>5.2 — Créer le schéma étoile (dimensions + fait)</h3>
+<ol>
+<li>Dans <strong>WH_EnergiDistrib</strong> → <strong>New SQL query</strong></li>
+<li>Copier-coller et exécuter :</li>
+</ol>
+<pre><code class="language-sql">-- ============================================================
+-- DIMENSIONS
+-- ============================================================
+
+CREATE TABLE dbo.Dim_Customer (
+    CustomerSK          BIGINT IDENTITY NOT NULL,  -- Surrogate key
+    CustomerID          VARCHAR(50)   NOT NULL,       -- Business key
+    CompanyName         VARCHAR(500)  NOT NULL,
+    Country             VARCHAR(10)   NOT NULL,
+    City                VARCHAR(200),
+    CustomerSegment     VARCHAR(50),
+    ContactEmail        VARCHAR(500),
+    -- SCD Type 2 columns
+    ValidFrom           DATE          NOT NULL,
+    ValidTo             DATE          NOT NULL,
+    IsCurrent           BIT           NOT NULL,
+);
+
+CREATE TABLE dbo.Dim_Product (
+    ProductSK           BIGINT IDENTITY NOT NULL,
+    ProductID           VARCHAR(20)   NOT NULL,
+    ProductName         VARCHAR(200)  NOT NULL,
+    Category            VARCHAR(50)   NOT NULL,
+    SubCategory         VARCHAR(50),
+    Brand               VARCHAR(50),
+    UnitCostEUR         DECIMAL(10,2),
+    ListPriceEUR        DECIMAL(10,2),
+    MarginPct           DECIMAL(5,1),
+    PriceSegment        VARCHAR(20),
+);
+
+CREATE TABLE dbo.Dim_SalesRep (
+    SalesRepSK          BIGINT IDENTITY NOT NULL,
+    RepID               VARCHAR(20)   NOT NULL,
+    RepName             VARCHAR(100)  NOT NULL,
+    Region              VARCHAR(50),
+    HireDate            DATE,
+    AnnualTargetEUR     DECIMAL(12,2),
+);
+
+CREATE TABLE dbo.Dim_Warehouse (
+    WarehouseSK         BIGINT IDENTITY NOT NULL,
+    WarehouseID         VARCHAR(20)   NOT NULL,
+    WarehouseName       VARCHAR(100)  NOT NULL,
+    Country             VARCHAR(5),
+    City                VARCHAR(100),
+);
+
+CREATE TABLE dbo.Dim_Date (
+    DateKey             INT           NOT NULL,  -- YYYYMMDD
+    FullDate            DATE          NOT NULL,
+    Year                INT           NOT NULL,
+    Quarter             INT           NOT NULL,
+    Month               INT           NOT NULL,
+    MonthName           VARCHAR(20)   NOT NULL,
+    WeekOfYear          INT           NOT NULL,
+    DayOfWeek           INT           NOT NULL,
+    DayName             VARCHAR(20)   NOT NULL,
+    IsWeekend           BIT           NOT NULL,
+    QuarterLabel        VARCHAR(10)   NOT NULL,
+);
+
+-- ============================================================
+-- TABLE DE FAITS
+-- ============================================================
+
+CREATE TABLE dbo.Fact_OrderLines (
+    OrderLineSK         BIGINT IDENTITY NOT NULL,
+    OrderKey            VARCHAR(20)   NOT NULL,
+    DateKey             INT           NOT NULL,
+    CustomerSK          BIGINT        NOT NULL,
+    ProductSK           BIGINT        NOT NULL,
+    SalesRepSK          BIGINT        NOT NULL,
+    WarehouseSK         BIGINT        NOT NULL,
+    Quantity            INT           NOT NULL,
+    UnitPriceEUR        DECIMAL(10,2) NOT NULL,
+    UnitCostEUR         DECIMAL(10,2) NOT NULL,
+    DiscountPct         DECIMAL(5,2)  NOT NULL,
+    LineTotalEUR        DECIMAL(12,2) NOT NULL,
+    LineCostEUR         DECIMAL(12,2) NOT NULL,
+    LineMarginEUR       DECIMAL(12,2) NOT NULL,
+    LineMarginPct       DECIMAL(5,1),
+    DeliveryPriority    VARCHAR(20),
+    OrderStatus         VARCHAR(20),
+);
+
+PRINT 'Schema etoile cree avec succes.';
+</code></pre>
+<p><a id="53-peupler-la-dimension-date"></a></p>
+<h3>5.3 — Peupler la dimension Date</h3>
+<pre><code class="language-sql">-- === Dimension Date : generer 2024-2025 ===
+
+DECLARE @start DATE = '2024-01-01';
+DECLARE @end DATE = '2025-12-31';
+DECLARE @current DATE = @start;
+
+WHILE @current &lt;= @end
+BEGIN
+    INSERT INTO dbo.Dim_Date (
+        DateKey, FullDate, Year, Quarter, Month, MonthName,
+        WeekOfYear, DayOfWeek, DayName, IsWeekend, QuarterLabel
+    )
+    VALUES (
+        CAST(FORMAT(@current, 'yyyyMMdd') AS INT),
+        @current,
+        YEAR(@current),
+        DATEPART(QUARTER, @current),
+        MONTH(@current),
+        DATENAME(MONTH, @current),
+        DATEPART(WEEK, @current),
+        DATEPART(WEEKDAY, @current),
+        DATENAME(WEEKDAY, @current),
+        CASE WHEN DATEPART(WEEKDAY, @current) IN (1, 7) THEN 1 ELSE 0 END,
+        'Q' + CAST(DATEPART(QUARTER, @current) AS VARCHAR) + ' ' + CAST(YEAR(@current) AS VARCHAR)
+    );
+    SET @current = DATEADD(DAY, 1, @current);
+END;
+
+SELECT COUNT(*) AS nb_dates FROM dbo.Dim_Date;
+</code></pre>
+<p><a id="54-charger-les-dimensions-depuis-le-lakehouse-cross-database-query"></a></p>
+<h3>5.4 — Charger les dimensions depuis le Lakehouse (cross-database query)</h3>
+<p><strong>Problème terrain</strong> : Les données Silver sont dans le Lakehouse. Le Warehouse doit les consommer sans les dupliquer manuellement.</p>
+<p><strong>Solution</strong> : Les <strong>cross-database queries</strong> de Fabric permettent de lire les tables du Lakehouse directement depuis le Warehouse via le three-part naming.</p>
+<ol>
+<li>Dans le <strong>WH_EnergiDistrib</strong> → panneau gauche <strong>Explorer</strong> → cliquer <strong>+ Warehouses</strong></li>
+<li>Dans le catalogue OneLake → sélectionner <strong>LH_EnergiDistrib</strong> (SQL analytics endpoint)</li>
+<li>Cliquer <strong>Confirm</strong></li>
+<li>Le Lakehouse apparaît maintenant dans l'Explorer</li>
+</ol>
+<pre><code class="language-sql">-- === Charger Dim_Product depuis le Lakehouse ===
+
+INSERT INTO dbo.Dim_Product (
+    ProductID, ProductName, Category, SubCategory, Brand,
+    UnitCostEUR, ListPriceEUR, MarginPct, PriceSegment
+)
+SELECT
+    product_id, product_name, category, sub_category, brand,
+    unit_cost_eur, list_price_eur, margin_pct, price_segment
+FROM [LH_EnergiDistrib].[dbo].[silver_products];
+
+SELECT COUNT(*) AS nb_products FROM dbo.Dim_Product;
+</code></pre>
+<pre><code class="language-sql">-- === Charger Dim_SalesRep ===
+
+INSERT INTO dbo.Dim_SalesRep (
+    RepID, RepName, Region, HireDate, AnnualTargetEUR
+)
+SELECT
+    rep_id, rep_name, region, hire_date, annual_target_eur
+FROM [LH_EnergiDistrib].[dbo].[silver_sales_reps];
+</code></pre>
+<pre><code class="language-sql">-- === Charger Dim_Warehouse ===
+
+INSERT INTO dbo.Dim_Warehouse (
+    WarehouseID, WarehouseName, Country, City
+)
+SELECT
+    warehouse_id, warehouse_name, country, city
+FROM [LH_EnergiDistrib].[dbo].[bronze_warehouses];
+</code></pre>
+<pre><code class="language-sql">-- === Charger Dim_Customer (chargement initial — SCD Type 2) ===
+
+INSERT INTO dbo.Dim_Customer (
+    CustomerID, CompanyName, Country, City, CustomerSegment,
+    ContactEmail, ValidFrom, ValidTo, IsCurrent
+)
+SELECT
+    c.customer_id,
+    c.company_name,
+    c.country_code,
+    c.city,
+    COALESCE(r.customer_segment, 'Non classe'),
+    c.contact_email,
+    '2024-01-01',      -- ValidFrom = debut historique
+    '9999-12-31',       -- ValidTo = toujours courant
+    1                   -- IsCurrent = oui
+FROM [LH_EnergiDistrib].[dbo].[silver_customers] c
+LEFT JOIN [LH_EnergiDistrib].[dbo].[silver_customer_rfm] r
+    ON c.customer_id = r.customer_id;
+
+SELECT COUNT(*) AS nb_customers FROM dbo.Dim_Customer;
+</code></pre>
+<p><a id="55-charger-la-table-de-faits"></a></p>
+<h3>5.5 — Charger la table de faits</h3>
+<pre><code class="language-sql">-- === Charger Fact_OrderLines ===
+
+INSERT INTO dbo.Fact_OrderLines (
+    OrderKey, DateKey, CustomerSK, ProductSK, SalesRepSK, WarehouseSK,
+    Quantity, UnitPriceEUR, UnitCostEUR, DiscountPct,
+    LineTotalEUR, LineCostEUR, LineMarginEUR, LineMarginPct,
+    DeliveryPriority, OrderStatus
+)
+SELECT
+    ol.order_id,
+    CAST(CONVERT(VARCHAR(8), o.order_date, 112) AS INT),
+    dc.CustomerSK,
+    dp.ProductSK,
+    sr.SalesRepSK,
+    dw.WarehouseSK,
+    ol.quantity,
+    ol.unit_price_eur,
+    ol.unit_cost_eur,
+    COALESCE(ol.discount_pct, 0),
+    ol.line_total_eur,
+    ol.line_cost_eur,
+    ol.line_margin_eur,
+    ol.line_margin_pct,
+    CASE
+        WHEN o.delivery_lead_days &lt; 3 THEN 'Express'
+        WHEN o.delivery_lead_days &lt; 7 THEN 'Standard'
+        WHEN o.delivery_lead_days &lt; 14 THEN 'Lent'
+        ELSE 'Critique'
+    END,
+    o.status
+FROM [LH_EnergiDistrib].[dbo].[silver_order_lines] ol
+JOIN [LH_EnergiDistrib].[dbo].[silver_orders] o ON ol.order_id = o.order_id
+JOIN dbo.Dim_Customer dc ON o.customer_id = dc.CustomerID AND dc.IsCurrent = 1
+JOIN dbo.Dim_Product dp ON ol.product_id = dp.ProductID
+JOIN dbo.Dim_SalesRep sr ON o.rep_id = sr.RepID
+JOIN dbo.Dim_Warehouse dw ON o.warehouse_id = dw.WarehouseID
+WHERE o.status != 'cancelled';
+
+SELECT COUNT(*) AS nb_order_lines FROM dbo.Fact_OrderLines;
+</code></pre>
+<p><a id="56-vues-analytiques-t-sql"></a></p>
+<h3>5.6 — Vues analytiques T-SQL</h3>
+<pre><code class="language-sql">-- === Vue 1 : Ventes mensuelles par pays ===
+
+CREATE VIEW dbo.vw_MonthlySalesByCountry AS
+SELECT
+    dd.Year, dd.Month, dd.MonthName, dd.QuarterLabel,
+    dc.Country,
+    COUNT(DISTINCT f.OrderKey) AS NbOrders,
+    SUM(f.Quantity) AS TotalQuantity,
+    SUM(f.LineTotalEUR) AS Revenue,
+    SUM(f.LineMarginEUR) AS Margin,
+    CAST(SUM(f.LineMarginEUR) * 100.0 / NULLIF(SUM(f.LineTotalEUR), 0) AS DECIMAL(5,1)) AS MarginPct
+FROM dbo.Fact_OrderLines f
+JOIN dbo.Dim_Date dd ON f.DateKey = dd.DateKey
+JOIN dbo.Dim_Customer dc ON f.CustomerSK = dc.CustomerSK
+GROUP BY dd.Year, dd.Month, dd.MonthName, dd.QuarterLabel, dc.Country;
+</code></pre>
+<p><strong>Interprétation (vw_MonthlySalesByCountry)</strong> : Cette vue résume le business au bon grain pour un comité de pilotage :</p>
+<ul>
+<li>Une ligne par <strong>pays</strong> et par <strong>mois</strong> (avec trimestre).</li>
+<li><code>Revenue</code> et <code>Margin</code> permettent d’identifier les marchés qui tirent le CA vs ceux qui érodent la marge.</li>
+<li><code>MarginPct</code> permet de comparer les pays indépendamment du volume (mix produit / politique de remise).</li>
+</ul>
+<p>➡️ Dans Power BI, cette vue alimente typiquement une courbe de CA mensuel + un slicer Pays/Trimestre.</p>
+<pre><code class="language-sql">-- === Vue 2 : Performance vendeurs vs objectif ===
+
+CREATE VIEW dbo.vw_SalesRepPerformance AS
+SELECT
+    sr.RepName,
+    sr.Region,
+    sr.AnnualTargetEUR,
+    SUM(f.LineTotalEUR) AS ActualRevenue,
+    CAST(SUM(f.LineTotalEUR) * 100.0 / NULLIF(sr.AnnualTargetEUR, 0) AS DECIMAL(5,1)) AS AttainmentPct,
+    SUM(f.LineMarginEUR) AS TotalMargin,
+    COUNT(DISTINCT f.OrderKey) AS NbOrders,
+    SUM(CASE WHEN f.LineMarginPct &lt; 0 THEN 1 ELSE 0 END) AS NbLossLines,
+    AVG(f.DiscountPct) AS AvgDiscountPct
+FROM dbo.Fact_OrderLines f
+JOIN dbo.Dim_SalesRep sr ON f.SalesRepSK = sr.SalesRepSK
+JOIN dbo.Dim_Date dd ON f.DateKey = dd.DateKey
+WHERE dd.Year = 2025  -- Filtre sur l'annee en cours des donnees (2025)
+GROUP BY sr.RepName, sr.Region, sr.AnnualTargetEUR;
+</code></pre>
+<p><strong>Interprétation (vw_SalesRepPerformance)</strong> : Cette vue transforme la fact en KPIs “management” par vendeur :</p>
+<ul>
+<li><code>AttainmentPct</code> mesure l’atteinte de l’objectif annuel (dans l’atelier, filtré sur <strong>2025</strong>).</li>
+<li><code>NbLossLines</code> et <code>AvgDiscountPct</code> révèlent des comportements de remise (ex: ventes à perte).</li>
+<li><code>TotalMargin</code> complète la lecture : un vendeur peut faire du CA mais dégrader la rentabilité.</li>
+</ul>
+<p>➡️ Dans Power BI, elle sert à un tableau “Top/Flop vendeurs” et à cibler des actions (coaching, politique de prix).</p>
+<pre><code class="language-sql">-- === Vue 3 : Top produits par marge ===
+
+CREATE VIEW dbo.vw_ProductMarginAnalysis AS
+SELECT
+    dp.Category,
+    dp.ProductName,
+    dp.PriceSegment,
+    SUM(f.Quantity) AS TotalQtySold,
+    SUM(f.LineTotalEUR) AS Revenue,
+    SUM(f.LineMarginEUR) AS Margin,
+    CAST(SUM(f.LineMarginEUR) * 100.0 / NULLIF(SUM(f.LineTotalEUR), 0) AS DECIMAL(5,1)) AS MarginPct,
+    AVG(f.DiscountPct) AS AvgDiscount
+FROM dbo.Fact_OrderLines f
+JOIN dbo.Dim_Product dp ON f.ProductSK = dp.ProductSK
+GROUP BY dp.Category, dp.ProductName, dp.PriceSegment;
+</code></pre>
+<p><strong>Interprétation (vw_ProductMarginAnalysis)</strong> : Cette vue aide à piloter le catalogue :</p>
+<ul>
+<li>Elle met en évidence les <strong>produits</strong> et <strong>catégories</strong> qui font la marge (ou la détruisent).</li>
+<li><code>AvgDiscount</code> permet de repérer les produits “aspirateurs à remise”.</li>
+<li>Le couple <code>Revenue</code> / <code>MarginPct</code> met en évidence les arbitrages volume vs rentabilité.</li>
+</ul>
+<p>➡️ Dans Power BI, elle alimente un Top N produits (par marge) et une matrice Catégorie × Segment de prix.</p>
+<blockquote>
+<p>💡 <strong>Note sur vw_SalesRepPerformance</strong> : Le filtre <code>WHERE dd.Year = 2025</code> est intentionnel pour cet atelier — l'objectif annuel (<code>AnnualTargetEUR</code>) des vendeurs est défini pour 2025. En production, ce filtre serait rendu dynamique avec <code>YEAR(GETDATE())</code> ou piloté par un paramètre de rapport Power BI.</p>
+</blockquote>
+<hr />
+<p><a id="bloc-6-scd-type-2-avec-merge"></a></p>
+<h2>Bloc 6 — SCD Type 2 avec MERGE</h2>
+<p><a id="61-comprendre-le-probleme"></a></p>
+<h3>6.1 — Comprendre le problème</h3>
+<p><strong>Situation</strong> : Le client <code>CLI-00073</code> (« ThermEurope 52 ») vient de passer du segment <strong>Fidele</strong> à <strong>VIP</strong> car il a passé 3 grosses commandes ce trimestre. Si on fait un simple <code>UPDATE</code>, les rapports du Q1 qui comptaient ce client comme Fidele deviennent faux rétroactivement.</p>
+<p><strong>SCD Type 1</strong> (mention rapide) : On écrase simplement la valeur. Adapté quand l'historique n'a pas d'importance (correction d'une faute de frappe dans un nom).</p>
+<p><strong>SCD Type 2</strong> (focus principal) : On <strong>ferme</strong> l'ancienne ligne (IsCurrent = 0, ValidTo = hier) et on <strong>crée</strong> une nouvelle ligne (IsCurrent = 1, ValidFrom = aujourd'hui). L'ancienne version reste dans la table pour l'analyse historique.</p>
+<p><a id="62-charger-le-batch-de-mise-a-jour"></a></p>
+<h3>6.2 — Charger le batch de mise à jour</h3>
+<p>D'abord, charger le fichier <code>customers_update_batch2.csv</code> dans le Lakehouse :</p>
+<ol>
+<li>Dans <strong>LH_EnergiDistrib</strong> → <strong>Files/</strong> → <strong>Upload</strong> → <code>customers_update_batch2.csv</code></li>
+<li>Dans le Notebook <strong>NB_Bronze_to_Silver</strong> → ajouter une cellule :</li>
+</ol>
+<pre><code class="language-python">&lt;a id=&quot;cellule-9-charger-batch-mise-a-jour-clients&quot;&gt;&lt;/a&gt;
+# === CELLULE 9 : Charger batch mise a jour clients ===
+#
+&lt;a id=&quot;objectif-preparer-la-table-de-staging-pour-le-scd-type-2-bloc-6&quot;&gt;&lt;/a&gt;
+# OBJECTIF : Préparer la table de staging pour le SCD Type 2 (Bloc 6).
+&lt;a id=&quot;le-fichier-customersupdatebatch2csv-contient-150-clients&quot;&gt;&lt;/a&gt;
+# Le fichier customers_update_batch2.csv contient 150 clients
+&lt;a id=&quot;dont-le-segment-commercial-a-change-ce-trimestre&quot;&gt;&lt;/a&gt;
+# dont le segment commercial a changé ce trimestre.
+#
+&lt;a id=&quot;pourquoi-une-table-staging&quot;&gt;&lt;/a&gt;
+# Pourquoi une table &quot;staging&quot; ?
+&lt;a id=&quot;le-warehouse-ne-peut-pas-lire-un-fichier-csv-directement&quot;&gt;&lt;/a&gt;
+# Le Warehouse ne peut pas lire un fichier CSV directement.
+&lt;a id=&quot;en-passant-par-une-table-delta-dans-le-lakehouse-on-peut-utiliser&quot;&gt;&lt;/a&gt;
+# En passant par une table Delta dans le Lakehouse, on peut utiliser
+&lt;a id=&quot;les-cross-database-queries-depuis-le-warehouse-pour-executer-le-merge-scd&quot;&gt;&lt;/a&gt;
+# les cross-database queries depuis le Warehouse pour exécuter le MERGE SCD.
+#
+&lt;a id=&quot;colonnes-attendues-dans-le-batch&quot;&gt;&lt;/a&gt;
+# Colonnes attendues dans le batch :
+&lt;a id=&quot;customerid-cle-metier-pour-faire-la-correspondance-avec-dimcustomer&quot;&gt;&lt;/a&gt;
+# customer_id     → clé métier pour faire la correspondance avec Dim_Customer
+&lt;a id=&quot;companyname-nouveau-nom-si-mis-a-jour-scd-type-1&quot;&gt;&lt;/a&gt;
+# company_name    → nouveau nom (si mis à jour, SCD Type 1)
+&lt;a id=&quot;countrycode-code-pays-iso&quot;&gt;&lt;/a&gt;
+# country_code    → code pays ISO
+&lt;a id=&quot;city-ville&quot;&gt;&lt;/a&gt;
+# city            → ville
+&lt;a id=&quot;newsegment-nouveau-segment-cest-ce-qui-declenche-le-scd-type-2&quot;&gt;&lt;/a&gt;
+# new_segment     → NOUVEAU segment (c'est ce qui déclenche le SCD Type 2)
+&lt;a id=&quot;contactemail-nouvel-email-si-mis-a-jour-scd-type-1&quot;&gt;&lt;/a&gt;
+# contact_email   → nouvel email (si mis à jour, SCD Type 1)
+#
+&lt;a id=&quot;modeoverwrite-si-on-relance-la-cellule-on-repart-dun-staging-propre&quot;&gt;&lt;/a&gt;
+# mode=&quot;overwrite&quot; : si on relance la cellule, on repart d'un staging propre
+
+df_update = (spark.read
+    .option(&quot;header&quot;, True)
+    .option(&quot;inferSchema&quot;, True)
+    .csv(&quot;Files/customers_update_batch2.csv&quot;)
+)
+
+&lt;a id=&quot;ecrire-en-table-delta-dans-le-lakehouse-accessible-depuis-le-warehouse&quot;&gt;&lt;/a&gt;
+# Écrire en table Delta dans le Lakehouse (accessible depuis le Warehouse)
+df_update.write.mode(&quot;overwrite&quot;).format(&quot;delta&quot;).saveAsTable(&quot;staging_customer_updates&quot;)
+
+print(f&quot;Batch mise a jour: {df_update.count()} clients modifies&quot;)
+
+&lt;a id=&quot;apercu-des-5-premieres-lignes-pour-verification-visuelle&quot;&gt;&lt;/a&gt;
+# Aperçu des 5 premières lignes pour vérification visuelle
+&lt;a id=&quot;truncatefalse-affiche-les-valeurs-completes-sans-troncature&quot;&gt;&lt;/a&gt;
+# truncate=False → affiche les valeurs complètes sans troncature
+df_update.show(5, truncate=False)
+</code></pre>
+<p><strong>Interprétation (Cellule 9)</strong> : Cette cellule transforme le CSV “batch” en une table <strong>staging</strong> (<code>staging_customer_updates</code>) dans le Lakehouse. Elle joue 3 rôles :</p>
+<ul>
+<li><strong>Découpler</strong> la source de mise à jour (fichier) des traitements : le Warehouse pourra lire la staging via une cross-database query sans manipuler de fichiers.</li>
+<li><strong>Standardiser</strong> le format d’entrée pour le SCD : on aligne le batch sur les clés métier (<code>customer_id</code>) et les attributs à mettre à jour (<code>new_segment</code>, email, nom…).</li>
+<li><strong>Tracer/valider</strong> : le <code>count()</code> et le <code>show()</code> permettent de vérifier immédiatement qu’on a bien ~150 lignes et le contenu attendu avant d’exécuter l’historisation.</li>
+</ul>
+<p><a id="63-verifier-letat-avant-le-merge"></a></p>
+<h3>6.3 — Vérifier l'état AVANT le MERGE</h3>
+<p>Revenir dans le <strong>WH_EnergiDistrib</strong> → <strong>New SQL query</strong> :</p>
+<pre><code class="language-sql">-- === Etat AVANT : clients qui vont changer ===
+
+SELECT
+    dc.CustomerSK, dc.CustomerID, dc.CompanyName,
+    dc.CustomerSegment, dc.Country,
+    dc.ValidFrom, dc.ValidTo, dc.IsCurrent
+FROM dbo.Dim_Customer dc
+WHERE dc.CustomerID IN (
+    SELECT customer_id
+    FROM [LH_EnergiDistrib].[dbo].[staging_customer_updates]
+)
+ORDER BY dc.CustomerID, dc.ValidFrom;
+</code></pre>
+<p><strong>Interprétation</strong> : Vous voyez les 150 clients avec une seule ligne chacun (IsCurrent = 1, ValidTo = 9999-12-31). Après le MERGE, les clients dont le segment a changé auront <strong>deux lignes</strong> : l'ancienne (fermée) et la nouvelle (courante).</p>
+<p><a id="64-executer-le-merge-scd-type-2"></a></p>
+<h3>6.4 — Exécuter le MERGE SCD Type 2</h3>
+<pre><code class="language-sql">-- ============================================================
+-- SCD TYPE 2 : MERGE avec historisation
+-- ============================================================
+
+-- Etape 1 : Fermer les lignes courantes dont le segment a change
+UPDATE dc
+SET
+    dc.ValidTo = DATEADD(DAY, -1, CAST(GETDATE() AS DATE)),
+    dc.IsCurrent = 0
+FROM dbo.Dim_Customer dc
+INNER JOIN [LH_EnergiDistrib].[dbo].[staging_customer_updates] upd
+    ON dc.CustomerID = upd.customer_id
+    AND dc.IsCurrent = 1
+WHERE dc.CustomerSegment != upd.new_segment;
+
+-- Etape 2 : Inserer les nouvelles versions
+INSERT INTO dbo.Dim_Customer (
+    CustomerID, CompanyName, Country, City, CustomerSegment,
+    ContactEmail, ValidFrom, ValidTo, IsCurrent
+)
+SELECT
+    upd.customer_id,
+    upd.company_name,
+    upd.country_code,
+    upd.city,
+    upd.new_segment,
+    upd.contact_email,
+    CAST(GETDATE() AS DATE),  -- ValidFrom = aujourd'hui
+    '9999-12-31',              -- ValidTo = toujours courant
+    1                          -- IsCurrent = oui
+FROM [LH_EnergiDistrib].[dbo].[staging_customer_updates] upd
+WHERE upd.new_segment != (
+    SELECT TOP 1 dc2.CustomerSegment
+    FROM dbo.Dim_Customer dc2
+    WHERE dc2.CustomerID = upd.customer_id
+      AND dc2.IsCurrent = 0
+    ORDER BY dc2.ValidTo DESC
+);
+
+-- SCD Type 1 : Mise a jour simple (nom, email — pas d'historique)
+UPDATE dc
+SET
+    dc.CompanyName = upd.company_name,
+    dc.ContactEmail = upd.contact_email
+FROM dbo.Dim_Customer dc
+INNER JOIN [LH_EnergiDistrib].[dbo].[staging_customer_updates] upd
+    ON dc.CustomerID = upd.customer_id
+    AND dc.IsCurrent = 1;
+
+PRINT 'SCD Type 2 + Type 1 appliques.';
+</code></pre>
+<blockquote>
+<p>💡 <strong>Note</strong> : Le SCD Type 1 (UPDATE du nom et email) s'applique en même temps que le Type 2 (historisation du segment). C'est la pratique standard : certains attributs sont historisés, d'autres non.</p>
+</blockquote>
+<p><a id="65-verifier-letat-apres-le-merge"></a></p>
+<h3>6.5 — Vérifier l'état APRÈS le MERGE</h3>
+<pre><code class="language-sql">-- === Etat APRES : clients avec historique (ceux qui ont change de segment) ===
+
+SELECT
+    dc.CustomerSK, dc.CustomerID, dc.CompanyName,
+    dc.CustomerSegment, dc.Country,
+    dc.ValidFrom, dc.ValidTo, dc.IsCurrent
+FROM dbo.Dim_Customer dc
+WHERE dc.CustomerID IN (
+    SELECT CustomerID
+    FROM dbo.Dim_Customer
+    WHERE IsCurrent = 0  -- Clients ayant au moins une version fermee = segment change
+)
+ORDER BY dc.CustomerID, dc.ValidFrom;
+</code></pre>
+<p><strong>Interprétation</strong> : Les clients dont le segment a changé ont maintenant <strong>deux lignes</strong>. Exemple :</p>
+<ul>
+<li><code>CLI-00073</code> | ThermEurope 52 | <strong>Fidele</strong> | 2024-01-01 → <em>hier</em> | IsCurrent = <strong>0</strong></li>
+<li><code>CLI-00073</code> | ThermEurope 52 | <strong>VIP</strong> | <em>aujourd'hui</em> → 9999-12-31 | IsCurrent = <strong>1</strong></li>
+</ul>
+<blockquote>
+<p>💡 Les dates <em>hier</em> et <em>aujourd'hui</em> correspondent à la date d'exécution réelle du MERGE (<code>GETDATE()</code>). L'historique est préservé : les rapports antérieurs retrouveront ce client en segment <strong>Fidele</strong>, les rapports à partir d'aujourd'hui le verront en <strong>VIP</strong>.</p>
+</blockquote>
+<p>Les rapports du Q1 qui utilisent la date de commande retrouveront l'ancien segment (Fidele). Les rapports à partir d'aujourd'hui montrent le nouveau segment (VIP). <strong>L'historique est préservé.</strong></p>
+<p><a id="bloc-7-modele-semantique-service-mesures-sans-colonnes-calculees"></a></p>
+<h2>Bloc 7 — Modèle sémantique (Service) + mesures (sans colonnes calculées)</h2>
+<blockquote>
+<p>🎯 <strong>Objectif</strong> : éviter de perdre du temps sur les limitations DirectLake (colonnes calculées, tri “Sort by column”, etc.).<br />
+On crée un modèle simple (schéma étoile + mesures), puis on construit le rapport dans <strong>Power BI Desktop</strong> via une connexion au modèle (thin report).</p>
+</blockquote>
+<p><a id="71-creer-le-modele-semantique-dans-fabric-directlake"></a></p>
+<h3>7.1 — Créer le modèle sémantique dans Fabric (DirectLake)</h3>
+<ol>
+<li>Workspace → <strong>New item</strong> → <strong>Semantic model</strong></li>
+<li><strong>OneLake catalog</strong> → votre workspace → <code>WH_EnergiDistrib</code></li>
+<li>Sélectionner uniquement :<br />
+  - <code>Dim_Customer</code>, <code>Dim_Date</code>, <code>Dim_Product</code>, <code>Dim_SalesRep</code>, <code>Dim_Warehouse</code><br />
+  - <code>Fact_OrderLines</code></li>
+<li>Nom : <strong><code>SM_EnergiDistrib</code></strong> → <strong>Create/Confirm</strong></li>
+</ol>
+<blockquote>
+<p>⚠️ Si le modèle s’ouvre en <strong>Viewing mode</strong> (tout grisé), recréez-le en <code>SM_EnergiDistrib_v2</code> et utilisez celui qui vous permet au minimum de créer des <strong>mesures</strong>.</p>
+</blockquote>
+<p><a id="72-relations-schema-etoile"></a></p>
+<h3>7.2 — Relations (schéma étoile)</h3>
+<ol>
+<li>Ouvrir le modèle → vue <strong>Model</strong></li>
+<li>Vérifier / créer (Many-to-One, filtre <strong>Single</strong> Dim → Fact) :<br />
+  - <code>Fact_OrderLines[CustomerSK]</code> → <code>Dim_Customer[CustomerSK]</code><br />
+  - <code>Fact_OrderLines[ProductSK]</code> → <code>Dim_Product[ProductSK]</code><br />
+  - <code>Fact_OrderLines[SalesRepSK]</code> → <code>Dim_SalesRep[SalesRepSK]</code><br />
+  - <code>Fact_OrderLines[WarehouseSK]</code> → <code>Dim_Warehouse[WarehouseSK]</code><br />
+  - <code>Fact_OrderLines[DateKey]</code> → <code>Dim_Date[DateKey]</code></li>
+</ol>
+<p><a id="73-mesures-dax-14-mesures"></a></p>
+<h3>7.3 — Mesures DAX (14 mesures)</h3>
+<blockquote>
+<p>🎯 <strong>Objectif</strong> : créer un socle de mesures réutilisables (CA, marge, volumes, temps, objectifs) sans dépendre de colonnes calculées (qui peuvent être limitées selon le mode / l’UI Fabric).</p>
+</blockquote>
+<p>Dans le modèle sémantique : cliquer sur <strong>Fact_OrderLines</strong> → <strong>New measure</strong>, puis créer les 14 mesures ci‑dessous.<br />
+Chaque mesure est accompagnée de son but et des fonctions DAX utilisées (avec liens).</p>
+<p><strong>Mesures de base (CA / coûts / marge / volumes)</strong> :</p>
+<p><strong>Total Revenue</strong> — chiffre d’affaires total. Fonctions : <a href="https://dax.guide/sum/">SUM</a>.</p>
+<pre><code class="language-dax">Total Revenue = SUM(Fact_OrderLines[LineTotalEUR])
+</code></pre>
+<p><strong>Total Cost</strong> — coût total. Fonctions : <a href="https://dax.guide/sum/">SUM</a>.</p>
+<pre><code class="language-dax">Total Cost = SUM(Fact_OrderLines[LineCostEUR])
+</code></pre>
+<p><strong>Total Margin</strong> — marge en valeur. Fonctions : <a href="https://dax.guide/sum/">SUM</a>.</p>
+<pre><code class="language-dax">Total Margin = SUM(Fact_OrderLines[LineMarginEUR])
+</code></pre>
+<p><strong>Margin %</strong> — taux de marge (= marge / CA). Fonctions : <a href="https://dax.guide/divide/">DIVIDE</a>.</p>
+<pre><code class="language-dax">Margin % = DIVIDE([Total Margin], [Total Revenue], 0)
+</code></pre>
+<blockquote>
+<p>🧩 <strong>Dépannage (circular dependency)</strong> : si <code>Margin %</code> affiche une dépendance circulaire, c’est presque toujours que <strong>Total Margin</strong> a été créée avec une formule auto‑référente (ex : <code>Total Margin = [Total Margin]</code>) ou qu’un autre objet porte le même nom.<br />
+✅ Corriger <strong>Total Margin</strong> pour qu’elle soit exactement : <code>SUM(Fact_OrderLines[LineMarginEUR])</code>, puis recréer <code>Margin %</code>.</p>
+<p>💡 <strong>Format</strong> : <code>Margin %</code> retourne une fraction décimale (ex : 0.253 = 25.3%). Dans Power BI, appliquez le format <code>0.0%</code>. Ne pas multiplier par 100 dans la mesure.</p>
+</blockquote>
+<p><strong>Nb Orders</strong> — nombre de commandes (distinct). Fonctions : <a href="https://dax.guide/distinctcount/">DISTINCTCOUNT</a>.</p>
+<pre><code class="language-dax">Nb Orders = DISTINCTCOUNT(Fact_OrderLines[OrderKey])
+</code></pre>
+<p><strong>Nb Customers</strong> — nombre de clients (distinct). Fonctions : <a href="https://dax.guide/distinctcount/">DISTINCTCOUNT</a>.</p>
+<pre><code class="language-dax">Nb Customers = DISTINCTCOUNT(Fact_OrderLines[CustomerSK])
+</code></pre>
+<p><strong>Avg Order Value</strong> — panier moyen (= CA / nb commandes). Fonctions : <a href="https://dax.guide/divide/">DIVIDE</a>.</p>
+<pre><code class="language-dax">Avg Order Value = DIVIDE([Total Revenue], [Nb Orders], 0)
+</code></pre>
+<p><strong>Mesures temporelles (comparaisons / cumul)</strong> :</p>
+<blockquote>
+<p>✅ Pré‑requis : relation <code>Fact_OrderLines[DateKey]</code> → <code>Dim_Date[DateKey]</code> (Bloc 7.2) et <code>Dim_Date[FullDate]</code> au type <strong>Date</strong>.</p>
+</blockquote>
+<p><strong>Revenue PY</strong> — CA N‑1 sur la même période. Fonctions : <a href="https://dax.guide/calculate/">CALCULATE</a>, <a href="https://dax.guide/sameperiodlastyear/">SAMEPERIODLASTYEAR</a>.</p>
+<pre><code class="language-dax">Revenue PY = CALCULATE([Total Revenue], SAMEPERIODLASTYEAR(Dim_Date[FullDate]))
+</code></pre>
+<p><strong>Revenue YoY %</strong> — évolution du CA vs N‑1. Fonctions : <a href="https://dax.guide/divide/">DIVIDE</a> (+ variables <code>VAR</code> / <code>RETURN</code>).</p>
+<pre><code class="language-dax">Revenue YoY % =
+VAR CurrentRevenue = [Total Revenue]
+VAR PriorRevenue = [Revenue PY]
+RETURN DIVIDE(CurrentRevenue - PriorRevenue, PriorRevenue, 0)
+</code></pre>
+<p><strong>Revenue YTD</strong> — cumul CA depuis le début de l’année. Fonctions : <a href="https://dax.guide/totalytd/">TOTALYTD</a>.</p>
+<pre><code class="language-dax">Revenue YTD = TOTALYTD([Total Revenue], Dim_Date[FullDate])
+</code></pre>
+<p><strong>Revenue QTD</strong> — cumul CA depuis le début du trimestre. Fonctions : <a href="https://dax.guide/totalqtd/">TOTALQTD</a>.</p>
+<pre><code class="language-dax">Revenue QTD = TOTALQTD([Total Revenue], Dim_Date[FullDate])
+</code></pre>
+<p><strong>Mesures d’objectifs (vendeurs)</strong> :</p>
+<p><strong>Target Revenue</strong> — objectif annuel (somme des objectifs). Fonctions : <a href="https://dax.guide/sum/">SUM</a>.</p>
+<pre><code class="language-dax">Target Revenue = SUM(Dim_SalesRep[AnnualTargetEUR])
+</code></pre>
+<p><strong>Target Attainment %</strong> — taux d’atteinte (= CA / objectif). Fonctions : <a href="https://dax.guide/divide/">DIVIDE</a>.</p>
+<pre><code class="language-dax">Target Attainment % = DIVIDE([Total Revenue], [Target Revenue]*100, 0)
+</code></pre>
+<p><strong>Mesure qualité (ventes à perte)</strong> :</p>
+<p><strong>Nb Loss Lines</strong> — nombre de lignes de vente à marge négative. Fonctions : <a href="https://dax.guide/calculate/">CALCULATE</a>, <a href="https://dax.guide/countrows/">COUNTROWS</a>.</p>
+<pre><code class="language-dax">Nb Loss Lines =
+CALCULATE(
+    COUNTROWS(Fact_OrderLines),
+    Fact_OrderLines[LineMarginPct] &lt; 0
+)
+</code></pre>
+<p><strong>Objectif Atteinte</strong> — valeur cible fixe (100% = 1 en fraction décimale) pour les visuels Gauge et KPI. Fonctions : constante.</p>
+<pre><code class="language-dax">Objectif Atteinte = 1
+</code></pre>
+<blockquote>
+<p>💡 Power BI n'accepte pas de valeurs constantes saisies directement dans les zones de champs des visuels (Target, Minimum, Maximum). Il faut obligatoirement une mesure, même pour une constante.</p>
+</blockquote>
+<p><strong>Ressources</strong> :</p>
+<ul>
+<li><a href="https://learn.microsoft.com/dax/">Référence DAX (Microsoft Learn)</a></li>
+<li><a href="https://dax.guide/">Glossaire + exemples (DAX Guide)</a></li>
+</ul>
+<p><a id="74-kpi"></a></p>
+<h3>7.4 — KPI</h3>
+<blockquote>
+<p>⚠️ <strong>Note Fabric actuel</strong> : Dans Power BI / Fabric moderne, il n'existe pas d'"Enable KPI" au niveau d'une mesure dans le modèle sémantique. Le KPI se configure directement dans le <strong>visuel KPI</strong> du rapport (Bloc 8). La mesure <code>Target Attainment %</code> est prête à être utilisée telle quelle.</p>
+</blockquote>
+<p>Pour utiliser le KPI dans le rapport :</p>
+<ol>
+<li>Insérer un visuel <strong>KPI</strong> sur la page du rapport</li>
+<li><strong>Value</strong> → glisser <code>Target Attainment %</code></li>
+<li><strong>Target</strong> → glisser la mesure <code>Objectif Atteinte</code></li>
+<li>Les seuils de couleur se configurent dans le panneau <strong>Format</strong> du visuel KPI</li>
+</ol>
+<hr />
+<p><a id="bloc-8-rapport-power-bi-depuis-le-modele-semantique-fabric"></a></p>
+<h2>Bloc 8 — Rapport Power BI (depuis le modèle sémantique Fabric)</h2>
+<blockquote>
+<p>🎯 <strong>Objectif</strong> : Construire un rapport professionnel à 5 pages directement dans l'éditeur web Fabric, sans Power BI Desktop, en exploitant les 14 mesures DAX créées au Bloc 7.</p>
+<p>⚠️ <strong>Interface ciblée</strong> : l'éditeur de rapport intégré à Fabric (<code>app.fabric.microsoft.com</code>), lancé depuis le modèle sémantique. Cet éditeur n'est <strong>pas</strong> Power BI Desktop — les panneaux et options portent des noms différents.</p>
+<p>📋 <strong>Plan</strong> : Tableau de bord exécutif / Analyse des ventes / Analyse clients / Performance vendeurs / Produits &amp; Entrepôts / Page cachée Détail Client (drill-through)</p>
+</blockquote>
+<hr />
+<p><a id="80-avant-de-demarrer-formater-les-mesures-dans-le-modele"></a></p>
+<h3>8.0 — Avant de démarrer : formater les mesures dans le modèle</h3>
+<p>Dans l'éditeur Fabric web, le format des nombres affiché sur les visuels est <strong>piloté par la chaîne de format de la mesure</strong> définie dans le modèle sémantique. Il n'existe pas d'option "Display units" au niveau du visuel comme dans Desktop.</p>
+<p><strong>À faire avant de créer le rapport</strong> — dans <code>SM_EnergiDistrib</code>, cliquer sur chaque mesure et renseigner le champ <strong>Format</strong> :</p>
+<table>
+<thead>
+<tr>
+<th>Mesure</th>
+<th>Format string</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Total Revenue</td>
+<td><code>#,0.0,," M€"</code></td>
+</tr>
+<tr>
+<td>Total Margin</td>
+<td><code>#,0.0,," M€"</code></td>
+</tr>
+<tr>
+<td>Total Cost</td>
+<td><code>#,0.0,," M€"</code></td>
+</tr>
+<tr>
+<td>Margin %</td>
+<td><code>0.0%</code></td>
+</tr>
+<tr>
+<td>Nb Orders</td>
+<td><code>#,0</code></td>
+</tr>
+<tr>
+<td>Nb Customers</td>
+<td><code>#,0</code></td>
+</tr>
+<tr>
+<td>Avg Order Value</td>
+<td><code>#,0 €</code></td>
+</tr>
+<tr>
+<td>Revenue PY</td>
+<td><code>#,0.0,," M€"</code></td>
+</tr>
+<tr>
+<td>Revenue YoY %</td>
+<td><code>+0.0%;-0.0%;0.0%</code></td>
+</tr>
+<tr>
+<td>Revenue YTD</td>
+<td><code>#,0.0,," M€"</code></td>
+</tr>
+<tr>
+<td>Revenue QTD</td>
+<td><code>#,0.0,," M€"</code></td>
+</tr>
+<tr>
+<td>Target Revenue</td>
+<td><code>#,0.0,," M€"</code></td>
+</tr>
+<tr>
+<td>Target Attainment %</td>
+<td><code>0%</code></td>
+</tr>
+<tr>
+<td>Nb Loss Lines</td>
+<td><code>#,0</code></td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>💡 <strong>Comment définir le format d'une mesure</strong> : dans le modèle sémantique → cliquer sur le nom de la mesure dans le panneau Data → dans le panneau de propriétés qui s'ouvre en bas → champ <strong>Format</strong> → saisir la chaîne de format → Entrée.</p>
+<p>La chaîne <code>#,0.0,," M€"</code> signifie : séparateur de milliers (<code>#,0</code>), 1 décimale (<code>.0</code>), divisé par 1 million (<code>,,</code>), suivi du texte <code>M€</code>. Résultat : <code>188.8 M€</code>.</p>
+</blockquote>
+<hr />
+<p><a id="81-ouvrir-lediteur-de-rapport"></a></p>
+<h3>8.1 — Ouvrir l'éditeur de rapport</h3>
+<ol>
+<li>
+<p>Dans votre workspace Fabric → ouvrir <code>SM_EnergiDistrib</code></p>
+</li>
+<li>
+<p>Dans la barre du haut → <strong>File</strong> → <strong>New report</strong></p>
+</li>
+</ol>
+<blockquote>
+<p>💡 Vous pouvez aussi cliquer sur le bouton <strong>Create report</strong> visible sur la page du modèle sémantique. Les deux chemins aboutissent au même éditeur web.</p>
+</blockquote>
+<ol start="3">
+<li>
+<p>L'éditeur s'ouvre dans un nouvel onglet avec une page vierge nommée <code>Page 1</code></p>
+</li>
+<li>
+<p>Dans le panneau <strong>Data</strong> (droite) → vérifier que vous voyez les 6 tables et les mesures sous <code>Fact_OrderLines</code></p>
+</li>
+</ol>
+<p><strong>Présentation de l'interface</strong> (à retenir pour toute la suite) :</p>
+<pre><code>┌─ Barre d'outils ─────────────────────────────────────────────────────────┐
+│  File | View | Reading view | Text box | Shapes | Buttons |              │
+│  Visual interactions | Refresh | Save                                    │
+└──────────────────────────────────────────────────────────────────────────┘
+┌─ Canvas (zone de conception) ──────────┬─ Panneau droit ─────────────────┐
+│                                        │  [Visualizations] [Data]        │
+│                                        │                                 │
+│                                        │  Visualizations : icônes des   │
+│                                        │  types de visuels               │
+│                                        │                                 │
+│                                        │  Format (pinceau 🖌) : options  │
+│                                        │  de mise en forme du visuel     │
+│                                        │  sélectionné (onglets Visual /  │
+│                                        │  General)                       │
+│                                        │                                 │
+│                                        │  Data : liste des tables et     │
+│                                        │  mesures à glisser sur canvas   │
+└────────────────────────────────────────┴─────────────────────────────────┘
+┌─ Bas de page ─────────────────────────────────────────────────────────────┐
+│  [+ Nouvelle page]  [Page 1]  [Page 2] ...                               │
+└──────────────────────────────────────────────────────────────────────────┘
+</code></pre>
+<p><strong>Comment ajouter un visuel</strong> :</p>
+<ol>
+<li>Cliquer sur l'icône du type de visuel souhaité dans le panneau Visualizations → un visuel vide apparaît sur le canvas</li>
+<li>Glisser un champ depuis le panneau Data vers le visuel <strong>ou</strong> vers les zones de champs (X-axis, Y-axis, Values...) qui apparaissent dans le panneau Visualizations quand le visuel est sélectionné</li>
+<li>Cliquer sur l'icône <strong>pinceau 🖌</strong> dans le panneau Visualizations pour accéder aux options de format</li>
+</ol>
+<p><strong>Comment renommer une page</strong> : double-cliquer sur l'onglet de la page en bas → saisir le nouveau nom → Entrée</p>
+<hr />
+<p><a id="82-page-1-tableau-de-bord-executif"></a></p>
+<h3>8.2 — Page 1 : Tableau de bord exécutif</h3>
+<blockquote>
+<p>🎯 <strong>Question</strong> : Comment se porte le business en un coup d'œil ? Sommes-nous dans les objectifs ?</p>
+<p><strong>Mesures utilisées</strong> : <code>Total Revenue</code>, <code>Total Margin</code>, <code>Margin %</code>, <code>Nb Orders</code>, <code>Revenue YoY %</code>, <code>Revenue YTD</code>, <code>Revenue PY</code>, <code>Target Attainment %</code></p>
+</blockquote>
+<p><strong>Renommer la page</strong> : double-cliquer sur <code>Page 1</code> → saisir <code>🏠 Tableau de bord</code></p>
+<hr />
+<p><strong>Titre de page</strong></p>
+<ol>
+<li>Barre d'outils → <strong>Text box</strong> → cliquer sur le canvas</li>
+<li>Saisir : <code>EnergiDistrib — Tableau de bord Commercial 2025</code></li>
+<li>Sélectionner le texte → dans la barre de formatage intégrée à la text box : taille <code>18</code>, gras</li>
+<li>Cliquer sur la bordure de la text box → panneau Format (pinceau) → <strong>General</strong> → <strong>Effects</strong> → <strong>Background</strong> → activer → couleur <code>#1B4F72</code> → <strong>Font color</strong> → blanc</li>
+<li>Étirer pour occuper toute la largeur en haut (~60px de hauteur)</li>
+</ol>
+<hr />
+<p><strong>5 Card visuels (rangée de KPIs)</strong></p>
+<blockquote>
+<p>💡 <strong>Le visuel Card dans Fabric web</strong> : c'est le "Card (new)" — il affiche une valeur principale (Callout) et une étiquette (Label). Le format du nombre est celui défini sur la mesure dans le modèle (voir 8.0).</p>
+</blockquote>
+<p><strong>Card 1 — CA Total</strong></p>
+<ol>
+<li>Cliquer l'icône <strong>Card</strong> dans Visualizations (rectangle avec grand chiffre)</li>
+<li>Glisser <code>Total Revenue</code> dans la zone <strong>Fields</strong> du visuel</li>
+<li>Pinceau 🖌 → onglet <strong>Visual</strong> :<br />
+  - Section <strong>Callout</strong> → <strong>Value</strong> → activé (toggle ON) → aucune autre modification nécessaire (le format est déjà défini sur la mesure)<br />
+  - Section <strong>Callout</strong> → <strong>Label</strong> → activé → cliquer sur le champ texte → saisir <code>CA Total</code></li>
+<li>Onglet <strong>General</strong> → <strong>Effects</strong> → <strong>Background</strong> → activer, couleur blanche → <strong>Border</strong> → activer, couleur <code>#1B4F72</code></li>
+</ol>
+<p><strong>Cards 2 à 5</strong> — dupliquer la Card 1 (Ctrl+D) et changer uniquement la mesure et le label :</p>
+<table>
+<thead>
+<tr>
+<th>Card</th>
+<th>Mesure</th>
+<th>Label</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2</td>
+<td><code>Total Margin</code></td>
+<td><code>Marge totale</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>Margin %</code></td>
+<td><code>Taux de marge</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>Nb Orders</code></td>
+<td><code>Nb Commandes</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>Revenue YoY %</code></td>
+<td><code>Évolution vs 2024</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<p><strong>Line Chart — Évolution CA mensuel vs N-1</strong></p>
+<ol>
+<li>Cliquer l'icône <strong>Line chart</strong> dans Visualizations</li>
+<li>Champs :<br />
+  - Zone <strong>X-axis</strong> : glisser <code>Dim_Date</code> → <code>FullDate</code><br />
+  - Zone <strong>Y-axis</strong> : glisser <code>Total Revenue</code> PUIS <code>Revenue PY</code> (glisser les deux mesures)</li>
+</ol>
+<hr />
+<p><strong>Gauge — Atteinte de l'objectif annuel</strong></p>
+<ol>
+<li>Cliquer l'icône <strong>Gauge</strong> (demi-cercle) dans Visualizations</li>
+<li>Champs :<br />
+  - Zone <strong>Value</strong> : glisser <code>Target Attainment %</code><br />
+  - Zone <strong>Target value</strong> : glisser la mesure <code>Objectif Atteinte</code></li>
+<li>Pinceau 🖌 → onglet <strong>Visual</strong> → section <strong>Gauge axis</strong> :<br />
+  - <strong>Min</strong> : saisir <code>0</code> (valeur numérique saisie dans le Format pane, pas dans un champ de données)<br />
+  - <strong>Max</strong> : saisir <code>1.5</code><br />
+  - Section <strong>Colors</strong> → <strong>Fill</strong> : couleur <code>#27AE60</code> (vert)<br />
+  - Section <strong>General</strong> → <strong>Title</strong> → <code>Atteinte Objectif 2025</code></li>
+</ol>
+<hr />
+<p><strong>Clustered Bar Chart — CA par pays</strong></p>
+<ol>
+<li>Cliquer l'icône <strong>Clustered bar chart</strong> dans Visualizations</li>
+<li>Champs :<br />
+  - Zone <strong>Y-axis</strong> : glisser <code>Dim_Date</code> → <code>Year</code><br />
+  - Zone <strong>X-axis</strong> : glisser <code>Total Revenue</code></li>
+<li>Pinceau 🖌 → onglet <strong>Visual</strong> :<br />
+  - Section <strong>Bars</strong> → <strong>Color</strong> → <code>#1B4F72</code><br />
+  - Section <strong>Data labels</strong> → activé<br />
+  - Section <strong>Title</strong> → <code>CA par pays</code></li>
+<li>Trier : cliquer sur les <code>...</code> (trois points) en haut du visuel → <strong>Sort axis</strong> → <code>Total Revenue</code> → <strong>Sort descending</strong></li>
+<li>Positionner : quart inférieur droit</li>
+</ol>
+<hr />
+<p><strong>Slicer — Trimestre</strong></p>
+<ol>
+<li>Cliquer l'icône <strong>Slicer</strong> dans Visualizations</li>
+<li>Glisser <code>Dim_Date</code> → <code>QuarterLabel</code> dans la zone <strong>Field</strong></li>
+<li>Pinceau 🖌 → onglet <strong>Visual</strong> → section <strong>Slicer settings</strong> → <strong>Options</strong> → <strong>Style</strong> → choisir <strong>Dropdown</strong></li>
+<li>Section <strong>Title</strong> → <code>Filtrer par trimestre</code></li>
+<li>Positionner : au-dessus du Bar chart</li>
+</ol>
+<hr />
+<p><a id="83-page-2-analyse-des-ventes"></a></p>
+<h3>8.3 — Page 2 : Analyse des ventes</h3>
+<p><strong>Créer la page</strong> : clic <strong>+</strong> en bas → double-clic sur l'onglet → <code>📈 Analyse des ventes</code></p>
+<hr />
+<p><strong>2 Cards résumé en haut</strong></p>
+<ul>
+<li>Card <code>Revenue YTD</code> → label <code>CA cumulé YTD</code></li>
+<li>Card <code>Revenue QTD</code> → label <code>CA ce trimestre</code></li>
+<li>Positionner côte à côte, haut gauche</li>
+</ul>
+<hr />
+<p><strong>Visuel 1 — CA par mois (Clustered Column Chart)</strong></p>
+<ol>
+<li>Icône <strong>Clustered column chart</strong> → glisser sur canvas</li>
+<li>Champs :<br />
+  - <strong>X-axis</strong> : <code>Dim_Date</code> → <code>MonthName</code><br />
+  - <strong>Y-axis</strong> : <code>Total Revenue</code></li>
+<li>Pinceau 🖌 → onglet <strong>Visual</strong> :<br />
+  - Section <strong>Columns</strong> → couleur <code>#1B4F72</code><br />
+  - Section <strong>Title</strong> → <code>CA par mois</code></li>
+<li>Positionner : moitié gauche</li>
+</ol>
+<p><strong>Visuel 2 — Marge % par mois (Line Chart)</strong></p>
+<ol>
+<li>Icône <strong>Line chart</strong> → glisser sur canvas</li>
+<li>Champs :<br />
+  - <strong>X-axis</strong> : <code>Dim_Date</code> → <code>MonthName</code><br />
+  - <strong>Y-axis</strong> : <code>Margin %</code></li>
+<li>Pinceau 🖌 → onglet <strong>Visual</strong> :<br />
+  - Section <strong>Lines</strong> → couleur <code>#27AE60</code><br />
+  - Section <strong>Title</strong> → <code>Taux de marge par mois</code></li>
+<li>Positionner : moitié droite, aligné avec le premier visuel</li>
+</ol>
+<blockquote>
+<p>💡 L'éditeur de rapport Fabric web ne supporte pas l'axe secondaire (dual axis). On sépare donc les deux métriques en deux visuels côte à côte.</p>
+</blockquote>
+<hr />
+<p><strong>Stacked Bar Chart — Top 10 produits</strong></p>
+<ol>
+<li>Icône <strong>Stacked bar chart</strong> → glisser sur canvas</li>
+<li>Champs :<br />
+  - <strong>Y-axis</strong> : <code>Dim_Product</code> → <code>ProductName</code><br />
+  - <strong>X-axis</strong> : <code>Total Revenue</code><br />
+  - <strong>Legend</strong> : <code>Dim_Product</code> → <code>Category</code></li>
+<li>Trier : cliquer sur les <code>...</code> (trois points) en haut du visuel → <strong>Sort axis</strong> → <code>Total Revenue</code> → <strong>Sort descending</strong> (les produits sont ainsi classés du plus grand CA au plus petit)</li>
+<li>Pinceau 🖌 → <strong>Title</strong> → <code>Top produits par CA</code></li>
+</ol>
+<blockquote>
+<p>💡 L'éditeur Fabric web ne propose pas de filtre Top N au niveau du visuel. Le tri décroissant par CA permet d'identifier visuellement les meilleurs produits sans filtrage.</p>
+</blockquote>
+<hr />
+<p><strong>Matrix — CA par segment client (avec drill-down)</strong></p>
+<ol>
+<li>Icône <strong>Matrix</strong> (tableau avec sous-totaux) → glisser sur canvas</li>
+<li>Champs :<br />
+  - <strong>Rows</strong> : <code>Dim_Customer</code> → <code>CustomerSegment</code> PUIS <code>CompanyName</code> (dans cet ordre)<br />
+  - <strong>Columns</strong> : <code>Dim_Date</code> → <code>Year</code><br />
+  - <strong>Values</strong> : <code>Total Revenue</code>, <code>Margin %</code></li>
+<li>Pinceau 🖌 → onglet <strong>Visual</strong> :<br />
+  - Section <strong>Row headers</strong> → activer <strong>+/- icons</strong> (permet le drill Segment → Clients)</li>
+<li><strong>Mise en forme conditionnelle sur Margin %</strong> :<br />
+  - Pinceau 🖌 → onglet <strong>Visual</strong> → section <strong>Cell elements</strong><br />
+  - Sélectionner la colonne <code>Margin %</code> → activer <strong>Background color</strong> → <strong>fx</strong><br />
+  - Configurer les règles : ≤ 0 → rouge <code>#E74C3C</code> / entre 0 et 0.15 → orange <code>#F39C12</code> / &gt; 0.15 → vert <code>#27AE60</code></li>
+<li>Titre → <code>CA par Segment Client</code></li>
+<li>Positionner : bas de la page, pleine largeur</li>
+</ol>
+<blockquote>
+<p>💡 <strong>Drill-down sur la Matrix</strong> : cliquer sur l'icône <strong>↓</strong> (flèche vers le bas) qui apparaît en haut du visuel pour passer du niveau Segment au niveau Client individuel.</p>
+</blockquote>
+<hr />
+<p><strong>Slicers de la page</strong></p>
+<ul>
+<li>Slicer <code>Dim_Date</code> → <code>Year</code> → Style <strong>Buttons</strong> (affiche les années comme boutons cliquables)</li>
+<li>Slicer <code>Dim_Product</code> → <code>Category</code> → Style <strong>Dropdown</strong></li>
+</ul>
+<hr />
+<p><a id="84-page-3-analyse-clients"></a></p>
+<h3>8.4 — Page 3 : Analyse clients</h3>
+<blockquote>
+<p>🎯 <strong>Question</strong> : Qui sont nos meilleurs clients ? Comment se segmente le portefeuille ?</p>
+<p><strong>Mesures utilisées</strong> : <code>Total Revenue</code>, <code>Nb Orders</code>, <code>Avg Order Value</code>, <code>Nb Customers</code>, <code>Margin %</code></p>
+</blockquote>
+<p><strong>Créer la page</strong> : clic <strong>+</strong> → <code>👥 Analyse clients</code></p>
+<hr />
+<p><strong>3 Cards en haut</strong> :</p>
+<ul>
+<li><code>Nb Customers</code> → Titre<code>Clients actifs</code></li>
+<li><code>Avg Order Value</code> → Titre<code>Panier moyen</code></li>
+<li><code>Total Revenue</code> → Titre<code>CA Total</code></li>
+</ul>
+<hr />
+<p><strong>Donut Chart — Répartition CA par segment</strong></p>
+<ol>
+<li>Glissez un <strong>Donut chart</strong> dans la scene</li>
+<li>Champs :<br />
+  - <strong>Legend</strong> : <code>Dim_Customer</code> → <code>CustomerSegment</code><br />
+  - <strong>Values</strong> : <code>Total Revenue</code></li>
+<li>Pinceau 🖌 → onglet <strong>Visual</strong> :<br />
+  - Section <strong>Slices</strong> → attribuer des couleurs distinctes par segment : VIP = <code>#1B4F72</code>, Fidele = <code>#27AE60</code>, Occasionnel = <code>#F39C12</code>, Dormant = <code>#E74C3C</code><br />
+  - Section <strong>Detail labels</strong> → activé → <strong>Label contents</strong> : choisir <strong>Category, percent of total</strong><br />
+  - Section <strong>Legend</strong> → activé → Position = <strong>Bottom</strong><br />
+  - Section <strong>Title</strong> → <code>Répartition du CA par segment client</code></li>
+<li>Positionner : quart gauche</li>
+</ol>
+<hr />
+<p><strong>Scatter Chart — Profil clients</strong></p>
+<blockquote>
+<p>📊 Révèle 4 profils : clients fréquents à gros panier (VIP), fréquents à petit panier (fidèles), rares à gros panier (comptes stratégiques), rares à petit panier (dormants).</p>
+</blockquote>
+<ol>
+<li>Icône <strong>Scatter chart</strong> → canvas</li>
+<li>Champs :<br />
+  - <strong>X-axis</strong> : <code>Nb Orders</code><br />
+  - <strong>Y-axis</strong> : <code>Avg Order Value</code><br />
+  - <strong>Size</strong> : <code>Total Revenue</code><br />
+  - <strong>Details</strong> : <code>Dim_Customer</code> → <code>CompanyName</code><br />
+  - <strong>Legend</strong> : <code>Dim_Customer</code> → <code>CustomerSegment</code></li>
+<li>Pinceau 🖌 → onglet <strong>Visual</strong> :<br />
+  - Section <strong>Legend</strong> → activé → Position = <strong>Right</strong><br />
+  - Section <strong>Title</strong> → <code>Profil clients : fréquence vs panier moyen</code></li>
+<li>Positionner : moitié droite</li>
+</ol>
+<hr />
+<p><strong>Table — Liste clients (avec drill-through à configurer en 8.7)</strong></p>
+<ol>
+<li>
+<p>Icône <strong>Table</strong> → canvas</p>
+</li>
+<li>
+<p>Champs (dans cet ordre) :</p>
+</li>
+</ol>
+<ul>
+<li><code>Dim_Customer</code> → <code>CustomerSegment</code></li>
+<li><code>Dim_Customer</code> → <code>CompanyName</code></li>
+<li><code>Dim_Customer</code> → <code>Country</code></li>
+<li><code>Total Revenue</code></li>
+<li><code>Nb Orders</code></li>
+<li><code>Avg Order Value</code></li>
+<li><code>Margin %</code></li>
+</ul>
+<p><strong>Title</strong> → <code>Clients (clic droit → Drill-through)</code></p>
+<ol start="3">
+<li>
+<p>Cliquer sur l'en-tête <code>Total Revenue</code> pour trier décroissant</p>
+</li>
+<li>
+<p>Positionner : bas de la page, pleine largeur</p>
+</li>
+</ol>
+<hr />
+<p><a id="85-page-4-performance-vendeurs"></a></p>
+<h3>8.5 — Page 4 : Performance vendeurs</h3>
+<blockquote>
+<p>🎯 <strong>Question</strong> : Qui atteint ses objectifs ? Qui vend à perte ? Quelles régions sous-performent ?</p>
+<p><strong>Mesures utilisées</strong> : <code>Total Revenue</code>, <code>Target Revenue</code>, <code>Target Attainment %</code>, <code>Margin %</code>, <code>Nb Orders</code>, <code>Avg Order Value</code>, <code>Nb Loss Lines</code></p>
+</blockquote>
+<p><strong>Créer la page</strong> : clic <strong>+</strong> → <code>🏆 Performance vendeurs</code></p>
+<hr />
+<p><strong>Slicer Région (filtre principal de la page)</strong></p>
+<ol>
+<li>Icône <strong>Slicer</strong> → glisser <code>Dim_SalesRep</code> → <code>Region</code></li>
+<li>Pinceau 🖌 → <strong>Slicer settings</strong> → Style = <strong>Tiles</strong></li>
+<li>Positionner en haut à droite</li>
+</ol>
+<hr />
+<p><strong>Clustered Bar Chart — CA vs Objectif par vendeur</strong></p>
+<blockquote>
+<p>📊 Le visuel clé de la page : visualise en un coup d'œil qui dépasse ses objectifs.</p>
+</blockquote>
+<ol>
+<li>Icône <strong>Clustered bar chart</strong> → canvas</li>
+<li>Champs :<br />
+  - <strong>Y-axis</strong> : <code>Dim_SalesRep</code> → <code>RepName</code><br />
+  - <strong>X-axis</strong> : <code>Total Revenue</code> ET <code>Target Revenue</code></li>
+<li>Pinceau 🖌 → onglet <strong>Visual</strong> :<br />
+  - Section <strong>Bars</strong> → sélectionner <code>Total Revenue</code> → couleur <code>#1B4F72</code><br />
+  - Section <strong>Bars</strong> → sélectionner <code>Target Revenue</code> → couleur <code>#BDC3C7</code><br />
+  - Section <strong>Data labels</strong> → activé<br />
+  - Section <strong>Legend</strong> → activé<br />
+  - Section <strong>General </strong>→ <strong>Title</strong> → <code>CA 2025 vs Objectif par vendeur</code></li>
+</ol>
+<hr />
+<p><strong>Top 5 / Bottom 5 vendeurs (deux petits bar charts)</strong></p>
+<p><strong>Top 5</strong> :</p>
+<ol>
+<li>Copier le bar chart précédent (Ctrl+C → Ctrl+V) → réduire la taille</li>
+<li>Panneau <strong>Filters</strong> → <strong>Filters on this visual</strong> → glisser <code>Total Revenue</code> → <strong>Top N</strong> → Top → <code>5</code></li>
+<li>Titre → <code>🏆 Top 5</code></li>
+</ol>
+<p><strong>Bottom 5</strong> :</p>
+<ol>
+<li>Dupliquer → <strong>Filters</strong> → <strong>Top N</strong> → Bottom → <code>5</code></li>
+<li>Titre → <code>⚠️ Bottom 5</code></li>
+<li>Positionner côte à côte, moitié droite</li>
+</ol>
+<hr />
+<p><strong>Table de détail vendeur</strong></p>
+<ol>
+<li>Icône <strong>Table</strong> → canvas</li>
+<li>Champs :<br />
+  - <code>Dim_SalesRep</code> → <code>RepName</code><br />
+  - <code>Dim_SalesRep</code> → <code>Region</code><br />
+  - <code>Total Revenue</code><br />
+  - <code>Target Revenue</code><br />
+  - <code>Target Attainment %</code><br />
+  - <code>Margin %</code><br />
+  - <code>Nb Orders</code><br />
+  - <code>Avg Order Value</code><br />
+  - <code>Nb Loss Lines</code></li>
+<li><strong>Mise en forme conditionnelle</strong> :<br />
+  - Clic droit sur <code>Target Attainment %</code> dans la zone Values → <strong>Conditional formatting</strong> → <strong>Icons</strong> → Style = <strong>Traffic light</strong> → Rules :<ul>
+<li>&lt; <code>0.7</code> : icône rouge</li>
+<li>entre <code>0.7</code> et <code>0.9</code> : icône orange</li>
+<li>≥ <code>0.9</code> : icône verte</li>
+<li>Clic droit sur <code>Nb Loss Lines</code> → <strong>Conditional formatting</strong> → <strong>Background color</strong> → gradient blanc → rouge <code>#E74C3C</code></li>
+</ul>
+</li>
+<li>Titre → <code>Détail performance vendeurs</code></li>
+<li>Positionner : bas de page, pleine largeur</li>
+</ol>
+<hr />
+<p><a id="86-page-5-produits-entrepots"></a></p>
+<h3>8.6 — Page 5 : Produits &amp; Entrepôts</h3>
+<blockquote>
+<p>🎯 <strong>Question</strong> : Quelles catégories et produits sont les plus rentables ?</p>
+<p><strong>Mesures utilisées</strong> : <code>Total Revenue</code>, <code>Total Margin</code>, <code>Total Cost</code>, <code>Margin %</code>, <code>Nb Orders</code></p>
+</blockquote>
+<p><strong>Créer la page</strong> : clic <strong>+</strong> → <code>📦 Produits &amp; Entrepôts</code></p>
+<hr />
+<p><strong>Clustered Column Chart — CA et Marge par catégorie</strong></p>
+<ol>
+<li>Selectionnez le visuel <strong>Clustered column chart</strong></li>
+<li>Champs :<br />
+  - <strong>X-axis</strong> : <code>Dim_Product</code> → <code>Category</code><br />
+  - <strong>Y-axis</strong> : <code>Total Revenue</code> ET <code>Total Margin</code></li>
+<li>Pinceau 🖌 :<br />
+  - <code>Total Revenue</code> → couleur <code>#1B4F72</code><br />
+  - <code>Total Margin</code> → couleur <code>#27AE60</code><br />
+  - <strong>Data labels</strong> → activé<br />
+  - <strong>Title</strong> → <code>CA et Marge absolue par catégorie</code></li>
+<li>Positionner : moitié gauche, haut</li>
+</ol>
+<hr />
+<p><strong>Treemap — Répartition du CA par sous-catégorie</strong></p>
+<ol>
+<li>Icône <strong>Treemap</strong> (rectangles imbriqués) → canvas</li>
+<li>Champs :<br />
+  - <strong>Category</strong> : <code>Dim_Product</code> → <code>Category</code><br />
+  - <strong>Details</strong> : <code>Dim_Product</code> → <code>SubCategory</code><br />
+  - <strong>Values</strong> : <code>Total Revenue</code></li>
+<li>Pinceau 🖌 :<br />
+  - <strong>Title</strong> → <code>Répartition du CA par sous-catégorie</code></li>
+<li>Positionner : moitié droite, haut</li>
+</ol>
+<hr />
+<p><strong>Scatter Chart — Matrice Volume / Marge par catégorie</strong></p>
+<blockquote>
+<p>📊 Inspiration "matrice BCG" : identifier les catégories Stars (volume + marge élevés) vs les catégories à risque.</p>
+</blockquote>
+<ol>
+<li>Icône <strong>Scatter chart</strong> → canvas</li>
+<li>Champs :<br />
+  - <strong>X-axis</strong> : <code>Total Revenue</code><br />
+  - <strong>Y-axis</strong> : <code>Margin %</code><br />
+  - <strong>Size</strong> : <code>Nb Orders</code><br />
+  - <strong>Values</strong> : <code>Fact_OrderLines</code> → <code>Quantity</code></li>
+<li>Pinceau 🖌 → <strong>Title</strong> → `Qunatité / Marge par catégorie de produit et revenu total</li>
+<li>Positionner : moitié gauche, bas</li>
+</ol>
+<hr />
+<p><strong>Clustered Bar Chart — CA par entrepôt</strong></p>
+<ol>
+<li>Icône <strong>Clustered bar chart</strong> → canvas</li>
+<li>Champs :<br />
+  - <strong>Y-axis</strong> : <code>Dim_Warehouse</code> → <code>WarehouseName</code><br />
+  - <strong>X-axis</strong> : <code>Total Revenue</code><br />
+  - <strong>Legend</strong> : <code>Dim_Warehouse</code> → <code>Country</code></li>
+<li>Pinceau 🖌 → <strong>Title</strong> → <code>CA par entrepôt de distribution</code></li>
+<li>Positionner : moitié droite, bas</li>
+</ol>
+<hr />
+<p><a id="87-page-cachee-detail-client-drill-through"></a></p>
+<h3>8.7 — Page cachée : Détail Client (Drill-through)</h3>
+<blockquote>
+<p>💡 <strong>Drill-through</strong> : l'utilisateur fait <strong>clic droit</strong> sur un nom de client dans n'importe quelle page → <strong>Drill through</strong> → <strong>Détail Client</strong> → voit la fiche complète de ce client. C'est une fonctionnalité clé pour l'exploration.</p>
+</blockquote>
+<p><strong>Créer la page</strong> :</p>
+<ol>
+<li>
+<p>Clic <strong>+</strong> → renommer <code>🔍 Détail Client</code></p>
+</li>
+<li>
+<p>Clic droit sur l'onglet de la page → <strong>Hide page</strong></p>
+</li>
+</ol>
+<blockquote>
+<p>La page reste accessible par drill-through mais n'apparaît pas dans la navigation normale.</p>
+</blockquote>
+<hr />
+<p><strong>Configurer le drill-through sur cette page</strong></p>
+<ol>
+<li>
+<p>Cliquer dans une zone vide du canvas de la page <strong>Détail Client</strong></p>
+</li>
+<li>
+<p>Dans le panneau <strong>Filters</strong> (gauche) → chercher la section <strong>Drillthrough</strong></p>
+</li>
+<li>
+<p>Glisser <code>Dim_Customer</code> → <code>CompanyName</code> dans la zone <strong>Add drill-through fields here</strong></p>
+</li>
+</ol>
+<blockquote>
+<p>✅ Une flèche de retour automatique (<code>← Back</code>) apparaît en haut à gauche du canvas — <strong>ne pas la supprimer</strong>.</p>
+</blockquote>
+<hr />
+<p><strong>Visuels de la fiche client</strong></p>
+<p><strong>Titre</strong> :</p>
+<ol>
+<li><strong>Text box</strong> → saisir <code>Fiche client</code></li>
+<li>Taille 16, gras, fond <code>#1B4F72</code>, texte blanc</li>
+</ol>
+<p><strong>4 Cards KPIs du client</strong> :</p>
+<ul>
+<li><code>Total Revenue</code> → <code>CA Total</code></li>
+<li><code>Nb Orders</code> → <code>Nb Commandes</code></li>
+<li><code>Avg Order Value</code> → <code>Panier moyen</code></li>
+<li><code>Margin %</code> → <code>Taux de marge</code></li>
+</ul>
+<p><strong>Line Chart — Évolution mensuelle du client</strong> :</p>
+<ol>
+<li>Icône <strong>Line chart</strong></li>
+<li><strong>X-axis</strong> : <code>Dim_Date</code> → <code>FullDate</code> (niveau Month)</li>
+<li><strong>Y-axis</strong> : <code>Total Revenue</code></li>
+<li><strong>Title</strong> → <code>Évolution mensuelle du CA</code></li>
+</ol>
+<p><strong>Table — Historique commandes du client</strong> :</p>
+<ol>
+<li>Icône <strong>Table</strong></li>
+<li>Champs : <code>Dim_Date</code> → <code>FullDate</code>, <code>Fact_OrderLines</code> → <code>OrderKey</code>, <code>Dim_Product</code> → <code>Category</code>, <code>Total Revenue</code>, <code>Margin %</code>, <code>Fact_OrderLines</code> → <code>DeliveryPriority</code>, <code>Fact_OrderLines</code> → <code>OrderStatus</code></li>
+<li><strong>Title</strong> → <code>Historique des commandes</code></li>
+</ol>
+<hr />
+<p><strong>Tester le drill-through</strong></p>
+<ol>
+<li>Aller sur la page <strong>Analyse clients</strong></li>
+<li>Sur la table de clients → <strong>clic droit</strong> sur un nom de client</li>
+<li>Dans le menu contextuel → <strong>Drill through</strong> → <strong>Détail Client</strong></li>
+<li>La page Détail Client s'ouvre filtrée sur ce client uniquement</li>
+<li>Cliquer la flèche <code>← Back</code> pour revenir</li>
+</ol>
+<hr />
+<p><a id="88-visual-interactions-interactions-entre-visuels"></a></p>
+<h3>8.8 — Visual interactions (interactions entre visuels)</h3>
+<blockquote>
+<p>💡 Par défaut, cliquer sur un visuel filtre ou met en surbrillance tous les autres. Vous pouvez personnaliser ce comportement.</p>
+</blockquote>
+<p><strong>Comment configurer les interactions</strong> :</p>
+<ol>
+<li><strong>Sélectionner</strong> le visuel source (ex: Bar chart pays sur Page 1)</li>
+<li>Barre d'outils → <strong>Visual interactions</strong> (bouton dans la barre du haut)</li>
+<li>Des icônes apparaissent sur chaque autre visuel de la page :<br />
+  - 🔲 <strong>Filtre</strong> : le clic sur le visuel source filtre ce visuel<br />
+  - 🔆 <strong>Surbrillance</strong> : le clic met en surbrillance les valeurs correspondantes<br />
+  - ⊘ <strong>Aucun</strong> : le clic n'affecte pas ce visuel</li>
+<li>Recommandations pour la Page 1 :<br />
+  - Bar chart pays → Line chart CA mensuel : <strong>Filtre</strong> (voir la courbe du pays sélectionné)<br />
+  - Bar chart pays → Gauge objectif : <strong>Aucun</strong> (la gauge reste globale)<br />
+  - Donut catégorie → Bar chart pays : <strong>Surbrillance</strong></li>
+<li>Cliquer à nouveau sur <strong>Visual interactions</strong> dans la barre d'outils pour quitter ce mode</li>
+</ol>
+<hr />
+<p><a id="89-bookmarks-et-navigation-entre-pages"></a></p>
+<h3>8.9 — Bookmarks et navigation entre pages</h3>
+<p><strong>Ajouter des boutons de navigation entre pages</strong></p>
+<ol>
+<li>
+<p>Aller sur une page (ex: Page 1)</p>
+</li>
+<li>
+<p>Barre d'outils → <strong>Buttons</strong> → <strong>Navigator</strong> → <strong>Page navigator</strong></p>
+</li>
+</ol>
+<blockquote>
+<p>Le Page navigator génère automatiquement des boutons pour toutes les pages visibles. C'est la façon la plus simple d'ajouter une navigation claire.</p>
+</blockquote>
+<ol start="3">
+<li>
+<p>Positionner en bas ou en haut de la page</p>
+</li>
+<li>
+<p>Pinceau 🖌 → <strong>Buttons</strong> → ajuster le style (couleur, taille de texte)</p>
+</li>
+<li>
+<p>Répéter sur chaque page (ou copier-coller le navigator)</p>
+</li>
+</ol>
+<hr />
+<p><strong>Créer des Bookmarks (vue mensuelle / trimestrielle)</strong></p>
+<ol>
+<li>Barre d'outils → <strong>View</strong> → <strong>Bookmarks</strong> (si disponible dans votre version)</li>
+</ol>
+<blockquote>
+<p>💡 Dans certaines versions de l'éditeur Fabric web, les bookmarks sont sous <strong>View</strong> → <strong>Bookmarks pane</strong> ou via <strong>Insert</strong> → <strong>Bookmark</strong>.</p>
+</blockquote>
+<ol start="2">
+<li>
+<p>Configurer le slicer Year sur <code>2025</code> uniquement → <strong>Add</strong> → nommer <code>Vue 2025</code></p>
+</li>
+<li>
+<p>Configurer le slicer Year sur <code>2024</code> et <code>2025</code> → <strong>Add</strong> → nommer <code>Comparaison 2024-2025</code></p>
+</li>
+<li>
+<p>Créer deux boutons (barre d'outils → <strong>Buttons</strong> → <strong>Blank</strong>) :</p>
+</li>
+</ol>
+<ul>
+<li>Label <code>2025 seulement</code> → Format → <strong>Action</strong> → activé → <strong>Type</strong> = <strong>Bookmark</strong> → sélectionner <code>Vue 2025</code></li>
+<li>Label <code>2024 vs 2025</code> → Action → Bookmark → <code>Comparaison 2024-2025</code></li>
+</ul>
+<hr />
+<p><a id="810-finalisation-et-sauvegarde"></a></p>
+<h3>8.10 — Finalisation et sauvegarde</h3>
+<p><strong>Page Méthodologie (optionnelle mais recommandée)</strong></p>
+<ol>
+<li>Clic <strong>+</strong> → renommer <code>📖 Méthodologie</code></li>
+<li><strong>Text box</strong> pleine page → saisir :</li>
+</ol>
+<pre><code>GLOSSAIRE DES MESURES
+
+Total Revenue       : Somme des CA de toutes les lignes de commande (format : M€)
+Total Margin        : CA − Coût total (marge absolue)
+Margin %            : Total Margin / Total Revenue
+Nb Orders           : Nombre de commandes distinctes
+Nb Customers        : Nombre de clients distincts ayant commandé
+Avg Order Value     : Panier moyen = CA / Nb commandes
+Revenue PY          : CA sur la même période de l'année N-1
+Revenue YoY %       : Évolution CA vs N-1 (+ = croissance)
+Revenue YTD         : CA cumulé depuis le 1er janvier de l'année filtrée
+Revenue QTD         : CA cumulé depuis le début du trimestre filtré
+Target Revenue      : Objectifs annuels cumulés des vendeurs
+Target Attainment % : CA réel / Objectif (100% = objectif atteint)
+Nb Loss Lines       : Lignes vendues en dessous du prix de revient (marge &lt; 0)
+
+SOURCE : Warehouse WH_EnergiDistrib — schéma étoile Gold
+PÉRIODE : 2024-01-01 au 2025-12-31
+</code></pre>
+<hr />
+<p><strong>Vérification finale en mode Lecture</strong></p>
+<ol>
+<li>Barre d'outils → <strong>Reading view</strong> (bouton en haut)</li>
+<li>Tester sur chaque page :<br />
+  - Les slicers filtrent-ils correctement les visuels ?<br />
+  - Le drill-through fonctionne-t-il (clic droit sur un client) ?<br />
+  - Les boutons de navigation changent-ils bien de page ?<br />
+  - La page <strong>Détail Client</strong> n'apparaît-elle pas dans le Page navigator ?<br />
+  - Les bookmarks basculent-ils correctement ?</li>
+<li>Si tout est correct → repasser en mode Édition pour corriger les éventuels problèmes</li>
+</ol>
+<hr />
+<p><strong>Sauvegarder le rapport</strong></p>
+<ol>
+<li>
+<p>Barre d'outils → <strong>Save</strong> (icône disquette ou bouton Save)</p>
+</li>
+<li>
+<p>Saisir le nom : <code>Rapport_EnergiDistrib</code></p>
+</li>
+<li>
+<p>Choisir le workspace : votre workspace Fabric</p>
+</li>
+<li>
+<p><strong>Save</strong></p>
+</li>
+</ol>
+<blockquote>
+<p>✅ Le rapport est désormais visible dans votre workspace Fabric, directement connecté au modèle sémantique <code>SM_EnergiDistrib</code>. Si le pipeline est relancé et rechargé le Warehouse, le rapport se met à jour automatiquement — sans aucune action manuelle.</p>
+</blockquote>
+<hr />
+<p><strong>🎉 L'atelier est terminé !</strong></p>
+<p>Le participant a construit une chaîne complète :</p>
+<pre><code>CSV (données brutes)
+    ↓ Notebook NB_Bronze_to_Silver
+Tables Bronze + Silver (LH_EnergiDistrib)
+    ↓ Dataflow Gen2 + Pipeline PL_EnergiDistrib_ETL
+Warehouse WH_EnergiDistrib (schéma étoile Gold + SCD Type 2)
+    ↓ Modèle sémantique SM_EnergiDistrib (14 mesures DAX)
+    ↓
+Rapport Power BI Fabric (5 pages interactives)
+    → Drill-through Détail Client
+    → Bookmarks Vue mensuelle / Comparaison
+    → Visual interactions personnalisées
+    → Page navigator entre les pages
+    → Page Méthodologie / Glossaire
+</code></pre></main>
+</body>
+</html>

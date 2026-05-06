@@ -1,0 +1,1272 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ingestion Non Structurée – Partie 3</title>
+  <link rel="stylesheet" href="../assets/source.css">
+</head>
+<body>
+  <header class="src-header">
+    <a href="../index.html" class="back-link">&#8592; Retour à la présentation</a>
+    <h1 class="src-title">Ingestion Non Structurée – Partie 3</h1>
+  </header>
+  <main class="src-content"><p><a id="atelier-5-traitement-des-donnees-non-structurees"></a></p>
+<h1>Atelier 5 — Traitement des données non structurées</h1>
+<p><a id="partie-3-rapport-power-bi-fabric-kpis-analyse-churn"></a></p>
+<h2>Partie 3 : Rapport Power BI Fabric — KPIs &amp; Analyse Churn</h2>
+<p><strong>Thème : Modèle sémantique Direct Lake + Table Date + Mesures DAX analytiques + 5 pages de rapport</strong></p>
+<hr />
+<p><a id="rappel-et-contexte"></a></p>
+<h2>Rappel et contexte</h2>
+<p>Les Parties 1 et 2 ont produit la table <code>silver_appels_enrichis</code> avec les colonnes suivantes :</p>
+<table>
+<thead>
+<tr>
+<th>Colonne</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>call_id</td>
+<td>Text</td>
+<td>Identifiant unique de l'appel</td>
+</tr>
+<tr>
+<td>client_nom</td>
+<td>Text</td>
+<td>Nom du client</td>
+</tr>
+<tr>
+<td>ville</td>
+<td>Text</td>
+<td>Ville du client</td>
+</tr>
+<tr>
+<td>produit</td>
+<td>Text</td>
+<td>Produit concerné par l'appel</td>
+</tr>
+<tr>
+<td>date_appel</td>
+<td>DateTime</td>
+<td>Date et heure de l'appel</td>
+</tr>
+<tr>
+<td>duree_minutes</td>
+<td>Decimal</td>
+<td>Durée de l'appel en minutes</td>
+</tr>
+<tr>
+<td>tranche_horaire</td>
+<td>Text</td>
+<td>Matin / Après-midi / Fin de journée</td>
+</tr>
+<tr>
+<td>jour_semaine</td>
+<td>Integer</td>
+<td>Numéro du jour (1=Lundi … 7=Dimanche)</td>
+</tr>
+<tr>
+<td>sentiment_ia</td>
+<td>Text</td>
+<td>Sentiment prédit par le modèle IA</td>
+</tr>
+<tr>
+<td>score_sentiment</td>
+<td>Decimal</td>
+<td>Confiance de la prédiction IA (0 à 1)</td>
+</tr>
+<tr>
+<td>intent_detecte</td>
+<td>Text</td>
+<td>Intention détectée automatiquement</td>
+</tr>
+<tr>
+<td>score_risque_churn</td>
+<td>Integer</td>
+<td>Score de risque churn (0 à 100)</td>
+</tr>
+<tr>
+<td>alerte_critique</td>
+<td>Boolean</td>
+<td>TRUE si score ≥ 50</td>
+</tr>
+<tr>
+<td>sentiment_reel</td>
+<td>Text</td>
+<td>Sentiment réel (vérité terrain pour audit qualité IA)</td>
+</tr>
+<tr>
+<td>intention_reelle</td>
+<td>Text</td>
+<td>Intention réelle déclarée par le client</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Objectif de la Partie 3 :</strong></p>
+<ol>
+<li><strong>Table Date DimDate</strong> — exploiter pleinement la dimension temporelle</li>
+<li><strong>Mesures DAX analytiques</strong> — comparaisons, écarts, précision IA, ratios</li>
+<li><strong>Rapport 5 pages</strong> — chaque page répond à une question analytique précise :<br />
+  - Page 1 : Vue d'ensemble &amp; KPIs comparatifs<br />
+  - Page 2 : Analyse risque churn (jauges, scatter, seuils)<br />
+  - Page 3 : Analyse géographique (ville)<br />
+  - Page 4 : Qualité IA &amp; intentions réelles<br />
+  - Page 5 : Détail par appel (drill-through)</li>
+<li><strong>Vues T-SQL</strong> — exploration SQL des sentiments sur le Lakehouse</li>
+<li><strong>Visualisations Python</strong> — analyse approfondie des sentiments</li>
+</ol>
+<hr />
+<p><a id="bloc-1-creation-du-modele-semantique"></a></p>
+<h2>Bloc 1 — Création du modèle sémantique</h2>
+<p><a id="11-creer-le-modele-depuis-le-lakehouse"></a></p>
+<h3>1.1 — Créer le modèle depuis le Lakehouse</h3>
+<ol>
+<li>Dans <code>WS_SolarVoix</code> → ouvrir <code>LH_SolarVoix</code></li>
+<li>Dans l'explorateur Tables → cocher <code>silver_appels_enrichis</code></li>
+<li>Cliquer <strong>New semantic model</strong> (barre du haut)</li>
+<li>Nommer : <code>SM_SolarVoix_Appels</code></li>
+<li>Cliquer <strong>Confirm</strong></li>
+</ol>
+<p><a id="12-verifier-la-connexion-direct-lake"></a></p>
+<h3>1.2 — Vérifier la connexion Direct Lake</h3>
+<ol>
+<li>Modèle sémantique → onglet <strong>Model view</strong></li>
+<li>Badge <strong>Direct Lake</strong> visible sur la table</li>
+<li>Vérifier colonnes dans le panneau droit</li>
+</ol>
+<h3></h3>
+<p><a id="bloc-2-table-date-dimdate"></a></p>
+<h2>Bloc 2 — Table Date DimDate</h2>
+<blockquote>
+<p>💡 <strong>Pourquoi une table Date ?</strong> Sans table Date dédiée, Power BI ne peut pas faire de comparaisons temporelles (semaine précédente, même mois l'an dernier), ni trier correctement les mois par nom. Une DimDate est <strong>indispensable</strong> pour exploiter la dimension temporelle.</p>
+</blockquote>
+<p><a id="21-creer-la-table-dimdate-dans-lhsolarvoix-notebook"></a></p>
+<h3>2.1 — Créer la table DimDate dans LH_SolarVoix (Notebook)</h3>
+<blockquote>
+<p>⚠️ <strong>Pourquoi dans le Lakehouse ?</strong> Le modèle sémantique <code>SM_SolarVoix_Appels</code> fonctionne en mode <strong>Direct Lake</strong> : il lit les données de <code>LH_SolarVoix</code> mais <strong>n'a pas de droits d'écriture</strong>. Il est impossible d'y créer une table calculée DAX. La table <code>DimDate</code> doit donc être créée directement dans le Lakehouse, puis référencée par le modèle.</p>
+</blockquote>
+<p><strong>Étape 1 — Ouvrir un Notebook dans LH_SolarVoix</strong></p>
+<ol>
+<li>Dans <code>WS_SolarVoix</code> → ouvrir <code>LH_SolarVoix</code></li>
+<li>Barre du haut → <strong>Open notebook</strong> → <strong>New notebook</strong></li>
+<li>Nommer le notebook : <code>NB_Create_DimDate</code></li>
+<li>Vérifier que le Lakehouse <code>LH_SolarVoix</code> est bien attaché (panneau gauche)</li>
+</ol>
+<p><strong>Étape 2 — Générer DimDate avec les dates de silver_appels_enrichis</strong></p>
+<p>La plage de dates est calculée directement depuis <code>silver_appels_enrichis[date_appel]</code> pour garantir la cohérence.</p>
+<pre><code class="language-python">from pyspark.sql import functions as F
+from pyspark.sql.types import DateType
+
+&lt;a id=&quot;lire-la-plage-de-dates-depuis-silverappelsenrichis&quot;&gt;&lt;/a&gt;
+# Lire la plage de dates depuis silver_appels_enrichis
+df_appels = spark.table(&quot;silver_appels_enrichis&quot;)
+date_range = df_appels.agg(
+    F.min(F.col(&quot;date_appel&quot;).cast(DateType())).alias(&quot;date_min&quot;),
+    F.max(F.col(&quot;date_appel&quot;).cast(DateType())).alias(&quot;date_max&quot;)
+).collect()[0]
+
+date_min = date_range[&quot;date_min&quot;]
+date_max = date_range[&quot;date_max&quot;]
+print(f&quot;Plage de dates : {date_min} → {date_max}&quot;)
+
+&lt;a id=&quot;generer-la-sequence-de-dates&quot;&gt;&lt;/a&gt;
+# Générer la séquence de dates
+df_dim = spark.sql(f&quot;&quot;&quot;
+    SELECT sequence(
+        TO_DATE('{date_min}'),
+        TO_DATE('{date_max}'),
+        INTERVAL 1 DAY
+    ) AS date_array
+&quot;&quot;&quot;).select(F.explode(&quot;date_array&quot;).alias(&quot;Date&quot;))
+
+&lt;a id=&quot;ajouter-toutes-les-colonnes-de-dimension-temporelle&quot;&gt;&lt;/a&gt;
+# Ajouter toutes les colonnes de dimension temporelle
+df_dimdate = df_dim.select(
+    F.col(&quot;Date&quot;),
+    F.year(&quot;Date&quot;).alias(&quot;Année&quot;),
+    F.concat(F.lit(&quot;T&quot;), F.ceil(F.month(&quot;Date&quot;) / 3).cast(&quot;string&quot;)).alias(&quot;Trimestre&quot;),
+    F.month(&quot;Date&quot;).alias(&quot;Mois_Num&quot;),
+    F.date_format(&quot;Date&quot;, &quot;MMMM&quot;).alias(&quot;Nom_Mois&quot;),
+    F.date_format(&quot;Date&quot;, &quot;yyyy-MM&quot;).alias(&quot;Année_Mois&quot;),
+    F.weekofyear(&quot;Date&quot;).alias(&quot;Semaine&quot;),
+    F.dayofweek(&quot;Date&quot;).alias(&quot;Jour_Semaine&quot;),   # 1=Dim ... 7=Sam (Spark)
+    F.date_format(&quot;Date&quot;, &quot;EEEE&quot;).alias(&quot;Nom_Jour&quot;),
+    F.when(F.dayofweek(&quot;Date&quot;).isin([1, 7]), True).otherwise(False).alias(&quot;Est_Weekend&quot;)
+)
+
+&lt;a id=&quot;ecrire-dans-le-lakehouse-en-mode-overwrite&quot;&gt;&lt;/a&gt;
+# Écrire dans le Lakehouse en mode overwrite
+df_dimdate.write.format(&quot;delta&quot;).mode(&quot;overwrite&quot;).saveAsTable(&quot;DimDate&quot;)
+
+print(f&quot;Table DimDate créée : {df_dimdate.count()} lignes&quot;)
+df_dimdate.show(5)
+</code></pre>
+<p><strong>Étape 3 — Ajouter une colonne date_appel_date à silver_appels_enrichis</strong></p>
+<blockquote>
+<p>⚠️ <strong>Pourquoi cette étape est indispensable ?</strong> <code>silver_appels_enrichis[date_appel]</code> est de type <strong>TimestampType</strong> (date + heure), tandis que <code>DimDate[Date]</code> est de type <strong>DateType</strong> (date seule). En mode Direct Lake, une relation entre deux colonnes de types différents est silencieusement inactive — les visuels affichent <code>(Blank)</code>. Il faut donc ajouter une colonne de type <code>DateType</code> dans <code>silver_appels_enrichis</code> pour servir de clé de relation.</p>
+</blockquote>
+<p>Dans le même notebook <code>NB_Create_DimDate</code>, ajouter une deuxième cellule :</p>
+<pre><code class="language-python">&lt;a id=&quot;ajouter-la-colonne-a-la-structure-delta-sans-reecrire-la-table&quot;&gt;&lt;/a&gt;
+# Ajouter la colonne à la structure Delta (sans réécrire la table)
+spark.sql(&quot;ALTER TABLE silver_appels_enrichis ADD COLUMN date_appel_date DATE&quot;)
+
+&lt;a id=&quot;remplir-la-colonne-avec-le-cast-timestamp-date&quot;&gt;&lt;/a&gt;
+# Remplir la colonne avec le cast Timestamp → Date
+spark.sql(&quot;UPDATE silver_appels_enrichis SET date_appel_date = CAST(date_appel AS DATE)&quot;)
+
+&lt;a id=&quot;verifier-sur-une-lecture-fraiche&quot;&gt;&lt;/a&gt;
+# Vérifier sur une lecture fraîche
+spark.sql(&quot;SELECT date_appel, date_appel_date FROM silver_appels_enrichis LIMIT 3&quot;).show()
+</code></pre>
+<blockquote>
+<p>💡 <code>ALTER TABLE</code> + <code>UPDATE</code> Delta modifie la table chirurgicalement sans réécrire tous les fichiers Parquet — c'est plus rapide et sans risque de conflit de lecture.</p>
+</blockquote>
+<p>La table <code>silver_appels_enrichis</code> contient maintenant une colonne <code>date_appel_date</code> de type <strong>DateType</strong>, compatible avec <code>DimDate[Date]</code>.</p>
+<p><strong>Étape 4 — Vérifier les deux tables dans LH_SolarVoix</strong></p>
+<ol>
+<li>Dans le panneau gauche du Notebook → <strong>Tables</strong> → actualiser (icône ↻)</li>
+<li><code>DimDate</code> et <code>silver_appels_enrichis</code> (mise à jour) doivent apparaître</li>
+<li>Clic droit sur chacune → <strong>Load data</strong> → vérifier les premières lignes</li>
+</ol>
+<p><strong>Étape 5 — Ajouter DimDate au modèle sémantique</strong></p>
+<ol>
+<li>Dans <code>WS_SolarVoix</code> → ouvrir <code>SM_SolarVoix_Appels</code></li>
+<li>Barre du haut → <strong>Edit data model</strong> → onglet <strong>Model view</strong></li>
+<li>Barre du haut → <strong>Add data</strong> (ou <strong>Edit tables</strong>)</li>
+<li>Cocher <code>DimDate</code> → <strong>Confirm</strong></li>
+<li>Les deux tables apparaissent dans le modèle avec le badge <strong>Direct Lake</strong></li>
+</ol>
+<p><a id="22-creer-la-relation-dimdate-silverappelsenrichis"></a></p>
+<h3>2.2 — Créer la relation DimDate ↔ silver_appels_enrichis</h3>
+<p>La relation s'appuie sur <code>date_appel_date</code> (DateType) côté faits — pas sur <code>date_appel</code> (TimestampType).</p>
+<ol>
+<li>Dans <strong>Model view</strong> → glisser <code>DimDate[Date]</code> vers <code>silver_appels_enrichis[date_appel_date]</code></li>
+<li>Relation créée : DimDate (1) → silver_appels_enrichis (*)</li>
+<li>Vérifier : Cardinality = <strong>One to many</strong>, Cross filter = <strong>Single</strong></li>
+</ol>
+<p><a id="23-marquer-dimdate-comme-table-date-officielle"></a></p>
+<h3>2.3 — Marquer DimDate comme table Date officielle</h3>
+<ol>
+<li>Clic droit sur <code>DimDate</code> → <strong>Mark as date table</strong></li>
+<li>Sélectionner la colonne <code>Date</code></li>
+<li>Cliquer <strong>OK</strong></li>
+</ol>
+<blockquote>
+<p>💡 Ce marquage active les fonctions Time Intelligence DAX (<code>DATEADD</code>, <code>SAMEPERIODLASTYEAR</code>, etc.) sur cette table.</p>
+</blockquote>
+<hr />
+<p><a id="bloc-3-mesures-dax"></a></p>
+<h2>Bloc 3 — Mesures DAX</h2>
+<blockquote>
+<p><strong>Convention :</strong> Toutes les mesures sont créées dans la table <code>silver_appels_enrichis</code>. Clic droit sur la table → <strong>New measure</strong>.</p>
+</blockquote>
+<hr />
+<p><a id="groupe-a-mesures-constantes-obligatoires-pour-les-jauges"></a></p>
+<h3>Groupe A — Mesures constantes (obligatoires pour les Jauges)</h3>
+<blockquote>
+<p>⚠️ Dans Power BI Fabric, les champs <strong>Minimum value</strong> et <strong>Maximum value</strong> des jauges n'acceptent pas de valeurs saisies manuellement. Il faut impérativement des <strong>mesures DAX</strong> retournant une constante.</p>
+</blockquote>
+<p><strong>Mesure C1 — Score Minimum</strong></p>
+<pre><code class="language-dax">Score Min =
+0
+</code></pre>
+<p><strong>Mesure C2 — Score Maximum</strong></p>
+<pre><code class="language-dax">Score Max =
+100
+</code></pre>
+<p><strong>Mesure C3 — Seuil Alerte</strong></p>
+<pre><code class="language-dax">Seuil Alerte =
+40
+</code></pre>
+<p><strong>Mesure C4 — Objectif Taux Alertes</strong></p>
+<pre><code class="language-dax">Objectif Taux Alertes =
+0.10
+</code></pre>
+<p><strong>Mesure C5 — Max Taux Alertes</strong></p>
+<pre><code class="language-dax">Max Taux Alertes =
+0.30
+</code></pre>
+<p><strong>Mesure C6 — Objectif Détection Résiliation</strong></p>
+<pre><code class="language-dax">Objectif Détection Résiliation =
+0.80
+</code></pre>
+<p><em>Ces 6 mesures servent uniquement à alimenter les champs Min / Max / Target des jauges et des visuels Goals.</em></p>
+<hr />
+<p><a id="groupe-b-mesures-de-base"></a></p>
+<h3>Groupe B — Mesures de base</h3>
+<p><strong>Mesure B1 — Score Churn Moyen</strong></p>
+<pre><code class="language-dax">Score Churn Moyen =
+AVERAGE(silver_appels_enrichis[score_risque_churn])
+</code></pre>
+<p><strong>Mesure B2 — Taux Alertes Critiques</strong></p>
+<pre><code class="language-dax">Taux Alertes Critiques =
+DIVIDE(
+    COUNTROWS(FILTER(silver_appels_enrichis, silver_appels_enrichis[alerte_critique] = TRUE())),
+    COUNTROWS(silver_appels_enrichis),
+    0
+)
+</code></pre>
+<p><em>Format : Pourcentage, 1 décimale</em></p>
+<p><strong>Mesure B3 — Nb Appels en Alerte</strong></p>
+<pre><code class="language-dax">Nb Appels en Alerte =
+CALCULATE(COUNTROWS(silver_appels_enrichis), silver_appels_enrichis[alerte_critique] = TRUE())
+</code></pre>
+<p><strong>Mesure B4 — Total Appels</strong></p>
+<pre><code class="language-dax">Total Appels =
+COUNTROWS(silver_appels_enrichis)
+</code></pre>
+<p><strong>Mesure B5 — Seuil Danger P90</strong></p>
+<pre><code class="language-dax">Seuil Danger P90 =
+PERCENTILE.INC(silver_appels_enrichis[score_risque_churn], 0.90)
+</code></pre>
+<p><strong>Mesure B6 — Score Churn Négatifs</strong></p>
+<pre><code class="language-dax">Score Churn Négatifs =
+CALCULATE(
+    AVERAGE(silver_appels_enrichis[score_risque_churn]),
+    silver_appels_enrichis[sentiment_ia] = &quot;negatif&quot;
+)
+</code></pre>
+<p><strong>Mesure B7 — Score Churn Hors Positif</strong></p>
+<pre><code class="language-dax">Score Churn Hors Positif =
+CALCULATE(
+    AVERAGE(silver_appels_enrichis[score_risque_churn]),
+    silver_appels_enrichis[sentiment_ia] &lt;&gt; &quot;positif&quot;
+)
+</code></pre>
+<p><strong>Mesure B8 — Taux Résiliation</strong></p>
+<pre><code class="language-dax">Taux Résiliation =
+DIVIDE(
+    CALCULATE(COUNTROWS(silver_appels_enrichis), silver_appels_enrichis[intent_detecte] = &quot;resiliation&quot;),
+    COUNTROWS(silver_appels_enrichis),
+    0
+)
+</code></pre>
+<p><em>Format : Pourcentage, 1 décimale</em></p>
+<p><strong>Mesure B9 — Durée Moy Appels Critiques</strong></p>
+<pre><code class="language-dax">Durée Moy Appels Critiques =
+CALCULATE(
+    AVERAGE(silver_appels_enrichis[duree_minutes]),
+    silver_appels_enrichis[alerte_critique] = TRUE()
+)
+</code></pre>
+<hr />
+<p><a id="groupe-c-mesures-de-comparaison-et-decart"></a></p>
+<h3>Groupe C — Mesures de comparaison et d'écart</h3>
+<p><strong>Mesure D1 — Écart Score Négatifs vs Moyen</strong></p>
+<pre><code class="language-dax">Écart Négatifs vs Moyen =
+[Score Churn Négatifs] - [Score Churn Moyen]
+</code></pre>
+<p><em>Format : Nombre décimal, 1 décimale</em></p>
+<blockquote>
+<p>💡 Si cette mesure vaut +15, les appels négatifs ont un score 15 points au-dessus de la moyenne générale. Cela quantifie l'impact du sentiment négatif sur le risque churn.</p>
+</blockquote>
+<p><strong>Mesure D2 — Ratio Score Hors Positif vs Négatifs</strong></p>
+<pre><code class="language-dax">Ratio Hors Positif vs Négatifs =
+DIVIDE([Score Churn Hors Positif], [Score Churn Négatifs], 0)
+</code></pre>
+<p><em>Format : Pourcentage, 1 décimale</em></p>
+<blockquote>
+<p>💡 Si le ratio est proche de 100%, les appels neutres ont presque le même score que les négatifs — le sentiment neutre est en réalité aussi risqué. Si le ratio est à 60%, les neutres sont nettement moins risqués.</p>
+</blockquote>
+<p><strong>Mesure D3 — Ratio Résiliation vs Alertes</strong></p>
+<pre><code class="language-dax">Ratio Résiliation vs Alertes =
+DIVIDE([Taux Résiliation], [Taux Alertes Critiques], 0)
+</code></pre>
+<p><em>Format : Pourcentage, 1 décimale</em></p>
+<blockquote>
+<p>💡 Si ce ratio est supérieur à 100%, il y a plus d'intentions de résiliation que d'alertes critiques générées — le système sous-alerte : certains clients à risque passent sous le radar.</p>
+</blockquote>
+<p><strong>Mesure D4 — Durée Critique vs Durée Globale</strong></p>
+<pre><code class="language-dax">Durée Critique vs Globale =
+[Durée Moy Appels Critiques] - AVERAGE(silver_appels_enrichis[duree_minutes])
+</code></pre>
+<p><em>Format : Nombre décimal, 1 décimale</em></p>
+<blockquote>
+<p>💡 Quantifie le surcoût opérationnel des appels critiques. Si +3 min, chaque alerte consomme 3 minutes supplémentaires par rapport à un appel normal.</p>
+</blockquote>
+<hr />
+<p><a id="groupe-d-mesures-qualite-ia"></a></p>
+<h3>Groupe D — Mesures Qualité IA</h3>
+<p><strong>Mesure Q1 — Précision IA</strong></p>
+<pre><code class="language-dax">Précision IA =
+DIVIDE(
+    CALCULATE(
+        COUNTROWS(silver_appels_enrichis),
+        silver_appels_enrichis[sentiment_ia] = silver_appels_enrichis[sentiment_reel]
+    ),
+    COUNTROWS(silver_appels_enrichis),
+    0
+)
+</code></pre>
+<p><em>Format : Pourcentage, 1 décimale</em></p>
+<blockquote>
+<p>💡 Mesure directe de la fiabilité du modèle IA. Si 80%, le modèle prédit correctement le sentiment dans 80% des cas.</p>
+</blockquote>
+<p><strong>Mesure Q2 — Taux Intention Réelle Résiliation</strong></p>
+<pre><code class="language-dax">Taux Intention Réelle Résiliation =
+DIVIDE(
+    CALCULATE(
+        COUNTROWS(silver_appels_enrichis),
+        silver_appels_enrichis[intention_reelle] = &quot;resiliation&quot;
+    ),
+    COUNTROWS(silver_appels_enrichis),
+    0
+)
+</code></pre>
+<p><em>Format : Pourcentage, 1 décimale</em></p>
+<blockquote>
+<p>💡 Comparé au <code>Taux Résiliation</code> (basé sur <code>intent_detecte</code>), cette mesure utilise la vérité terrain. Si l'écart est grand, le modèle manque des intentions de résiliation réelles.</p>
+</blockquote>
+<p><strong>Mesure Q3 — Taux Détection Résiliation</strong></p>
+<pre><code class="language-dax">Taux Détection Résiliation =
+DIVIDE([Taux Résiliation], [Taux Intention Réelle Résiliation], 0)
+</code></pre>
+<p><em>Format : Pourcentage, 1 décimale</em></p>
+<blockquote>
+<p>💡 Recall du modèle sur la classe résiliation. Un score &lt; 100% signifie que le modèle manque des cas réels de résiliation.</p>
+</blockquote>
+<hr />
+<p><a id="bloc-4-creation-du-rapport-dans-fabric"></a></p>
+<h2>Bloc 4 — Création du rapport dans Fabric</h2>
+<p><a id="40-lancer-lediteur-de-rapport-depuis-le-modele-semantique"></a></p>
+<h3>4.0 — Lancer l'éditeur de rapport depuis le modèle sémantique</h3>
+<p>Tout se passe dans le navigateur, directement depuis le workspace Fabric.</p>
+<ol>
+<li>Dans <code>WS_SolarVoix</code> → ouvrir <code>SM_SolarVoix_Appels</code></li>
+<li>Barre du haut → <strong>Create report</strong></li>
+<li>L'éditeur de rapport Fabric s'ouvre dans un nouvel onglet du navigateur</li>
+<li><strong>Ctrl+S</strong> → nommer le rapport <code>RPT_SolarVoix_Appels</code> → <strong>Save</strong></li>
+</ol>
+<blockquote>
+<p>💡 Le rapport est automatiquement connecté au modèle sémantique <code>SM_SolarVoix_Appels</code> en mode Direct Lake. Toutes les tables et mesures créées dans les Blocs 2 et 3 sont immédiatement disponibles dans le panneau <strong>Data</strong> à droite.</p>
+</blockquote>
+<p><a id="presentation-de-linterface-de-lediteur-fabric"></a></p>
+<h3>Présentation de l'interface de l'éditeur Fabric</h3>
+<pre><code>┌──────────────────────────────────────────────────────────────────┐
+│  Barre du haut : File / Insert / Modeling / View                  │
+├──────────┬───────────────────────────────┬───────────────────────┤
+│ Filtres  │         CANVAS                │  Panneau droit        │
+│ (gauche) │  Zone de construction         │  ① Visualizations     │
+│          │  du rapport                   │     ├ Build visual    │
+│          │                               │     ├ Format visual   │
+│          │                               │     └ Analytics       │
+│          │                               │  ② Data (champs)      │
+├──────────┴───────────────────────────────┴───────────────────────┤
+│  Onglets de pages (bas)                                           │
+└──────────────────────────────────────────────────────────────────┘
+</code></pre>
+<p>Les trois gestes de base à retenir dans cet éditeur :</p>
+<ul>
+<li><strong>Ajouter un visuel</strong> → cliquer une icône dans le panneau <strong>Visualizations</strong> (panneau droit, onglet ①) — le visuel apparaît sur le canvas, sélectionné</li>
+<li><strong>Configurer un visuel</strong> → visuel sélectionné → onglet <strong>Build visual</strong> (icône graphe) → glisser les champs depuis <strong>Data</strong> (panneau ②) vers les zones Value / Axis / Legend etc.</li>
+<li><strong>Mettre en forme</strong> → visuel sélectionné → onglet <strong>Format visual</strong> (icône pinceau)</li>
+</ul>
+<p><a id="creer-et-nommer-les-5-pages"></a></p>
+<h3>Créer et nommer les 5 pages</h3>
+<ol>
+<li>Cliquer <strong>+</strong> en bas à gauche pour chaque nouvelle page</li>
+<li>Clic droit sur l'onglet → <strong>Rename page</strong></li>
+<li>Nommer dans l'ordre : <code>Vue d'ensemble</code>, <code>Risque Churn</code>, <code>Géographie</code>, <code>Qualité IA</code>, <code>Détail appel</code></li>
+</ol>
+<hr />
+<p><a id="page-1-vue-densemble-kpis-comparatifs"></a></p>
+<h3>Page 1 — Vue d'ensemble &amp; KPIs comparatifs</h3>
+<p><strong>Objectif :</strong> Le responsable SAV doit répondre en 15 secondes à : "Est-ce que la situation s'améliore ou se dégrade ?"</p>
+<hr />
+<p><a id="visuel-1-kpi-score-churn-moyen-vs-seuil"></a></p>
+<h4>Visuel 1 — KPI : Score churn moyen vs seuil</h4>
+<p>Le visuel <strong>KPI</strong> est différent du visuel <strong>Card</strong> : il affiche la valeur courante, une valeur cible, et un indicateur de tendance (flèche haut/bas colorée).</p>
+<p><strong>Insérer :</strong></p>
+<ol>
+<li>Canvas vide → <strong>Visualizations</strong> → icône <strong>KPI</strong> (cercle avec chiffre et flèche — chercher "KPI" dans la liste)</li>
+</ol>
+<p><strong>Build visual :</strong></p>
+<ul>
+<li><strong>Value</strong> : <code>Score Churn Moyen</code></li>
+<li><strong>Target</strong> : <code>Seuil Alerte</code> (mesure C3 = 40)</li>
+<li><strong>Trend axis</strong> : <code>DimDate[Année_Mois]</code></li>
+</ul>
+<p><strong>Résultat :</strong> La flèche est verte si le score est sous 40, rouge si au-dessus. La tendance mensuelle s'affiche en miniature sous la valeur.</p>
+<hr />
+<p><a id="visuel-2-goals-taux-dalertes-critiques-vs-objectif-10"></a></p>
+<h4>Visuel 2 — Goals : Taux d'alertes critiques vs objectif 10%</h4>
+<p>Le visuel <strong>Goals</strong> (ou <strong>Gauge</strong> en mode linéaire) montre la progression vers un objectif.</p>
+<p><strong>Insérer :</strong></p>
+<ol>
+<li>Canvas vide → <strong>Visualizations</strong> → <strong>Gauge</strong></li>
+</ol>
+<p><strong>Build visual :</strong></p>
+<ul>
+<li><strong>Value</strong> : <code>Taux Alertes Critiques</code></li>
+<li><strong>Minimum value</strong> : <code>Score Min</code> (mesure C1 — retourne 0)</li>
+<li><strong>Maximum value</strong> : <code>Max Taux Alertes</code> (mesure C5 — retourne 0.30)</li>
+<li><strong>Target value</strong> : <code>Objectif Taux Alertes</code> (mesure C4 — retourne 0.10)</li>
+</ul>
+<blockquote>
+<p>💡 La jauge s'étend de 0 à 30%. La ligne cible à 10% est clairement visible. Si le taux réel dépasse 10%, l'aiguille franchit la cible sans déborder — le signal de dépassement est immédiat et lisible. Ne jamais utiliser l'objectif comme Maximum : quand la valeur dépasse la cible, la jauge devient incohérente.</p>
+</blockquote>
+<hr />
+<p><a id="visuel-3-carte-kpi-nb-appels-en-alerte"></a></p>
+<h4>Visuel 3 — Carte KPI : Nb appels en alerte</h4>
+<p><strong>Visualizations → Card</strong></p>
+<ul>
+<li><strong>Fields</strong> : <code>Nb Appels en Alerte</code></li>
+<li><strong>Title</strong> : <code>Appels à risque élevé</code></li>
+</ul>
+<hr />
+<p><a id="visuel-4-carte-kpi-taux-resiliation-vs-alertes"></a></p>
+<h4>Visuel 4 — Carte KPI : Taux résiliation vs alertes</h4>
+<p><strong>Visualizations → Card</strong></p>
+<ul>
+<li><strong>Fields</strong> : <code>Ratio Résiliation vs Alertes</code></li>
+<li><strong>Title</strong> : <code>Résiliations / Alertes</code></li>
+</ul>
+<blockquote>
+<p>💡 Si cette carte affiche &gt; 100%, le système d'alerte est insuffisant — des clients déclarent vouloir résilier sans déclencher d'alerte. C'est le KPI de calibration du seuil d'alerte.</p>
+</blockquote>
+<hr />
+<p><a id="visuel-5-carte-kpi-ratio-score-hors-positif-vs-negatifs"></a></p>
+<h4>Visuel 5 — Carte KPI : Ratio Score Hors Positif vs Négatifs</h4>
+<p><strong>Visualizations → Card</strong></p>
+<ul>
+<li><strong>Fields</strong> : <code>Ratio Hors Positif vs Négatifs</code></li>
+<li><strong>Title</strong> : <code>Neutres vs Négatifs (%)</code></li>
+</ul>
+<blockquote>
+<p>💡 Répond à la question : "Les appels neutres sont-ils aussi risqués que les négatifs ?" Si &gt; 80%, la distinction neutre/négatif n'a pas beaucoup de valeur pour prédire le churn.</p>
+</blockquote>
+<hr />
+<p><a id="visuel-6-ribbon-chart-classement-des-sentiments-par-produit-dans-le-temps"></a></p>
+<h4>Visuel 6 — Ribbon Chart : Classement des sentiments par produit dans le temps</h4>
+<p>Le <strong>Ribbon Chart</strong> est un graphique en barres empilées avec des "rubans" qui relient les barres entre périodes, montrant comment les <strong>rangs</strong> changent dans le temps.</p>
+<p><strong>Insérer :</strong></p>
+<ol>
+<li>Canvas → <strong>Visualizations</strong> → <strong>Ribbon chart</strong> (chercher "ribbon" dans les icônes)</li>
+</ol>
+<p><strong>Build visual :</strong></p>
+<ul>
+<li><strong>X-axis</strong> : <code>DimDate[Nom Mois]</code></li>
+<li><strong>Y-axis</strong> : <code>Total Appels</code></li>
+<li><strong>Legend</strong> : <code>sentiment_ia</code></li>
+</ul>
+<p><strong>Analytics → Constant line :</strong></p>
+<ul>
+<li>Value : <code>Seuil Alerte</code> (mesure C3)</li>
+<li>Label : <code>Seuil 40</code></li>
+</ul>
+<blockquote>
+<p>💡 Le ribbon chart montre comment le volume d'appels par sentiment évolue mois par mois et si le rang des sentiments change. Si le ruban "negatif" monte progressivement en haut, la situation se dégrade.</p>
+</blockquote>
+<hr />
+<p><a id="visuel-7-courbe-de-tendance-avec-seuil-p90-par-date"></a></p>
+<h4>Visuel 7 — Courbe de tendance avec seuil P90 par date</h4>
+<p><strong>Insérer :</strong></p>
+<ol>
+<li>Canvas → <strong>Visualizations</strong> → <strong>Line chart</strong></li>
+</ol>
+<p><strong>Build visual :</strong></p>
+<ul>
+<li><strong>X-axis</strong> : <code>DimDate[Année_Mois]</code></li>
+<li><strong>Y-axis</strong> : <code>Score Churn Moyen</code></li>
+<li><strong>Secondary Y</strong> : <code>Seuil Danger P90</code></li>
+</ul>
+<p><strong>Analytics → Constant line :</strong></p>
+<ul>
+<li>Value : <code>Seuil Alerte</code> (40)</li>
+<li>Color : rouge, Dotted, Label : <code>Seuil alerte</code></li>
+</ul>
+<blockquote>
+<p>💡 La courbe du P90 montre l'évolution du score des 10% d'appels les plus risqués. Si P90 monte alors que le Score Moyen reste stable, il y a une concentration de cas extrêmes qui s'aggravent.</p>
+</blockquote>
+<hr />
+<p><a id="visuel-8-slicer-filtre-tranche-horaire"></a></p>
+<h4>Visuel 8 — Slicer : Filtre tranche horaire</h4>
+<p><strong>Visualizations → Slicer</strong></p>
+<ul>
+<li><strong>Field</strong> : <code>tranche_horaire</code></li>
+<li><strong>Style</strong> : Tile</li>
+</ul>
+<blockquote>
+<p>💡 Permet d'isoler les appels du matin / après-midi / fin de journée pour détecter si le churn est plus élevé à certaines heures.</p>
+</blockquote>
+<hr />
+<p><a id="page-2-risque-churn"></a></p>
+<h3>Page 2 — Risque Churn</h3>
+<p><strong>Objectif :</strong> Comprendre les concentrations de risque, les corrélations et les comparaisons entre produits.</p>
+<hr />
+<p><a id="visuel-1-jauge-score-churn-global"></a></p>
+<h4>Visuel 1 — Jauge : Score churn global</h4>
+<p><strong>Visualizations → Gauge</strong></p>
+<p><strong>Build visual :</strong></p>
+<ul>
+<li><strong>Value</strong> : <code>Score Churn Moyen</code></li>
+<li><strong>Minimum value</strong> : <code>Score Min</code> (mesure C1)</li>
+<li><strong>Maximum value</strong> : <code>Score Max</code> (mesure C2)</li>
+<li><strong>Target value</strong> : <code>Seuil Alerte</code> (mesure C3)</li>
+</ul>
+<blockquote>
+<p>⚠️ <strong>Rappel :</strong> Min / Max / Target doivent impérativement être des <strong>mesures</strong> (C1, C2, C3), pas des valeurs saisies manuellement.</p>
+</blockquote>
+<p><strong>Format visual → Colors → Fill color → Conditional formatting :</strong></p>
+<ul>
+<li>0–25 → <code>#27AE60</code> (vert)</li>
+<li>25–40 → <code>#F39C12</code> (orange)</li>
+<li>40–100 → <code>#E74C3C</code> (rouge)</li>
+</ul>
+<hr />
+<p><a id="visuel-2-jauge-comparee-score-churn-appels-negatifs"></a></p>
+<h4>Visuel 2 — Jauge comparée : Score churn appels négatifs</h4>
+<p><strong>Visualizations → Gauge</strong> (deuxième jauge côte à côte)</p>
+<p><strong>Build visual :</strong></p>
+<ul>
+<li><strong>Value</strong> : <code>Score Churn Négatifs</code></li>
+<li><strong>Minimum value</strong> : <code>Score Min</code></li>
+<li><strong>Maximum value</strong> : <code>Score Max</code></li>
+<li><strong>Target value</strong> : <code>Seuil Alerte</code></li>
+</ul>
+<blockquote>
+<p>💡 Les deux jauges côte à côte permettent de voir l'écart entre le score global et le score des appels négatifs. L'écart visualisé = <code>Écart Négatifs vs Moyen</code>.</p>
+</blockquote>
+<hr />
+<p><a id="visuel-3-carte-kpi-ecart-negatifs-vs-moyen"></a></p>
+<h4>Visuel 3 — Carte KPI : Écart Négatifs vs Moyen</h4>
+<p><strong>Visualizations → Card</strong></p>
+<ul>
+<li><strong>Fields</strong> : <code>Écart Négatifs vs Moyen</code></li>
+<li><strong>Title</strong> : <code>Surrisque appels négatifs</code></li>
+</ul>
+<blockquote>
+<p>💡 Complète les deux jauges en chiffrant l'écart. +20 points signifie que les appels négatifs ont un risque churn 20 points supérieur à la moyenne.</p>
+</blockquote>
+<hr />
+<p><a id="visuel-4-scatter-chart-score-churn-vs-duree-dappel-par-produit"></a></p>
+<h4>Visuel 4 — Scatter Chart : Score churn vs Durée d'appel (par produit)</h4>
+<p>Le <strong>Scatter Chart</strong> montre des concentrations de phénomènes en deux dimensions. Chaque bulle = un produit.</p>
+<p><strong>Insérer :</strong></p>
+<ol>
+<li>Canvas → <strong>Visualizations</strong> → <strong>Scatter chart</strong></li>
+</ol>
+<p><strong>Build visual :</strong></p>
+<ul>
+<li><strong>X-axis</strong> : <code>Durée Moy Appels Critiques</code> (durée moyenne des appels critiques)</li>
+<li><strong>Y-axis</strong> : <code>Score Churn Moyen</code></li>
+<li><strong>Size</strong> : <code>Nb Appels en Alerte</code> (taille de la bulle = nombre d'alertes)</li>
+<li><strong>Legend</strong> : <code>produit</code> (une bulle par produit, chaque produit avec sa couleur)</li>
+<li><strong>Values</strong> : laisser vide</li>
+</ul>
+<p><strong>Analytics → Constant line :</strong></p>
+<ul>
+<li>Sur axe Y : Value = <code>Seuil Alerte</code> (40) — sépare zone sûre / zone rouge</li>
+<li>Sur axe X : créer une mesure <code>Durée Moy Globale</code> = <code>AVERAGE(silver_appels_enrichis[duree_minutes])</code> et l'utiliser comme référence</li>
+</ul>
+<blockquote>
+<p>💡 <strong>Lecture analytique :</strong> Le quadrant haut-droit (score élevé + durée élevée) contient les produits les plus problématiques — ils génèrent à la fois des appels à haut risque ET mobilisent longtemps les agents. Ce sont les priorités d'action.</p>
+</blockquote>
+<hr />
+<p><a id="visuel-5-scatter-chart-confiance-ia-vs-score-churn"></a></p>
+<h4>Visuel 5 — Scatter Chart : Confiance IA vs Score churn</h4>
+<p><strong>Visualizations → Scatter chart</strong></p>
+<p><strong>Build visual :</strong></p>
+<ul>
+<li><strong>X-axis</strong> : <code>score_sentiment</code> (Average — confiance du modèle IA)</li>
+<li><strong>Y-axis</strong> : <code>Score Churn Moyen</code></li>
+<li><strong>Legend</strong> : <code>sentiment_ia</code></li>
+<li><strong>Details</strong> : <code>call_id</code></li>
+</ul>
+<blockquote>
+<p>💡 Si les points à faible confiance IA (x &lt; 0.6) ont des scores churn très dispersés, cela signifie que le modèle IA est peu fiable sur ces cas — les alertes générées sur des prédictions peu confiantes sont moins fiables.</p>
+</blockquote>
+<hr />
+<p><a id="visuel-6-pie-chart-distribution-des-intentions-detectees"></a></p>
+<h4>Visuel 6 — Pie Chart : Distribution des intentions détectées</h4>
+<p><strong>Visualizations → Pie chart</strong></p>
+<p><strong>Build visual :</strong></p>
+<ul>
+<li><strong>Legend</strong> : <code>intent_detecte</code></li>
+<li><strong>Values</strong> : <code>Total Appels</code></li>
+</ul>
+<blockquote>
+<p>💡 Le Pie chart est adapté ici car on veut voir les proportions relatives des intentions. La part des intentions "resiliation" et "menace_juridique" est directement lisible.</p>
+</blockquote>
+<hr />
+<p><a id="visuel-7-barres-horizontales-taux-resiliation-vs-taux-alertes-par-produit"></a></p>
+<h4>Visuel 7 — Barres horizontales : Taux résiliation vs Taux alertes par produit</h4>
+<p><strong>Visualizations → Clustered bar chart</strong></p>
+<p><strong>Build visual :</strong></p>
+<ul>
+<li><strong>Y-axis</strong> : <code>produit</code></li>
+<li><strong>X-axis</strong> : deux mesures superposées :</li>
+<li><code>Taux Résiliation</code></li>
+<li><code>Taux Alertes Critiques</code></li>
+<li><strong>Legend</strong> : automatique (noms des mesures)</li>
+</ul>
+<blockquote>
+<p>💡 <strong>Question analytique :</strong> Pour chaque produit, le taux de résiliation dépasse-t-il le taux d'alertes ? Si oui, le seuil d'alerte est trop élevé pour ce produit spécifique. Ce graphique identifie les produits sous-surveillés.</p>
+</blockquote>
+<hr />
+<p><a id="visuel-8-slicer-filtre-sentimentia"></a></p>
+<h4>Visuel 8 — Slicer : Filtre sentiment_ia</h4>
+<p><strong>Visualizations → Slicer</strong></p>
+<ul>
+<li><strong>Field</strong> : <code>sentiment_ia</code></li>
+<li><strong>Style</strong> : Tile</li>
+</ul>
+<hr />
+<p><a id="page-3-analyse-geographique"></a></p>
+<h3>Page 3 — Analyse Géographique</h3>
+<p><strong>Objectif :</strong> Identifier les villes et régions où le risque churn est concentré pour orienter les actions terrain.</p>
+<hr />
+<p><a id="visuel-1-treemap-top-10-villes-par-volume-et-risque-churn"></a></p>
+<h4>Visuel 1 — Treemap : Top 10 villes par volume et risque churn</h4>
+<p><strong>Visualizations → Treemap</strong></p>
+<p><strong>Build visual :</strong></p>
+<ul>
+<li><strong>Category</strong> : <code>ville</code></li>
+<li><strong>Values</strong> : <code>Total Appels</code> (taille de chaque tuile = volume d'appels)</li>
+<li><strong>Color saturation</strong> : <code>Score Churn Moyen</code></li>
+<li><strong>Tooltips</strong> : <code>Nb Appels en Alerte</code>, <code>Taux Alertes Critiques</code></li>
+</ul>
+<p><strong>Appliquer deux filtres sur le visuel :</strong></p>
+<p><strong>Filtre 1 — Exclure les villes nulles :</strong></p>
+<ol>
+<li>Visuel sélectionné → panneau <strong>Filters</strong> → section <strong>Filters on this visual</strong></li>
+<li>Glisser <code>ville</code> dans cette zone</li>
+<li>Filter type = <strong>Basic filtering</strong> → décocher <strong>(Blank)</strong></li>
+<li>Cliquer <strong>Apply filter</strong></li>
+</ol>
+<p><strong>Filtre 2 — Top 10 villes par score churn :</strong></p>
+<ol>
+<li>Dans la même zone <strong>Filters on this visual</strong>, glisser à nouveau <code>ville</code></li>
+<li>Filter type = <strong>Top N</strong></li>
+<li><strong>Show items</strong> : <code>Top</code> <code>10</code></li>
+<li><strong>By value</strong> : glisser la mesure <strong><code>Score Churn Moyen</code></strong></li>
+<li>Cliquer <strong>Apply filter</strong></li>
+</ol>
+<blockquote>
+<p>💡 <code>Score Churn Moyen</code> comme critère de sélection est cohérent avec la Color saturation du treemap — les 10 villes affichées sont exactement celles avec le risque churn le plus élevé. Ne pas utiliser <code>Total Appels</code> (favorise les grandes villes indépendamment du risque) ni <code>Taux Résiliation</code> (taux biaisé sur les villes avec peu d'appels).</p>
+</blockquote>
+<hr />
+<p><a id="visuel-2-barres-horizontales-top-10-villes-par-score-churn"></a></p>
+<h4>Visuel 2 — Barres horizontales : Top 10 villes par score churn</h4>
+<p><strong>Visualizations → Clustered bar chart</strong></p>
+<p><strong>Build visual :</strong></p>
+<ul>
+<li><strong>Y-axis</strong> : <code>ville</code></li>
+<li><strong>X-axis</strong> : <code>Score Churn Moyen</code></li>
+<li><strong>Filters panel</strong> (gauche) → ajouter <code>ville</code> → Top N = 10 (par <code>Score Churn Moyen</code>)</li>
+</ul>
+<hr />
+<p><a id="visuel-3-matrice-score-churn-ville-produit"></a></p>
+<h4>Visuel 3 — Matrice : Score churn — Ville × Produit</h4>
+<p><strong>Visualizations → Matrix</strong></p>
+<p><strong>Build visual :</strong></p>
+<ul>
+<li><strong>Rows</strong> : <code>ville</code></li>
+<li><strong>Columns</strong> : <code>produit</code></li>
+<li><strong>Values</strong> : <code>Score Churn Moyen</code></li>
+</ul>
+<p><strong>Format visual → Cell elements → Background color → Conditional formatting :</strong></p>
+<ul>
+<li>0–25 : vert <code>#D5F5E3</code></li>
+<li>25–40 : orange <code>#FFF3CD</code></li>
+<li>40–100 : rouge <code>#FDDEDE</code></li>
+</ul>
+<blockquote>
+<p>💡 La matrice révèle les combinaisons ville/produit les plus problématiques. Une cellule rouge dans une ville spécifique pour un produit précis = problème localisé (installation, technicien, réseau).</p>
+</blockquote>
+<hr />
+<p><a id="visuel-4-slicer-filtre-produit"></a></p>
+<h4>Visuel 4 — Slicer : Filtre produit</h4>
+<p><strong>Visualizations → Slicer</strong> → <code>produit</code> → Style : Tile</p>
+<hr />
+<p><a id="page-4-qualite-ia-intentions-reelles"></a></p>
+<h3>Page 4 — Qualité IA &amp; Intentions réelles</h3>
+<p><strong>Objectif :</strong> Évaluer la fiabilité du modèle IA en comparant ses prédictions (<code>sentiment_ia</code>, <code>intent_detecte</code>) avec la réalité (<code>sentiment_reel</code>, <code>intention_reelle</code>). Identifier les cas où le modèle se trompe.</p>
+<hr />
+<p><a id="visuel-1-kpi-precision-globale-du-modele-ia"></a></p>
+<h4>Visuel 1 — KPI : Précision globale du modèle IA</h4>
+<p><strong>Visualizations → KPI</strong></p>
+<p><strong>Build visual :</strong></p>
+<ul>
+<li><strong>Value</strong> : <code>Précision IA</code></li>
+<li><strong>Target</strong> : créer une mesure <code>Objectif Précision IA = 0.80</code> (80% comme seuil minimum acceptable)</li>
+<li><strong>Trend axis</strong> : <code>DimDate[Nom Mois]</code></li>
+</ul>
+<blockquote>
+<p>💡 Si la précision descend sous 80%, le modèle produit trop d'erreurs et les alertes générées sont peu fiables. C'est le signal de re-entraînement du modèle.</p>
+</blockquote>
+<hr />
+<p><a id="visuel-2-matrice-de-confusion-sentimentreel-vs-sentimentia"></a></p>
+<h4>Visuel 2 — Matrice de confusion : sentiment_reel vs sentiment_ia</h4>
+<p><strong>Visualizations → Matrix</strong></p>
+<p><strong>Build visual :</strong></p>
+<ul>
+<li><strong>Rows</strong> : <code>sentiment_reel</code> (vérité terrain)</li>
+<li><strong>Columns</strong> : <code>sentiment_ia</code> (prédiction IA)</li>
+<li><strong>Values</strong> : <code>Total Appels</code></li>
+</ul>
+<p><strong>Format visual → Cell elements → Background color → Conditional formatting :</strong></p>
+<ul>
+<li>Valeurs élevées hors diagonale = erreurs du modèle → rouge</li>
+<li>Valeurs sur la diagonale (bonne prédiction) → vert</li>
+</ul>
+<blockquote>
+<p>💡 <strong>Lecture de la matrice :</strong> La diagonale (negatif/negatif, neutre/neutre, positif/positif) contient les prédictions correctes. Les cases hors diagonale contiennent les erreurs. Une case rouge dans (sentiment_reel="neutre", sentiment_ia="negatif") signifie que le modèle sur-prédit le sentiment négatif pour les appels réellement neutres.</p>
+</blockquote>
+<hr />
+<p><a id="visuel-3-comparaison-cards-resiliations-detectees-vs-reelles"></a></p>
+<h4>Visuel 3 — Comparaison Cards : Résiliations détectées vs réelles</h4>
+<p>Deux cards côte à côte — aucune division, aucune instabilité liée à la densité des données.</p>
+<p><strong>Visuel 3a — Card : Taux résiliation détectée par IA</strong></p>
+<p><code>Visualizations → Card</code></p>
+<ul>
+<li><strong>Fields</strong> : <code>Taux Résiliation</code></li>
+<li><strong>Title</strong> : <code>Résiliations détectées (IA)</code></li>
+<li>Format : Pourcentage, 1 décimale</li>
+</ul>
+<p><strong>Visuel 3b — Card : Taux résiliation réelle</strong></p>
+<p><code>Visualizations → Card</code></p>
+<ul>
+<li><strong>Fields</strong> : <code>Taux Intention Réelle Résiliation</code></li>
+<li><strong>Title</strong> : <code>Résiliations réelles (clients)</code></li>
+<li>Format : Pourcentage, 1 décimale</li>
+</ul>
+<blockquote>
+<p>💡 L'écart entre les deux valeurs est le signal clé : si l'IA détecte 5% mais que la réalité est 15%, le modèle manque 10 points de résiliations réelles sans déclencher d'alerte. Cette lecture directe est plus fiable qu'un ratio <code>DIVIDE</code> qui retourne 0 dès qu'un des termes est absent sur une période.</p>
+</blockquote>
+<hr />
+<p><a id="visuel-4-scatter-score-sentiment-confiance-ia-vs-precision-par-produit"></a></p>
+<h4>Visuel 4 — Scatter : Score sentiment (confiance IA) vs Précision par produit</h4>
+<p><strong>Visualizations → Scatter chart</strong></p>
+<p><strong>Build visual :</strong></p>
+<ul>
+<li><strong>X-axis</strong> : <code>score_sentiment</code> (Average — confiance IA)</li>
+<li><strong>Y-axis</strong> : <code>Précision IA</code></li>
+<li><strong>Details</strong> : <code>produit</code></li>
+<li><strong>Size</strong> : <code>Total Appels</code></li>
+<li><strong>Legend</strong> : <code>produit</code></li>
+</ul>
+<blockquote>
+<p>💡 Si certains produits ont une faible confiance IA ET une faible précision, le modèle est peu fiable sur ces appels spécifiques. Cela peut justifier un pré-traitement différent pour ces catégories.</p>
+</blockquote>
+<hr />
+<p><a id="visuel-5-slicer-filtre-produit"></a></p>
+<h4>Visuel 5 — Slicer : Filtre produit</h4>
+<p><strong>Visualizations → Slicer</strong> → <code>produit</code> → Style : Tile</p>
+<hr />
+<p><a id="visuel-6-tableau-des-appels-critiques-point-dentree-drill-through"></a></p>
+<h4>Visuel 6 — Tableau des appels critiques (point d'entrée drill-through)</h4>
+<blockquote>
+<p>💡 Ce tableau est indispensable pour tester le drill-through vers la Page 5. Il expose <code>call_id</code> au niveau ligne — sans cela, le menu "Drill through" n'apparaît pas au clic droit.</p>
+</blockquote>
+<p><strong>Visualizations → Table</strong></p>
+<p><strong>Build visual → Columns :</strong><br />
+<code>call_id</code>, <code>client_nom</code>, <code>ville</code>, <code>produit</code>, <code>score_risque_churn</code>, <code>sentiment_ia</code>, <code>alerte_critique</code></p>
+<p><strong>Filter on this visual :</strong><br />
+Glisser <code>alerte_critique</code> → Basic filtering → cocher <strong>TRUE</strong> → <strong>Apply filter</strong></p>
+<p>Cliquer sur l'en-tête <code>score_risque_churn</code> pour trier par ordre décroissant.</p>
+<p><strong>Tester le drill-through :</strong><br />
+Clic droit sur n'importe quelle ligne → <strong>Drill through</strong> → <strong>Détail appel</strong> → la Page 5 s'ouvre filtrée sur ce <code>call_id</code>.</p>
+<hr />
+<p><a id="page-5-detail-par-appel-drill-through"></a></p>
+<h3>Page 5 — Détail par appel (Drill-through)</h3>
+<blockquote>
+<p>💡 <strong>Drill-through :</strong> Depuis n'importe quelle page, l'utilisateur fait un clic droit sur un élément (bulle, barre, ligne) → "Drill through" → "Détail appel". La page 5 s'ouvre filtrée sur cet élément.</p>
+</blockquote>
+<p><strong>Configurer le drill-through :</strong></p>
+<ol>
+<li>S'assurer d'être sur la page <code>Détail appel</code></li>
+<li>Panneau <strong>Visualizations</strong> → <strong>Build visual</strong> → section <strong>Drill through</strong></li>
+<li>Glisser <code>call_id</code> dans la zone <strong>Add drill-through fields here</strong></li>
+</ol>
+<hr />
+<p><a id="visuel-1-kpi-score-de-lappel-selectionne"></a></p>
+<h4>Visuel 1 — KPI : Score de l'appel sélectionné</h4>
+<p><strong>Visualizations → KPI</strong></p>
+<ul>
+<li><strong>Value</strong> : <code>Score Churn Moyen</code></li>
+<li><strong>Target</strong> : <code>Seuil Alerte</code></li>
+</ul>
+<hr />
+<p><a id="visuel-2-carte-sentiment-ia"></a></p>
+<h4>Visuel 2 — Carte : Sentiment IA</h4>
+<p><strong>Visualizations → Card</strong> → <code>sentiment_ia</code> (First)</p>
+<ul>
+<li><strong>Title</strong> : <code>Sentiment IA</code></li>
+</ul>
+<hr />
+<p><a id="visuel-3-carte-sentiment-reel"></a></p>
+<h4>Visuel 3 — Carte : Sentiment réel</h4>
+<p><strong>Visualizations → Card</strong> → <code>sentiment_reel</code> (First)</p>
+<ul>
+<li><strong>Title</strong> : <code>Sentiment réel (audit)</code></li>
+</ul>
+<blockquote>
+<p>💡 Placer les deux cartes sentiment côte à côte. Si elles divergent, la prédiction IA était incorrecte pour cet appel.</p>
+</blockquote>
+<hr />
+<p><a id="visuel-4-carte-intention-detectee-vs-intention-reelle"></a></p>
+<h4>Visuel 4 — Carte : Intention détectée vs Intention réelle</h4>
+<p><strong>Visualizations → Card</strong> → <code>intent_detecte</code> (First) + <strong>Visualizations → Card</strong> → <code>intention_reelle</code> (First)</p>
+<ul>
+<li>Placer côte à côte</li>
+<li>Titres : <code>Intention IA</code> et <code>Intention réelle</code></li>
+</ul>
+<hr />
+<p><a id="visuel-5-tableau-donnees-completes-de-lappel"></a></p>
+<h4>Visuel 5 — Tableau : Données complètes de l'appel</h4>
+<p><strong>Visualizations → Table</strong></p>
+<p><strong>Build visual → Columns :</strong><br />
+<code>call_id</code>, <code>client_nom</code>, <code>ville</code>, <code>produit</code>, <code>date_appel</code>, <code>duree_minutes</code>, <code>tranche_horaire</code>, <code>sentiment_ia</code>, <code>sentiment_reel</code>, <code>intent_detecte</code>, <code>intention_reelle</code>, <code>score_risque_churn</code>, <code>alerte_critique</code></p>
+<p><strong>Format visual → Specific column → <code>score_risque_churn</code> → Conditional formatting :</strong></p>
+<ul>
+<li>0–25 : <code>#D5F5E3</code>, 25–40 : <code>#FFF3CD</code>, ≥ 40 : <code>#FDDEDE</code></li>
+</ul>
+<hr />
+<p><a id="bouton-retour"></a></p>
+<h4>Bouton retour</h4>
+<p><strong>Insert → Buttons → Back</strong> — positionner en haut à gauche</p>
+<ul>
+<li>Text : <code>← Retour</code></li>
+</ul>
+<hr />
+<p><a id="bloc-5-vues-t-sql-pour-analyser-les-sentiments-clients"></a></p>
+<h2>Bloc 5 — Vues T-SQL pour analyser les sentiments clients</h2>
+<blockquote>
+<p>💡 Accéder au SQL endpoint : dans <code>LH_SolarVoix</code> → menu déroulant <strong>Lakehouse</strong> → <strong>SQL analytics endpoint</strong> → <strong>New query</strong></p>
+</blockquote>
+<p><a id="vue-1-distribution-des-sentiments-par-produit"></a></p>
+<h3>Vue 1 — Distribution des sentiments par produit</h3>
+<pre><code class="language-sql">CREATE VIEW v_sentiments_par_produit AS
+SELECT
+    produit,
+    sentiment_ia,
+    COUNT(*)                                          AS nb_appels,
+    ROUND(AVG(CAST(score_risque_churn AS FLOAT)), 1)  AS score_churn_moyen,
+    ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (PARTITION BY produit), 1) AS pct_dans_produit
+FROM silver_appels_enrichis
+GROUP BY produit, sentiment_ia;
+</code></pre>
+<pre><code class="language-sql">SELECT * FROM v_sentiments_par_produit ORDER BY produit, sentiment_ia;
+</code></pre>
+<p><a id="vue-2-clients-les-plus-a-risque"></a></p>
+<h3>Vue 2 — Clients les plus à risque</h3>
+<pre><code class="language-sql">CREATE VIEW v_clients_a_risque AS
+SELECT
+    call_id, client_nom, ville, produit,
+    sentiment_ia, intent_detecte, score_risque_churn,
+    alerte_critique, date_appel,
+    CASE
+        WHEN score_risque_churn &gt;= 70 THEN 'CRITIQUE'
+        WHEN score_risque_churn &gt;= 40 THEN 'ÉLEVÉ'
+        WHEN score_risque_churn &gt;= 25 THEN 'MODÉRÉ'
+        ELSE 'FAIBLE'
+    END AS niveau_risque
+FROM silver_appels_enrichis
+WHERE alerte_critique = 1;
+</code></pre>
+<pre><code class="language-sql">SELECT TOP 20 * FROM v_clients_a_risque ORDER BY score_risque_churn DESC;
+</code></pre>
+<p><a id="vue-3-comparaison-sentimentia-vs-sentimentreel-matrice-de-confusion-sql"></a></p>
+<h3>Vue 3 — Comparaison sentiment_ia vs sentiment_reel (matrice de confusion SQL)</h3>
+<pre><code class="language-sql">CREATE VIEW v_precision_ia AS
+SELECT
+    sentiment_reel,
+    sentiment_ia,
+    COUNT(*)                                        AS nb_appels,
+    ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (PARTITION BY sentiment_reel), 1) AS pct_dans_classe
+FROM silver_appels_enrichis
+GROUP BY sentiment_reel, sentiment_ia;
+</code></pre>
+<pre><code class="language-sql">-- Matrice de confusion : lignes = réel, colonnes = prédit
+SELECT * FROM v_precision_ia ORDER BY sentiment_reel, sentiment_ia;
+</code></pre>
+<pre><code class="language-sql">-- Précision globale
+SELECT
+    ROUND(100.0 * SUM(CASE WHEN sentiment_ia = sentiment_reel THEN 1 ELSE 0 END) / COUNT(*), 1)
+    AS precision_pct
+FROM silver_appels_enrichis;
+</code></pre>
+<p><a id="vue-4-intentions-reelles-vs-detectees-par-produit"></a></p>
+<h3>Vue 4 — Intentions réelles vs détectées par produit</h3>
+<pre><code class="language-sql">CREATE VIEW v_intention_comparison AS
+SELECT
+    produit,
+    intention_reelle,
+    intent_detecte,
+    COUNT(*) AS nb_appels,
+    ROUND(AVG(CAST(score_risque_churn AS FLOAT)), 1) AS score_moyen,
+    CASE WHEN intention_reelle = intent_detecte THEN 'CORRECT' ELSE 'ERREUR' END AS detection_ok
+FROM silver_appels_enrichis
+GROUP BY produit, intention_reelle, intent_detecte;
+</code></pre>
+<pre><code class="language-sql">-- Taux de détection correcte par produit
+SELECT produit,
+       COUNT(*) AS nb_total,
+       SUM(CASE WHEN detection_ok = 'CORRECT' THEN 1 ELSE 0 END) AS nb_correct,
+       ROUND(100.0 * SUM(CASE WHEN detection_ok = 'CORRECT' THEN 1 ELSE 0 END) / COUNT(*), 1) AS precision_pct
+FROM v_intention_comparison
+GROUP BY produit
+ORDER BY precision_pct;
+</code></pre>
+<p><a id="vue-5-tendance-hebdomadaire"></a></p>
+<h3>Vue 5 — Tendance hebdomadaire</h3>
+<pre><code class="language-sql">CREATE VIEW v_tendance_hebdomadaire AS
+SELECT
+    DATEPART(YEAR, date_appel)  AS annee,
+    DATEPART(WEEK, date_appel)  AS semaine,
+    sentiment_ia,
+    COUNT(*)                                         AS nb_appels,
+    ROUND(AVG(CAST(score_risque_churn AS FLOAT)), 1) AS score_moyen
+FROM silver_appels_enrichis
+GROUP BY DATEPART(YEAR, date_appel), DATEPART(WEEK, date_appel), sentiment_ia;
+</code></pre>
+<hr />
+<p><a id="bloc-6-visualisation-python-avec-seaborn-et-matplotlib"></a></p>
+<h2>Bloc 6 — Visualisation Python avec Seaborn et Matplotlib</h2>
+<p><a id="prerequis-chargement-des-donnees"></a></p>
+<h3>Prérequis — Chargement des données</h3>
+<pre><code class="language-python">import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+import seaborn as sns
+import warnings
+warnings.filterwarnings(&quot;ignore&quot;)
+
+df = spark.table(&quot;silver_appels_enrichis&quot;).toPandas()  # Lakehouse attaché = nom simple suffisant, ne pas utiliser LH_SolarVoix.dbo.silver_appels_enrichis
+df[&quot;date_appel&quot;] = pd.to_datetime(df[&quot;date_appel&quot;])
+
+PALETTE = {&quot;negatif&quot;: &quot;#E74C3C&quot;, &quot;neutre&quot;: &quot;#F39C12&quot;, &quot;positif&quot;: &quot;#27AE60&quot;}
+SEUIL_ALERTE = 40
+
+print(f&quot;Données chargées : {len(df)} appels&quot;)
+print(df[[&quot;sentiment_ia&quot;, &quot;sentiment_reel&quot;, &quot;score_risque_churn&quot;, &quot;ville&quot;, &quot;produit&quot;]].describe(include=&quot;all&quot;).T)
+</code></pre>
+<hr />
+<p><a id="graphique-1-distribution-des-scores-churn-par-sentiment"></a></p>
+<h3>Graphique 1 — Distribution des scores churn par sentiment</h3>
+<pre><code class="language-python">fig, axes = plt.subplots(1, 3, figsize=(15, 5), sharey=True)
+fig.suptitle(&quot;Distribution du score churn par sentiment&quot;, fontsize=14, fontweight=&quot;bold&quot;)
+
+for ax, sent in zip(axes, [&quot;negatif&quot;, &quot;neutre&quot;, &quot;positif&quot;]):
+    sous = df[df[&quot;sentiment_ia&quot;] == sent][&quot;score_risque_churn&quot;]
+    ax.hist(sous, bins=15, color=PALETTE[sent], alpha=0.75, edgecolor=&quot;white&quot;)
+    ax.axvline(sous.mean(), color=&quot;black&quot;, linestyle=&quot;--&quot;, lw=1.5, label=f&quot;Moy : {sous.mean():.1f}&quot;)
+    ax.axvline(SEUIL_ALERTE, color=&quot;#C0392B&quot;, linestyle=&quot;:&quot;, lw=1.5, label=&quot;Seuil 40&quot;)
+    ax.set_title(sent.capitalize(), fontweight=&quot;bold&quot;)
+    ax.set_xlabel(&quot;Score churn&quot;)
+    ax.legend(fontsize=8)
+    ax.set_xlim(0, 100)
+
+plt.tight_layout()
+plt.show()
+</code></pre>
+<hr />
+<p><a id="graphique-2-boite-a-moustaches-score-churn-par-produit-et-sentiment"></a></p>
+<h3>Graphique 2 — Boîte à moustaches : Score churn par produit et sentiment</h3>
+<pre><code class="language-python">fig, ax = plt.subplots(figsize=(14, 6))
+
+sns.boxplot(data=df, x=&quot;produit&quot;, y=&quot;score_risque_churn&quot;, hue=&quot;sentiment_ia&quot;,
+            palette=PALETTE, width=0.6, linewidth=1.2, ax=ax)
+
+ax.axhline(SEUIL_ALERTE, color=&quot;#E74C3C&quot;, linestyle=&quot;--&quot;, lw=1.5, label=&quot;Seuil alerte (40)&quot;)
+ax.axhline(25, color=&quot;#F39C12&quot;, linestyle=&quot;:&quot;, lw=1.2, label=&quot;Seuil vigilance (25)&quot;)
+ax.set_title(&quot;Score churn par produit et sentiment&quot;, fontsize=13, fontweight=&quot;bold&quot;)
+ax.set_ylim(0, 105)
+ax.legend(bbox_to_anchor=(1.01, 1), loc=&quot;upper left&quot;)
+plt.xticks(rotation=30, ha=&quot;right&quot;)
+plt.tight_layout()
+plt.show()
+</code></pre>
+<hr />
+<p><a id="graphique-3-heatmap-score-moyen-produit-sentiment"></a></p>
+<h3>Graphique 3 — Heatmap : Score moyen — Produit × Sentiment</h3>
+<pre><code class="language-python">pivot = df.pivot_table(values=&quot;score_risque_churn&quot;, index=&quot;produit&quot;,
+                       columns=&quot;sentiment_ia&quot;, aggfunc=&quot;mean&quot;).round(1)
+pivot = pivot[[c for c in [&quot;negatif&quot;, &quot;neutre&quot;, &quot;positif&quot;] if c in pivot.columns]]
+
+fig, ax = plt.subplots(figsize=(8, 5))
+sns.heatmap(pivot, annot=True, fmt=&quot;.1f&quot;, cmap=&quot;RdYlGn_r&quot;,
+            vmin=0, vmax=100, linewidths=0.5, ax=ax,
+            cbar_kws={&quot;label&quot;: &quot;Score churn moyen&quot;})
+
+ax.set_title(&quot;Score churn moyen — Produit × Sentiment&quot;, fontsize=13, fontweight=&quot;bold&quot;)
+plt.yticks(rotation=0)
+plt.tight_layout()
+plt.show()
+</code></pre>
+<hr />
+<p><a id="graphique-4-matrice-de-confusion-sentimentia-vs-sentimentreel"></a></p>
+<h3>Graphique 4 — Matrice de confusion : sentiment_ia vs sentiment_reel</h3>
+<pre><code class="language-python">from sklearn.metrics import confusion_matrix
+
+&lt;a id=&quot;supprimer-les-lignes-nulles-sur-les-deux-colonnes-simultanement&quot;&gt;&lt;/a&gt;
+# Supprimer les lignes nulles sur les deux colonnes simultanément
+df_clean = df.dropna(subset=[&quot;sentiment_reel&quot;, &quot;sentiment_ia&quot;])
+
+labels = sorted(df_clean[&quot;sentiment_reel&quot;].unique())
+cm = confusion_matrix(df_clean[&quot;sentiment_reel&quot;], df_clean[&quot;sentiment_ia&quot;], labels=labels)
+
+fig, ax = plt.subplots(figsize=(7, 5))
+sns.heatmap(pd.DataFrame(cm, index=labels, columns=labels),
+            annot=True, fmt=&quot;d&quot;, cmap=&quot;Blues&quot;,
+            linewidths=0.5, ax=ax)
+
+ax.set_ylabel(&quot;Sentiment réel&quot;, fontsize=11)
+ax.set_title(&quot;Matrice de confusion — Qualité du modèle IA&quot;, fontsize=13, fontweight=&quot;bold&quot;)
+
+precision = cm.diagonal().sum() / cm.sum()
+ax.set_xlabel(f&quot;Sentiment prédit (IA)\nPrécision globale : {precision:.1%}&quot;, fontsize=11)
+plt.tight_layout()
+plt.show()
+</code></pre>
+<hr />
+<p><a id="graphique-5-courbe-de-tendance-avec-zones-de-seuil-colorees"></a></p>
+<h3>Graphique 5 — Courbe de tendance avec zones de seuil colorées</h3>
+<pre><code class="language-python">tendance = df.groupby(df[&quot;date_appel&quot;].dt.to_period(&quot;D&quot;))[&quot;score_risque_churn&quot;].mean().reset_index()
+tendance[&quot;date_appel&quot;] = tendance[&quot;date_appel&quot;].dt.to_timestamp()
+
+fig, ax = plt.subplots(figsize=(14, 5))
+
+ax.axhspan(0,  25,  alpha=0.08, color=&quot;#27AE60&quot;, label=&quot;Zone verte (&lt; 25)&quot;)
+ax.axhspan(25, 40,  alpha=0.08, color=&quot;#F39C12&quot;, label=&quot;Zone orange (25–40)&quot;)
+ax.axhspan(40, 100, alpha=0.08, color=&quot;#E74C3C&quot;, label=&quot;Zone rouge (&gt; 40)&quot;)
+
+ax.plot(tendance[&quot;date_appel&quot;], tendance[&quot;score_risque_churn&quot;],
+        color=&quot;#2C3E50&quot;, lw=2, marker=&quot;o&quot;, markersize=4, label=&quot;Score moyen journalier&quot;)
+ax.axhline(SEUIL_ALERTE, color=&quot;#E74C3C&quot;, linestyle=&quot;--&quot;, lw=1.5, label=&quot;Seuil alerte (40)&quot;)
+
+ax.set_title(&quot;Évolution quotidienne du score churn avec zones de risque&quot;, fontsize=13, fontweight=&quot;bold&quot;)
+ax.set_ylim(0, 100)
+ax.legend(loc=&quot;upper left&quot;, fontsize=9)
+plt.xticks(rotation=30, ha=&quot;right&quot;)
+plt.tight_layout()
+plt.show()
+</code></pre>
+<hr />
+<p><a id="graphique-6-scatter-duree-appels-critiques-vs-nb-appels-par-produit"></a></p>
+<h3>Graphique 6 — Scatter : Durée appels critiques vs Nb appels par produit</h3>
+<pre><code class="language-python">&lt;a id=&quot;agregation-par-produit&quot;&gt;&lt;/a&gt;
+# Agrégation par produit
+agg = df.groupby(&quot;produit&quot;).agg(
+    score_moyen=(&quot;score_risque_churn&quot;, &quot;mean&quot;),
+    duree_critique=(&quot;duree_minutes&quot;, lambda x: x[df.loc[x.index, &quot;alerte_critique&quot;] == True].mean()),
+    nb_appels=(&quot;call_id&quot;, &quot;count&quot;),
+    nb_alertes=(&quot;alerte_critique&quot;, &quot;sum&quot;)
+).reset_index()
+
+fig, ax = plt.subplots(figsize=(10, 6))
+scatter = ax.scatter(
+    agg[&quot;nb_appels&quot;], agg[&quot;duree_critique&quot;],
+    s=agg[&quot;score_moyen&quot;] * 10,       # taille = score churn moyen
+    c=agg[&quot;nb_alertes&quot;],              # couleur = nb alertes
+    cmap=&quot;RdYlGn_r&quot;, alpha=0.85,
+    edgecolors=&quot;black&quot;, linewidths=0.8
+)
+
+for _, row in agg.iterrows():
+    ax.annotate(row[&quot;produit&quot;], (row[&quot;nb_appels&quot;], row[&quot;duree_critique&quot;]),
+                fontsize=8, ha=&quot;center&quot;, va=&quot;bottom&quot;, xytext=(0, 6),
+                textcoords=&quot;offset points&quot;)
+
+ax.set_xlabel(&quot;Nombre d'appels total par produit&quot;, fontsize=11)
+ax.set_ylabel(&quot;Durée moyenne des appels critiques (min)&quot;, fontsize=11)
+ax.set_title(&quot;Durée critique vs Volume — Taille = Score churn moyen&quot;, fontsize=12, fontweight=&quot;bold&quot;)
+plt.colorbar(scatter, label=&quot;Nb alertes&quot;)
+ax.axhline(df[df[&quot;alerte_critique&quot;]==True][&quot;duree_minutes&quot;].mean(),
+           color=&quot;gray&quot;, linestyle=&quot;:&quot;, label=&quot;Durée moy critique globale&quot;)
+ax.legend(fontsize=9)
+plt.tight_layout()
+plt.show()
+</code></pre>
+<blockquote>
+<p>💡 Ce graphique répond directement à la question : "Quels produits mobilisent le plus les agents sur les appels critiques ET génèrent le plus d'alertes ?" Le produit dans le quadrant droite-haute est à la fois très sollicité ET chaque alerte dure longtemps — priorité maximale pour la formation des agents ou l'amélioration produit.</p>
+</blockquote>
+<hr />
+<p><a id="recapitulatif-de-la-partie-3"></a></p>
+<h2>Récapitulatif de la Partie 3</h2>
+<table>
+<thead>
+<tr>
+<th>Composant</th>
+<th>Contenu</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>DimDate</code></td>
+<td>Table Delta dans LH_SolarVoix — année, mois, semaine, jour, week-end — plage calée sur <code>date_appel</code></td>
+</tr>
+<tr>
+<td>21 mesures DAX</td>
+<td>Constantes gauges, scores, écarts, qualité IA, intentions</td>
+</tr>
+<tr>
+<td>Page 1 Vue d'ensemble</td>
+<td>KPI vs seuil, Goals, Ribbon chart, tendance P90</td>
+</tr>
+<tr>
+<td>Page 2 Risque Churn</td>
+<td>2 jauges comparées, scatter durée/score, Pie intentions, barres</td>
+</tr>
+<tr>
+<td>Page 3 Géographie</td>
+<td>Carte, Top villes, scatter ville, matrice ville×produit</td>
+</tr>
+<tr>
+<td>Page 4 Qualité IA</td>
+<td>Matrice confusion, KPI précision, comparaison intentions</td>
+</tr>
+<tr>
+<td>Page 5 Détail appel</td>
+<td>Drill-through, sentiment_ia vs sentiment_reel, tableau complet</td>
+</tr>
+<tr>
+<td>5 vues T-SQL</td>
+<td>Distribution, clients à risque, confusion SQL, intentions, tendance</td>
+</tr>
+<tr>
+<td>6 graphiques Python</td>
+<td>Histos, boxplot, heatmap, confusion, tendance, scatter produit</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<p><a id="recapitulatif-global-de-latelier-5"></a></p>
+<h2>Récapitulatif global de l'Atelier 5</h2>
+<table>
+<thead>
+<tr>
+<th>Partie</th>
+<th>Durée</th>
+<th>Outils</th>
+<th>Livrables</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Partie 1</strong></td>
+<td>~60 min</td>
+<td>Lakehouse, Notebook PySpark, Transformers</td>
+<td>Tables Bronze + Silver enrichies</td>
+</tr>
+<tr>
+<td><strong>Partie 2</strong></td>
+<td>~60 min</td>
+<td>Pipeline Data Factory, Eventstream, Activator</td>
+<td>Pipeline automatisé, alertes, logging</td>
+</tr>
+<tr>
+<td><strong>Partie 3</strong></td>
+<td>~12</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table></main>
+</body>
+</html>

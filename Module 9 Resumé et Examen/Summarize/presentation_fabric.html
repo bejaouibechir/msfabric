@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MS Fabric – Outils, Langages et Sécurité</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f0f4f8;--bg-card:#fff;--bg-sidebar:#fff;--bg-nav:#fff;
+  --accent:#0078d4;--accent2:#7c3aed;--accent-hover:#005a9e;
+  --text:#1e293b;--text-muted:#64748b;--text-light:#94a3b8;
+  --border:#e2e8f0;--border-strong:#cbd5e1;
+  --shadow-sm:0 1px 4px rgba(0,0,0,.08);--shadow-md:0 4px 16px rgba(0,0,0,.12);
+  --nav-h:56px;--prog-h:3px;--sidebar-w:240px;--card-max:880px;
+  --radius:12px;--transition:.2s ease}
+html,body{height:100%;background:var(--bg);color:var(--text);
+  font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
+  font-size:17px;line-height:1.75;overflow:hidden}
+/* NAV */
+#navbar{position:fixed;top:0;left:0;right:0;z-index:100;height:var(--nav-h);
+  background:var(--bg-nav);border-bottom:1px solid var(--border);
+  box-shadow:var(--shadow-sm);display:flex;align-items:center;gap:12px;padding:0 20px}
+#nav-brand{display:flex;align-items:center;gap:10px;flex-shrink:0;text-decoration:none}
+.brand-ms{font-size:10px;color:var(--text-muted);font-weight:400;text-transform:uppercase;letter-spacing:.04em}
+.brand-fabric{font-size:14px;font-weight:700;color:var(--accent)}
+#nav-chapter-badge{flex:1;font-size:.82rem;color:var(--text-muted);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 8px}
+#nav-controls{display:flex;align-items:center;gap:4px;background:var(--bg);
+  border:1px solid var(--border);border-radius:999px;padding:4px 6px;flex-shrink:0}
+#btn-prev,#btn-next{display:flex;align-items:center;gap:5px;background:none;border:none;
+  color:var(--accent);font-size:.88rem;font-weight:600;cursor:pointer;padding:5px 12px;
+  border-radius:999px;transition:background var(--transition),color var(--transition);white-space:nowrap}
+#btn-prev:hover,#btn-next:hover{background:var(--accent);color:#fff}
+#btn-prev:disabled,#btn-next:disabled{color:var(--text-light);cursor:not-allowed}
+#btn-prev:disabled:hover,#btn-next:disabled:hover{background:none}
+#slide-counter{font-size:.82rem;font-weight:600;color:var(--text-muted);padding:0 8px;
+  border-left:1px solid var(--border);border-right:1px solid var(--border);white-space:nowrap}
+/* PROGRESS */
+#progress-wrap{position:fixed;top:var(--nav-h);left:0;right:0;z-index:99;
+  height:var(--prog-h);background:var(--border)}
+#progress-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--accent2));
+  transition:width .3s ease}
+/* LAYOUT */
+#layout{position:fixed;top:calc(var(--nav-h) + var(--prog-h));bottom:0;left:0;right:0;
+  display:flex;overflow:hidden}
+/* SIDEBAR */
+#sidebar{width:var(--sidebar-w);flex-shrink:0;background:var(--bg-sidebar);
+  border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+#sidebar-title{padding:16px 20px 10px;font-size:.72rem;font-weight:700;
+  text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);
+  border-bottom:1px solid var(--border);flex-shrink:0}
+#chapter-list{list-style:none;overflow-y:auto;flex:1;padding:8px 0}
+#chapter-list li{padding:10px 20px;cursor:pointer;font-size:.83rem;color:var(--text-muted);
+  border-left:3px solid transparent;
+  transition:background var(--transition),color var(--transition),border-color var(--transition);
+  display:flex;align-items:flex-start;gap:8px;line-height:1.4}
+#chapter-list li:hover{background:var(--bg);color:var(--text);border-left-color:var(--border-strong)}
+#chapter-list li.active{background:#eff6ff;color:var(--accent);border-left-color:var(--accent);font-weight:600}
+.ch-num{font-size:.7rem;font-weight:700;background:var(--border);border-radius:4px;
+  padding:1px 5px;flex-shrink:0;margin-top:1px;color:var(--text-muted)}
+li.active .ch-num{background:var(--accent);color:#fff}
+/* SLIDE */
+#slide-area{flex:1;overflow-y:auto;padding:36px 24px 48px;display:flex;flex-direction:column;align-items:center}
+#slide-card{background:var(--bg-card);border-radius:var(--radius);box-shadow:var(--shadow-md);
+  padding:44px 52px;width:100%;max-width:var(--card-max);border:1px solid var(--border)}
+#slide-chapter-label{font-size:.78rem;font-weight:700;text-transform:uppercase;
+  letter-spacing:.07em;color:var(--accent);margin-bottom:10px}
+#slide-heading{font-size:1.7rem;font-weight:700;color:var(--text);line-height:1.3;
+  margin-bottom:28px;padding-bottom:16px;border-bottom:2px solid var(--accent)}
+#slide-body{font-size:1rem;color:var(--text)}
+#slide-body h2,#slide-body h3,#slide-body h4{margin:24px 0 10px;font-weight:700;line-height:1.3}
+#slide-body h2{font-size:1.25rem;color:var(--accent)}
+#slide-body h3{font-size:1.08rem;color:var(--accent2);border-left:3px solid var(--accent2);padding-left:10px}
+#slide-body p{margin-bottom:12px}
+#slide-body ul,#slide-body ol{margin:6px 0 12px 24px}
+#slide-body li{margin-bottom:6px}
+#slide-body strong{color:#0a3d62;font-weight:700}
+#slide-body em{color:var(--accent2);font-style:italic}
+#slide-body table{width:100%;border-collapse:collapse;margin:14px 0;font-size:.9rem;
+  border-radius:8px;overflow:hidden;border:1px solid var(--border)}
+#slide-body th{background:var(--accent);color:#fff;padding:9px 14px;text-align:left;font-weight:600}
+#slide-body td{padding:8px 14px;border-bottom:1px solid var(--border)}
+#slide-body tr:last-child td{border-bottom:none}
+#slide-body tr:nth-child(even) td{background:#f8fafc}
+#slide-body pre{background:#f8fafc;padding:16px 18px;border-radius:8px;overflow-x:auto;
+  margin:12px 0;border:1px solid var(--border)}
+#slide-body code{font-family:'Cascadia Code','Fira Code',Consolas,monospace;font-size:.84rem}
+#slide-body pre code{background:none;padding:0}
+#slide-body :not(pre)>code{background:#f1f5f9;padding:2px 6px;border-radius:4px;
+  border:1px solid var(--border);color:#be185d}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:3px}
+/* HERO */
+.hero-slide{display:flex;flex-direction:column;gap:24px}
+.hero-badge{display:inline-block;background:var(--accent);color:#fff;font-size:.78rem;
+  font-weight:700;letter-spacing:.06em;padding:5px 14px;border-radius:999px;
+  text-transform:uppercase;width:fit-content}
+.hero-subtitle{font-size:1.08rem;color:var(--text-muted);line-height:1.65;
+  border-left:4px solid var(--accent);padding-left:16px}
+.hero-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.hero-card{background:var(--bg);border:1px solid var(--border);border-radius:10px;
+  padding:18px;display:flex;flex-direction:column;gap:8px}
+.hero-card strong{color:var(--accent);font-size:.95rem}
+.hero-card p{font-size:.85rem;color:var(--text-muted);margin:0}
+.hero-icon{font-size:1.7rem}
+.hero-onelake{background:linear-gradient(135deg,#eff6ff,#f5f3ff);
+  border:1px solid #bfdbfe;border-radius:10px;padding:14px 18px;
+  font-size:.9rem;color:var(--text)}
+/* WORKLOAD GRID */
+.workload-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:14px}
+.wl-card{display:flex;align-items:flex-start;gap:12px;background:var(--bg);
+  border:1px solid var(--border);border-left:4px solid var(--accent);
+  border-radius:8px;padding:12px}
+.wl-factory{border-left-color:#0078d4}.wl-eng{border-left-color:#7c3aed}
+.wl-lake{border-left-color:#059669}.wl-wh{border-left-color:#d97706}
+.wl-rt{border-left-color:#dc2626}.wl-pbi{border-left-color:#f59e0b}
+.wl-sci{border-left-color:#0891b2}.wl-act{border-left-color:#6366f1}
+.wl-icon{font-size:1.5rem;flex-shrink:0;margin-top:2px}
+.wl-info{display:flex;flex-direction:column;gap:3px}
+.wl-info strong{font-size:.9rem;color:var(--text)}
+.wl-info span{font-size:.8rem;color:var(--text-muted);line-height:1.4}
+/* TOOLS */
+.tool-list{display:flex;flex-direction:column;gap:10px;margin:10px 0}
+.tool-item{display:flex;gap:14px;background:var(--bg);
+  border:1px solid var(--border);border-radius:8px;padding:12px}
+.tool-icon{font-size:1.4rem;flex-shrink:0}
+.tool-body strong{color:var(--accent)}
+.tool-body p{font-size:.86rem;color:var(--text-muted);margin:3px 0 0}
+/* SECURITY LAYERS */
+.security-layers{display:flex;flex-direction:column;gap:9px;margin-top:14px}
+.sec-layer{display:grid;grid-template-columns:200px 1fr;
+  border:1px solid var(--border);border-left:5px solid var(--lc,var(--accent));
+  border-radius:8px;overflow:hidden}
+.sec-layer-title{background:var(--bg);padding:12px 14px;font-weight:700;
+  font-size:.85rem;color:var(--text);display:flex;align-items:center;
+  border-right:1px solid var(--border)}
+.sec-layer-body{padding:10px 14px;font-size:.85rem;color:var(--text-muted);
+  line-height:1.5;background:#fff}
+/* ROLES */
+.roles-table{display:flex;flex-direction:column;gap:8px}
+.role-row{display:grid;grid-template-columns:100px 1fr;
+  border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.role-badge{display:flex;align-items:center;justify-content:center;
+  font-weight:800;font-size:.9rem;text-align:center;padding:10px 6px;color:#fff}
+.role-admin .role-badge{background:#dc2626}.role-member .role-badge{background:#d97706}
+.role-contributor .role-badge{background:#059669}.role-viewer .role-badge{background:#64748b}
+.role-perms{padding:8px 14px;background:var(--bg)}
+.role-perms ul{list-style:none;margin:0;padding:0}
+.role-perms li{font-size:.8rem;padding:2px 0;color:var(--text)}
+/* SECURITY SUMMARY */
+.security-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:14px}
+.ss-item{background:var(--bg);border:1px solid var(--border);border-radius:8px;
+  padding:10px;display:flex;flex-direction:column;gap:4px;align-items:center;text-align:center}
+.ss-item span:first-child{font-size:1.1rem}
+.ss-item span:last-child{font-size:.78rem;color:var(--text-muted)}
+</style>
+</head>
+
+</head>
+<body>
+
+<nav id="navbar">
+  <a id="nav-brand" href="#">
+    <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="32" height="32" rx="6" fill="#0078d4"/>
+      <path d="M7 10h18v3H7zM7 15h12v3H7zM7 20h15v3H7z" fill="white" opacity=".9"/>
+    </svg>
+    <div class="brand-text">
+      <span class="brand-ms">Microsoft</span>
+      <span class="brand-fabric">Fabric</span>
+    </div>
+  </a>
+  <span id="nav-chapter-badge"></span>
+  <div id="nav-controls">
+    <button id="btn-prev">&#8592; Précédent</button>
+    <span id="slide-counter">1 / 9</span>
+    <button id="btn-next">Suivant &#8594;</button>
+  </div>
+</nav>
+
+<div id="progress-wrap"><div id="progress-bar"></div></div>
+
+<div id="layout">
+  <aside id="sidebar">
+    <div id="sidebar-title">Chapitres</div>
+    <ul id="chapter-list"></ul>
+  </aside>
+  <main id="slide-area">
+    <div id="slide-card">
+      <div id="slide-chapter-label"></div>
+      <h1 id="slide-heading"></h1>
+      <div id="slide-body"></div>
+    </div>
+  </main>
+</div>
+
+
+<script>
+const SLIDES = [
+  {
+    chapterTitle: "Accueil",
+    title: "Outils, Langages et Sécurité dans Microsoft Fabric",
+    content: `<div class="hero-slide">
+  <div class="hero-badge">Microsoft Fabric</div>
+  <h1 class="hero-title">Outils, Langages &amp; Sécurité</h1>
+  <p class="hero-subtitle">Vue synthétique de l'écosystème Microsoft Fabric — workloads, langages supportés et modèle de sécurité multi-couches.</p>
+  <div class="hero-grid">
+    <div class="hero-card"><div class="hero-icon">🛠️</div><strong>8 Workloads intégrés</strong><p>Data Factory, Engineering, Lakehouse, Warehouse, Real-Time, Power BI, Data Science, Activator</p></div>
+    <div class="hero-card"><div class="hero-icon">💻</div><strong>9 Langages supportés</strong><p>SQL, Python, PySpark, Scala, KQL, DAX, M, Spark SQL, R</p></div>
+    <div class="hero-card"><div class="hero-icon">🔐</div><strong>Sécurité multi-couches</strong><p>Identité, RBAC, RLS/CLS/OLS, Sensitivity Labels, Purview</p></div>
+  </div>
+</div>`
+  },
+  {
+    chapterTitle: "Écosystème & Outils",
+    title: "Écosystème des Outils Microsoft Fabric",
+    content: `<p>Microsoft Fabric regroupe <strong>8 workloads intégrés</strong> autour d'un lac de données unique (<strong>OneLake</strong>) et d'une identité commune (Microsoft Entra ID).</p>
+<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;">
+<div style="flex:1;min-width:240px">
+<div class="workload-grid">
+  <div class="wl-card wl-factory"><div class="wl-icon">🔄</div><div class="wl-info"><strong>Data Factory</strong><span>Pipelines &amp; Dataflows Gen2. 200+ connecteurs.</span></div></div>
+  <div class="wl-card wl-eng"><div class="wl-icon">⚡</div><div class="wl-info"><strong>Data Engineering</strong><span>Notebooks Spark, Lakehouses Delta.</span></div></div>
+  <div class="wl-card wl-lake"><div class="wl-icon">🏠</div><div class="wl-info"><strong>Lakehouse</strong><span>Delta Parquet + SQL Endpoint. Architecture Medallion.</span></div></div>
+  <div class="wl-card wl-wh"><div class="wl-icon">🗄️</div><div class="wl-info"><strong>Data Warehouse</strong><span>T-SQL, ACID, RLS, CLS.</span></div></div>
+  <div class="wl-card wl-rt"><div class="wl-icon">📡</div><div class="wl-info"><strong>Real-Time Intelligence</strong><span>Eventstream, KQL Database.</span></div></div>
+  <div class="wl-card wl-pbi"><div class="wl-icon">📊</div><div class="wl-info"><strong>Power BI</strong><span>Rapports, Semantic Models, Direct Lake.</span></div></div>
+  <div class="wl-card wl-sci"><div class="wl-icon">🔬</div><div class="wl-info"><strong>Data Science</strong><span>ML, MLflow, AutoML.</span></div></div>
+  <div class="wl-card wl-act"><div class="wl-icon">🔔</div><div class="wl-info"><strong>Data Activator</strong><span>Alertes &amp; actions automatiques temps réel.</span></div></div>
+</div>
+</div>
+<div style="flex:0 0 auto">
+<svg viewBox="0 0 320 340" width="300" xmlns="http://www.w3.org/2000/svg" style="border-radius:12px;background:#0f172a;display:block">
+  <ellipse cx="160" cy="170" rx="54" ry="38" fill="#0078d4" opacity=".15"/>
+  <ellipse cx="160" cy="170" rx="44" ry="30" fill="#0078d4" opacity=".3"/>
+  <circle cx="160" cy="170" r="32" fill="#0078d4"/>
+  <text x="160" y="165" text-anchor="middle" fill="white" font-size="9.5" font-weight="700" font-family="Segoe UI,sans-serif">One</text>
+  <text x="160" y="177" text-anchor="middle" fill="#7dd3fc" font-size="9.5" font-weight="700" font-family="Segoe UI,sans-serif">Lake</text>
+  <line x1="160" y1="138" x2="160" y2="62" stroke="#38bdf8" stroke-width="1.2" stroke-dasharray="4,3"/>
+  <rect x="124" y="38" width="72" height="24" rx="6" fill="#1e3a5f" stroke="#38bdf8" stroke-width="1"/>
+  <text x="160" y="54" text-anchor="middle" fill="#7dd3fc" font-size="8.5" font-family="Segoe UI,sans-serif">🔄 Data Factory</text>
+  <line x1="185" y1="148" x2="255" y2="85" stroke="#818cf8" stroke-width="1.2" stroke-dasharray="4,3"/>
+  <rect x="228" y="62" width="80" height="24" rx="6" fill="#1e1e4f" stroke="#818cf8" stroke-width="1"/>
+  <text x="268" y="78" text-anchor="middle" fill="#a5b4fc" font-size="8" font-family="Segoe UI,sans-serif">⚡ Engineering</text>
+  <line x1="192" y1="170" x2="272" y2="152" stroke="#34d399" stroke-width="1.2" stroke-dasharray="4,3"/>
+  <rect x="250" y="138" width="70" height="24" rx="6" fill="#052e16" stroke="#34d399" stroke-width="1"/>
+  <text x="285" y="154" text-anchor="middle" fill="#6ee7b7" font-size="8.5" font-family="Segoe UI,sans-serif">🏠 Lakehouse</text>
+  <line x1="183" y1="193" x2="245" y2="248" stroke="#fb923c" stroke-width="1.2" stroke-dasharray="4,3"/>
+  <rect x="220" y="238" width="76" height="24" rx="6" fill="#431407" stroke="#fb923c" stroke-width="1"/>
+  <text x="258" y="254" text-anchor="middle" fill="#fdba74" font-size="8" font-family="Segoe UI,sans-serif">🗄️ Warehouse</text>
+  <line x1="160" y1="200" x2="160" y2="274" stroke="#f59e0b" stroke-width="1.2" stroke-dasharray="4,3"/>
+  <rect x="122" y="272" width="76" height="24" rx="6" fill="#451a03" stroke="#f59e0b" stroke-width="1"/>
+  <text x="160" y="288" text-anchor="middle" fill="#fcd34d" font-size="8.5" font-family="Segoe UI,sans-serif">📊 Power BI</text>
+  <line x1="137" y1="193" x2="78" y2="250" stroke="#e879f9" stroke-width="1.2" stroke-dasharray="4,3"/>
+  <rect x="20" y="238" width="78" height="24" rx="6" fill="#3b0764" stroke="#e879f9" stroke-width="1"/>
+  <text x="59" y="254" text-anchor="middle" fill="#f0abfc" font-size="8.5" font-family="Segoe UI,sans-serif">🔬 Data Science</text>
+  <line x1="128" y1="170" x2="48" y2="152" stroke="#f87171" stroke-width="1.2" stroke-dasharray="4,3"/>
+  <rect x="2" y="138" width="72" height="24" rx="6" fill="#450a0a" stroke="#f87171" stroke-width="1"/>
+  <text x="38" y="154" text-anchor="middle" fill="#fca5a5" font-size="8" font-family="Segoe UI,sans-serif">📡 Real-Time</text>
+  <line x1="136" y1="148" x2="68" y2="86" stroke="#4ade80" stroke-width="1.2" stroke-dasharray="4,3"/>
+  <rect x="8" y="62" width="80" height="24" rx="6" fill="#052e16" stroke="#4ade80" stroke-width="1"/>
+  <text x="48" y="78" text-anchor="middle" fill="#86efac" font-size="8" font-family="Segoe UI,sans-serif">🔔 Data Activator</text>
+</svg>
+<p style="font-size:.75rem;color:var(--text-muted);text-align:center;margin-top:4px;">Architecture hub &amp; spoke — OneLake au centre</p>
+</div>
+</div>`
+  },
+  {
+    chapterTitle: "Langages & Moteurs",
+    title: "Langages et Moteurs supportés",
+    content: `<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;">
+<div style="flex:1;min-width:240px">
+<p>Microsoft Fabric supporte nativement plusieurs langages selon le workload utilisé.</p>
+<table>
+  <thead><tr><th>Langage</th><th>Contexte</th><th>Workloads</th></tr></thead>
+  <tbody>
+    <tr><td><strong>SQL / T-SQL</strong></td><td>DDL/DML, vues, RLS, procédures</td><td>Warehouse, SQL Endpoint</td></tr>
+    <tr><td><strong>Python</strong></td><td>ML, scripting, visualisation</td><td>Notebooks, Data Science</td></tr>
+    <tr><td><strong>PySpark</strong></td><td>Traitement distribué massif</td><td>Data Engineering, Notebooks</td></tr>
+    <tr><td><strong>Scala</strong></td><td>Jobs Spark haute performance</td><td>Data Engineering</td></tr>
+    <tr><td><strong>Spark SQL</strong></td><td>SQL sur Delta Lake distribué</td><td>Notebooks, Engineering</td></tr>
+    <tr><td><strong>KQL</strong></td><td>Requêtes temps réel, logs, séries temporelles</td><td>Real-Time Intelligence</td></tr>
+    <tr><td><strong>Power Query (M)</strong></td><td>Transformations low-code</td><td>Dataflows Gen2, Power BI</td></tr>
+    <tr><td><strong>DAX</strong></td><td>Mesures, KPIs, colonnes calculées</td><td>Power BI, Semantic Models</td></tr>
+    <tr><td><strong>R</strong></td><td>Analyse statistique avancée</td><td>Notebooks (Spark R)</td></tr>
+  </tbody>
+</table>
+<h3>Expression Builder — Pipelines</h3>
+<pre><code>@concat('bronze/', pipeline().parameters.schema,
+        '/', formatDateTime(utcnow(), 'yyyy/MM/dd'))</code></pre>
+</div>
+<div style="flex:0 0 auto">
+<svg viewBox="0 0 220 310" width="205" xmlns="http://www.w3.org/2000/svg" style="border-radius:12px;background:#0f172a;display:block">
+  <text x="110" y="16" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="Segoe UI,sans-serif">Langages par workload</text>
+  <rect x="8" y="24" width="204" height="36" rx="6" fill="#1e3a5f" stroke="#38bdf8" stroke-width="1"/>
+  <text x="14" y="38" fill="#7dd3fc" font-size="8" font-weight="700" font-family="Segoe UI,sans-serif">⚡ Data Engineering</text>
+  <rect x="14" y="42" width="46" height="13" rx="4" fill="#0c4a6e"/><text x="37" y="52" text-anchor="middle" fill="#bae6fd" font-size="7.5" font-family="Segoe UI,sans-serif">PySpark</text>
+  <rect x="66" y="42" width="36" height="13" rx="4" fill="#0c4a6e"/><text x="84" y="52" text-anchor="middle" fill="#bae6fd" font-size="7.5" font-family="Segoe UI,sans-serif">Scala</text>
+  <rect x="108" y="42" width="50" height="13" rx="4" fill="#0c4a6e"/><text x="133" y="52" text-anchor="middle" fill="#bae6fd" font-size="7.5" font-family="Segoe UI,sans-serif">Spark SQL</text>
+  <rect x="164" y="42" width="38" height="13" rx="4" fill="#0c4a6e"/><text x="183" y="52" text-anchor="middle" fill="#bae6fd" font-size="7.5" font-family="Segoe UI,sans-serif">Python</text>
+  <rect x="8" y="66" width="204" height="28" rx="6" fill="#431407" stroke="#fb923c" stroke-width="1"/>
+  <text x="14" y="78" fill="#fdba74" font-size="8" font-weight="700" font-family="Segoe UI,sans-serif">🗄️ Data Warehouse</text>
+  <rect x="14" y="82" width="46" height="8" rx="3" fill="#7c2d12"/><text x="37" y="89" text-anchor="middle" fill="#fcd34d" font-size="7" font-family="Segoe UI,sans-serif">T-SQL</text>
+  <rect x="8" y="100" width="204" height="28" rx="6" fill="#450a0a" stroke="#f87171" stroke-width="1"/>
+  <text x="14" y="112" fill="#fca5a5" font-size="8" font-weight="700" font-family="Segoe UI,sans-serif">📡 Real-Time Intelligence</text>
+  <rect x="14" y="116" width="32" height="8" rx="3" fill="#7f1d1d"/><text x="30" y="123" text-anchor="middle" fill="#fecaca" font-size="7" font-family="Segoe UI,sans-serif">KQL</text>
+  <rect x="8" y="134" width="204" height="28" rx="6" fill="#3b0764" stroke="#e879f9" stroke-width="1"/>
+  <text x="14" y="146" fill="#f0abfc" font-size="8" font-weight="700" font-family="Segoe UI,sans-serif">🔬 Data Science</text>
+  <rect x="14" y="150" width="38" height="8" rx="3" fill="#581c87"/><text x="33" y="157" text-anchor="middle" fill="#e9d5ff" font-size="7" font-family="Segoe UI,sans-serif">Python</text>
+  <rect x="58" y="150" width="16" height="8" rx="3" fill="#581c87"/><text x="66" y="157" text-anchor="middle" fill="#e9d5ff" font-size="7" font-family="Segoe UI,sans-serif">R</text>
+  <rect x="8" y="168" width="204" height="28" rx="6" fill="#451a03" stroke="#f59e0b" stroke-width="1"/>
+  <text x="14" y="180" fill="#fcd34d" font-size="8" font-weight="700" font-family="Segoe UI,sans-serif">📊 Power BI</text>
+  <rect x="14" y="184" width="28" height="8" rx="3" fill="#78350f"/><text x="28" y="191" text-anchor="middle" fill="#fef08a" font-size="7" font-family="Segoe UI,sans-serif">DAX</text>
+  <rect x="48" y="184" width="28" height="8" rx="3" fill="#78350f"/><text x="62" y="191" text-anchor="middle" fill="#fef08a" font-size="7" font-family="Segoe UI,sans-serif">M</text>
+  <rect x="8" y="202" width="204" height="28" rx="6" fill="#1e293b" stroke="#4ade80" stroke-width="1"/>
+  <text x="14" y="214" fill="#86efac" font-size="8" font-weight="700" font-family="Segoe UI,sans-serif">🔄 Data Factory</text>
+  <rect x="14" y="218" width="58" height="8" rx="3" fill="#052e16"/><text x="43" y="225" text-anchor="middle" fill="#bbf7d0" font-size="7" font-family="Segoe UI,sans-serif">Power Query</text>
+  <rect x="78" y="218" width="58" height="8" rx="3" fill="#052e16"/><text x="107" y="225" text-anchor="middle" fill="#bbf7d0" font-size="7" font-family="Segoe UI,sans-serif">Expressions</text>
+  <rect x="8" y="238" width="204" height="60" rx="6" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+  <text x="110" y="252" text-anchor="middle" fill="#64748b" font-size="8" font-family="Segoe UI,sans-serif">Catégories</text>
+  <circle cx="20" cy="265" r="5" fill="#0078d4"/><text x="30" y="268" fill="#94a3b8" font-size="7.5" font-family="Segoe UI,sans-serif">Données massives (Spark)</text>
+  <circle cx="20" cy="280" r="5" fill="#f59e0b"/><text x="30" y="283" fill="#94a3b8" font-size="7.5" font-family="Segoe UI,sans-serif">Analytique (SQL / DAX)</text>
+  <circle cx="120" cy="265" r="5" fill="#e879f9"/><text x="130" y="268" fill="#94a3b8" font-size="7.5" font-family="Segoe UI,sans-serif">ML / IA (Python / R)</text>
+  <circle cx="120" cy="280" r="5" fill="#f87171"/><text x="130" y="283" fill="#94a3b8" font-size="7.5" font-family="Segoe UI,sans-serif">Temps réel (KQL)</text>
+</svg>
+<p style="font-size:.75rem;color:var(--text-muted);text-align:center;margin-top:4px;">Chaque workload a ses langages natifs</p>
+</div>
+</div>`
+  },
+  {
+    chapterTitle: "Sécurité – Vue d'ensemble",
+    title: "Sécurité dans Microsoft Fabric – Vue d'ensemble",
+    content: `<p>La sécurité Fabric repose sur <strong>plusieurs couches complémentaires</strong>, de l'identité jusqu'à la donnée.</p>
+<div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;">
+<div style="flex:1;min-width:220px">
+<div class="security-layers">
+  <div class="sec-layer" style="--lc:#0078d4"><div class="sec-layer-title">🪪 Identité &amp; Authentification</div>
+    <div class="sec-layer-body"><strong>Microsoft Entra ID</strong> gère toutes les identités. Support <strong>MFA</strong>, <strong>SSO</strong>, <strong>Managed Identity</strong>, <strong>Service Principals</strong>.</div></div>
+  <div class="sec-layer" style="--lc:#7c3aed"><div class="sec-layer-title">🛡️ Autorisation (RBAC)</div>
+    <div class="sec-layer-body">Deux niveaux : <strong>Rôles Workspace</strong> (Admin, Member, Contributor, Viewer) et <strong>permissions par item</strong> (Lakehouse, Warehouse, Semantic Model…).</div></div>
+  <div class="sec-layer" style="--lc:#059669"><div class="sec-layer-title">🔒 Sécurité des Données</div>
+    <div class="sec-layer-body"><strong>RLS</strong> (lignes), <strong>CLS</strong> (colonnes), <strong>OLS</strong> (objets). <strong>Sensitivity Labels</strong> Purview pour classifier &amp; protéger.</div></div>
+</div>
+</div>
+<div style="flex:0 0 auto">
+<svg viewBox="0 0 260 230" width="245" xmlns="http://www.w3.org/2000/svg" style="border-radius:12px;background:#0f172a;display:block">
+  <text x="130" y="18" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="Segoe UI,sans-serif">Modèle de sécurité Fabric</text>
+  <rect x="14" y="185" width="232" height="34" rx="7" fill="#1e293b" stroke="#64748b" stroke-width="1"/>
+  <text x="130" y="200" text-anchor="middle" fill="#94a3b8" font-size="8.5" font-family="Segoe UI,sans-serif" font-weight="600">🌐 Réseau &amp; Plateforme Azure</text>
+  <text x="130" y="212" text-anchor="middle" fill="#64748b" font-size="7.5" font-family="Segoe UI,sans-serif">Private Endpoints · VNet · TLS · AES-256</text>
+  <rect x="28" y="143" width="204" height="34" rx="7" fill="#1e3a5f" stroke="#38bdf8" stroke-width="1.5"/>
+  <text x="130" y="158" text-anchor="middle" fill="#7dd3fc" font-size="8.5" font-family="Segoe UI,sans-serif" font-weight="700">🪪 Identité – Microsoft Entra ID</text>
+  <text x="130" y="170" text-anchor="middle" fill="#64748b" font-size="7.5" font-family="Segoe UI,sans-serif">MFA · SSO · Service Principals · Managed Identity</text>
+  <rect x="44" y="101" width="172" height="34" rx="7" fill="#2d1b69" stroke="#818cf8" stroke-width="1.5"/>
+  <text x="130" y="116" text-anchor="middle" fill="#c4b5fd" font-size="8.5" font-family="Segoe UI,sans-serif" font-weight="700">🛡️ Autorisation – RBAC</text>
+  <text x="130" y="128" text-anchor="middle" fill="#64748b" font-size="7.5" font-family="Segoe UI,sans-serif">Rôles Workspace · Permissions par Item</text>
+  <rect x="62" y="58" width="136" height="34" rx="7" fill="#052e16" stroke="#34d399" stroke-width="1.5"/>
+  <text x="130" y="73" text-anchor="middle" fill="#6ee7b7" font-size="8.5" font-family="Segoe UI,sans-serif" font-weight="700">🔒 Sécurité des Données</text>
+  <text x="130" y="85" text-anchor="middle" fill="#64748b" font-size="7.5" font-family="Segoe UI,sans-serif">RLS · CLS · OLS · Sensitivity Labels</text>
+  <rect x="88" y="25" width="84" height="25" rx="6" fill="#1c0533" stroke="#e879f9" stroke-width="1.5"/>
+  <text x="130" y="41" text-anchor="middle" fill="#f0abfc" font-size="8" font-family="Segoe UI,sans-serif" font-weight="700">📋 Purview</text>
+</svg>
+<p style="font-size:.75rem;color:var(--text-muted);text-align:center;margin-top:4px;">Couches de sécurité (plateforme → donnée)</p>
+</div>
+</div>`
+  },
+  {
+    chapterTitle: "Rôles du Workspace",
+    title: "Les Rôles du Workspace",
+    content: `<p>Chaque workspace Fabric dispose de <strong>4 rôles prédéfinis</strong>, assignés à des utilisateurs, groupes ou Service Principals.</p>
+<div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;">
+<div style="flex:0 0 auto">
+<svg viewBox="0 0 200 290" width="190" xmlns="http://www.w3.org/2000/svg" style="border-radius:12px;background:#0f172a;display:block">
+  <text x="100" y="18" text-anchor="middle" fill="#94a3b8" font-size="9" font-family="Segoe UI,sans-serif">Hiérarchie des rôles</text>
+  <rect x="30" y="28" width="140" height="54" rx="8" fill="#7f1d1d" stroke="#f87171" stroke-width="1.5"/>
+  <text x="100" y="50" text-anchor="middle" fill="#fca5a5" font-size="11" font-weight="700" font-family="Segoe UI,sans-serif">👑 Admin</text>
+  <text x="100" y="64" text-anchor="middle" fill="#fca5a5" font-size="8" font-family="Segoe UI,sans-serif">Gestion complète</text>
+  <text x="100" y="75" text-anchor="middle" fill="#ef4444" font-size="7.5" font-family="Segoe UI,sans-serif">membres · paramètres · suppression</text>
+  <rect x="22" y="94" width="156" height="50" rx="8" fill="#78350f" stroke="#fb923c" stroke-width="1.5"/>
+  <text x="100" y="114" text-anchor="middle" fill="#fdba74" font-size="11" font-weight="700" font-family="Segoe UI,sans-serif">🏅 Member</text>
+  <text x="100" y="128" text-anchor="middle" fill="#fdba74" font-size="8" font-family="Segoe UI,sans-serif">Créer · partager · publier apps</text>
+  <text x="100" y="139" text-anchor="middle" fill="#d97706" font-size="7.5" font-family="Segoe UI,sans-serif">ne peut pas gérer Admin/Member</text>
+  <rect x="14" y="156" width="172" height="50" rx="8" fill="#1e3a5f" stroke="#38bdf8" stroke-width="1.5"/>
+  <text x="100" y="176" text-anchor="middle" fill="#7dd3fc" font-size="11" font-weight="700" font-family="Segoe UI,sans-serif">🔧 Contributor</text>
+  <text x="100" y="190" text-anchor="middle" fill="#7dd3fc" font-size="8" font-family="Segoe UI,sans-serif">Créer ses items · lancer jobs</text>
+  <text x="100" y="201" text-anchor="middle" fill="#0369a1" font-size="7.5" font-family="Segoe UI,sans-serif">ne peut pas partager ni gérer</text>
+  <rect x="6" y="218" width="188" height="50" rx="8" fill="#052e16" stroke="#4ade80" stroke-width="1.5"/>
+  <text x="100" y="238" text-anchor="middle" fill="#86efac" font-size="11" font-weight="700" font-family="Segoe UI,sans-serif">👁 Viewer</text>
+  <text x="100" y="252" text-anchor="middle" fill="#86efac" font-size="8" font-family="Segoe UI,sans-serif">Voir rapports · lire via SQL</text>
+  <text x="100" y="263" text-anchor="middle" fill="#15803d" font-size="7.5" font-family="Segoe UI,sans-serif">lecture seule, aucune modification</text>
+</svg>
+<p style="font-size:.75rem;color:var(--text-muted);text-align:center;margin-top:4px;">Du plus privilégié au plus restreint</p>
+</div>
+<div style="flex:1;min-width:200px">
+<div class="roles-table">
+  <div class="role-row role-admin"><div class="role-badge">Admin</div><div class="role-perms"><ul>
+    <li>✅ Gérer les membres &amp; rôles</li>
+    <li>✅ Configurer (Git, capacité, licence)</li>
+    <li>✅ Créer, modifier, supprimer <strong>tous</strong> les items</li>
+    <li>✅ Partager &amp; accorder des permissions</li>
+    <li>✅ Publier des apps Power BI</li>
+    <li>✅ Supprimer le workspace</li>
+  </ul></div></div>
+  <div class="role-row role-member"><div class="role-badge">Member</div><div class="role-perms"><ul>
+    <li>✅ Créer, modifier, supprimer des items</li>
+    <li>✅ Partager &amp; publier des apps</li>
+    <li>✅ Ajouter des Contributors et Viewers</li>
+    <li>❌ Gérer les rôles Admin / Member</li>
+  </ul></div></div>
+  <div class="role-row role-contributor"><div class="role-badge">Contributor</div><div class="role-perms"><ul>
+    <li>✅ Créer, modifier ses <strong>propres</strong> items</li>
+    <li>✅ Lancer pipelines, notebooks, Dataflows</li>
+    <li>❌ Partager ou accorder des permissions</li>
+  </ul></div></div>
+  <div class="role-row role-viewer"><div class="role-badge">Viewer</div><div class="role-perms"><ul>
+    <li>✅ Voir &amp; interagir avec les rapports</li>
+    <li>✅ Lire via SQL Endpoint (si accordé)</li>
+    <li>❌ Créer, modifier, télécharger, partager</li>
+  </ul></div></div>
+</div>
+<p style="margin-top:12px;font-size:.82rem;color:var(--text-muted);">💡 Pour un contrôle granulaire par item, utilisez les <strong>permissions d'item</strong>.</p>
+</div>
+</div>`
+  },
+  {
+    chapterTitle: "Permissions par Item",
+    title: "Permissions au niveau des Items",
+    content: `<p>En complément des rôles workspace, Fabric permet d'accorder des <strong>permissions spécifiques sur chaque item</strong> à des utilisateurs sans rôle workspace.</p>
+<h3>Lakehouse</h3>
+<table><thead><tr><th>Permission</th><th>Description</th></tr></thead><tbody>
+  <tr><td><strong>Read</strong></td><td>Lire les métadonnées du Lakehouse (pas les données)</td></tr>
+  <tr><td><strong>ReadAll</strong></td><td>Lire tous les fichiers OneLake via ABFS</td></tr>
+  <tr><td><strong>ReadData</strong></td><td>Requêter les tables Delta via le SQL Analytics Endpoint</td></tr>
+  <tr><td><strong>Write</strong></td><td>Écrire des fichiers &amp; tables dans le Lakehouse</td></tr>
+  <tr><td><strong>Execute</strong></td><td>Exécuter des notebooks &amp; Dataflows ciblant ce Lakehouse</td></tr>
+</tbody></table>
+<h3>Data Warehouse</h3>
+<table><thead><tr><th>Permission</th><th>Description</th></tr></thead><tbody>
+  <tr><td><strong>Read</strong></td><td>Se connecter au Warehouse (nécessaire pour toute opération)</td></tr>
+  <tr><td><strong>ReadData</strong></td><td>Lire toutes les données (équivalent SELECT sur tout le schéma)</td></tr>
+  <tr><td><strong>Write</strong></td><td>Insérer, mettre à jour, supprimer des données (DML)</td></tr>
+</tbody></table>
+<h3>Semantic Model (Power BI)</h3>
+<table><thead><tr><th>Permission</th><th>Description</th></tr></thead><tbody>
+  <tr><td><strong>Read</strong></td><td>Voir &amp; interroger le modèle</td></tr>
+  <tr><td><strong>Build</strong></td><td>Créer des rapports à partir de ce modèle</td></tr>
+  <tr><td><strong>Write</strong></td><td>Modifier la structure du modèle</td></tr>
+  <tr><td><strong>Reshare</strong></td><td>Partager le modèle à d'autres utilisateurs</td></tr>
+</tbody></table>
+<h3>Report (Power BI)</h3>
+<table><thead><tr><th>Permission</th><th>Description</th></tr></thead><tbody>
+  <tr><td><strong>View</strong></td><td>Voir &amp; interagir avec le rapport</td></tr>
+  <tr><td><strong>Reshare</strong></td><td>Partager le rapport à d'autres utilisateurs</td></tr>
+</tbody></table>`
+  },
+  {
+    chapterTitle: "GRANT & DENY – Warehouse",
+    title: "Les GRANT et DENY dans le Warehouse",
+    content: `<p>Le Data Warehouse Fabric supporte des <strong>permissions SQL granulaires</strong> via T-SQL.</p>
+<h3>GRANT — accorder des droits</h3>
+<pre><code>-- Lecture sur un schema entier
+GRANT SELECT ON SCHEMA::dbo TO [utilisateur@domaine.com];
+
+-- Lecture sur une table specifique
+GRANT SELECT ON dbo.ventes TO [analyste@domaine.com];
+
+-- Acces via un groupe Entra ID
+GRANT SELECT ON dbo.clients TO [GroupeAnalyse@domaine.com];
+
+-- Ecriture (DML)
+GRANT INSERT, UPDATE ON dbo.ventes TO [ingenieur@domaine.com];
+
+-- Execution d'une procedure stockee
+GRANT EXECUTE ON dbo.sp_calcul_kpi TO [app-service@domaine.com];</code></pre>
+<h3>DENY — refuser explicitement</h3>
+<pre><code>-- Bloquer une colonne (Column-Level Security)
+DENY SELECT ON dbo.employes(salaire) TO [analyste@domaine.com];
+
+-- Bloquer une table entiere
+DENY SELECT ON dbo.donnees_confidentielles TO [externe@domaine.com];
+
+-- DENY prime TOUJOURS sur GRANT, meme via un groupe</code></pre>
+<h3>REVOKE</h3>
+<pre><code>REVOKE SELECT ON dbo.ventes FROM [utilisateur@domaine.com];</code></pre>
+<h3>Row-Level Security (RLS)</h3>
+<pre><code>CREATE SCHEMA Security;
+CREATE FUNCTION Security.fn_filtre_region(@region NVARCHAR(50))
+  RETURNS TABLE WITH SCHEMABINDING AS RETURN
+  SELECT 1 AS ok
+  WHERE @region = USER_NAME()
+     OR IS_ROLEMEMBER('admin_role') = 1;
+
+CREATE SECURITY POLICY FiltreRegion
+  ADD FILTER PREDICATE Security.fn_filtre_region(region)
+  ON dbo.ventes WITH (STATE = ON);</code></pre>
+<p style="font-size:.88rem;color:var(--text-muted);margin-top:8px;">💡 <strong>Règle d'or</strong> : DENY &gt; GRANT — un DENY annule tout GRANT, même via un groupe.</p>`
+  },
+  {
+    chapterTitle: "Sécurité des Données",
+    title: "Sécurité des Données",
+    content: `<h3>Sensitivity Labels — Microsoft Purview</h3>
+<p>Les étiquettes (<em>Public · General · Confidential · Highly Confidential</em>) s'appliquent aux Semantic Models, Rapports, Lakehouses, Warehouses. Elles <strong>héritent automatiquement</strong> vers les items dérivés.</p>
+<h3>Chiffrement</h3>
+<table><thead><tr><th>Type</th><th>Mécanisme</th><th>Détail</th></tr></thead><tbody>
+  <tr><td><strong>Au repos</strong></td><td>Azure Storage Service Encryption</td><td>AES-256. Toutes les données OneLake chiffrées.</td></tr>
+  <tr><td><strong>En transit</strong></td><td>TLS 1.2+</td><td>Toutes les communications client ↔ Fabric.</td></tr>
+  <tr><td><strong>CMK</strong></td><td>Customer-Managed Keys</td><td>Via <strong>Azure Key Vault</strong> (capacités Premium).</td></tr>
+</tbody></table>
+<h3>RLS / CLS / OLS étendus</h3>
+<table><thead><tr><th>Mécanisme</th><th>Granularité</th><th>Disponible dans</th></tr></thead><tbody>
+  <tr><td><strong>RLS</strong></td><td>Filtrage par ligne selon l'identité</td><td>Warehouse (T-SQL), Semantic Model (DAX)</td></tr>
+  <tr><td><strong>CLS</strong></td><td>Restriction par colonne (DENY SELECT)</td><td>Data Warehouse</td></tr>
+  <tr><td><strong>OLS</strong></td><td>Masquage complet d'un objet</td><td>Semantic Model (Power BI)</td></tr>
+</tbody></table>
+<h3>OneLake — contrôle d'accès au niveau du lac</h3>
+<p>OneLake utilise un modèle RBAC propre : <strong>Read</strong>, <strong>ReadAll</strong>, <strong>Write</strong> définis sur des dossiers ou tables. Les permissions héritent de la hiérarchie des dossiers.</p>`
+  },
+];
+
+(function() {
+  const TOTAL = SLIDES.length;
+  let current = 0;
+
+  const dom = {
+    chapterBadge: document.getElementById('nav-chapter-badge'),
+    counter:      document.getElementById('slide-counter'),
+    btnPrev:      document.getElementById('btn-prev'),
+    btnNext:      document.getElementById('btn-next'),
+    progressBar:  document.getElementById('progress-bar'),
+    chapterList:  document.getElementById('chapter-list'),
+    chapterLabel: document.getElementById('slide-chapter-label'),
+    heading:      document.getElementById('slide-heading'),
+    body:         document.getElementById('slide-body'),
+  };
+
+  function buildSidebar() {
+    dom.chapterList.innerHTML = '';
+    SLIDES.forEach((s, i) => {
+      const li = document.createElement('li');
+      li.dataset.idx = i;
+      li.innerHTML = `<span class="ch-num">${i + 1}</span><span>${s.chapterTitle}</span>`;
+      li.addEventListener('click', () => goTo(i));
+      dom.chapterList.appendChild(li);
+    });
+  }
+
+  function goTo(idx) {
+    current = Math.max(0, Math.min(TOTAL - 1, idx));
+    const s = SLIDES[current];
+    dom.chapterLabel.textContent = s.chapterTitle;
+    dom.heading.textContent = s.title;
+    dom.body.innerHTML = s.content || '';
+    dom.chapterBadge.textContent = s.chapterTitle;
+    dom.counter.textContent = `${current + 1} / ${TOTAL}`;
+    dom.progressBar.style.width = `${((current + 1) / TOTAL) * 100}%`;
+    dom.btnPrev.disabled = current === 0;
+    dom.btnNext.disabled = current === TOTAL - 1;
+    document.querySelectorAll('#chapter-list li').forEach((li, i) => {
+      li.classList.toggle('active', i === current);
+    });
+    const active = document.querySelector('#chapter-list li.active');
+    if (active) active.scrollIntoView({ block: 'nearest' });
+    document.getElementById('slide-area').scrollTop = 0;
+  }
+
+  dom.btnPrev.addEventListener('click', () => goTo(current - 1));
+  dom.btnNext.addEventListener('click', () => goTo(current + 1));
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown') goTo(current + 1);
+    if (e.key === 'ArrowLeft'  || e.key === 'PageUp')   goTo(current - 1);
+  });
+
+  buildSidebar();
+  goTo(0);
+})();
+
+</script>
+</body>
+</html>

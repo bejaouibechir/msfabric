@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Atelier 2 – Calcul d'Empreinte Carbone et Reporting ESG</title>
+  <link rel="stylesheet" href="../assets/source.css">
+</head>
+<body>
+  <header class="src-header">
+    <a href="../index.html" class="back-link">&#8592; Retour à la présentation</a>
+    <h1 class="src-title">Atelier 2 – Calcul d'Empreinte Carbone et Reporting ESG</h1>
+  </header>
+  <main class="src-content"><p><a id="atelier-dataflow-gen2-calcul-dempreinte-carbone-et-reporting-esg"></a></p>
+<h1>Atelier Dataflow Gen2 - Calcul d'Empreinte Carbone et Reporting ESG</h1>
+<p><a id="introduction"></a></p>
+<h2>📌 Introduction</h2>
+<p><a id="contexte"></a></p>
+<h3>Contexte</h3>
+<p>Vous êtes data analyst chez <strong>GreenCorp Energy</strong>, un producteur d'énergie multi-sources qui doit respecter les réglementations ESG (Environmental, Social, Governance) européennes.</p>
+<p><strong>Objectif de l'atelier</strong> : Créer un pipeline automatisé pour calculer l'empreinte carbone du mix énergétique et générer des rapports ESG réglementaires.</p>
+<hr />
+<p><a id="etat-des-lieux"></a></p>
+<h2>🔍 État des lieux</h2>
+<p><a id="sources-de-donnees-actuelles"></a></p>
+<h3>Sources de données actuelles</h3>
+<table>
+<thead>
+<tr>
+<th>Fichier</th>
+<th>Lignes</th>
+<th>Problèmes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>production_sources_energie.csv</strong></td>
+<td>~2,300</td>
+<td>❌ Doublons (5%)<br>❌ Codes erreur -999<br>❌ Valeurs manquantes</td>
+</tr>
+<tr>
+<td><strong>consommation_secteurs.csv</strong></td>
+<td>~1,460</td>
+<td>❌ Format date incohérent (DD/MM/YYYY)<br>❌ Pas de lien avec production</td>
+</tr>
+<tr>
+<td><strong>facteurs_emission_reference.csv</strong></td>
+<td>6</td>
+<td>✅ Données propres (table de référence)</td>
+</tr>
+<tr>
+<td><strong>meteo_quotidienne.csv</strong></td>
+<td>365</td>
+<td>✅ Données propres</td>
+</tr>
+<tr>
+<td><strong>objectifs_esg_reglementaires.csv</strong></td>
+<td>6</td>
+<td>✅ Données propres (2025-2030)</td>
+</tr>
+<tr>
+<td><strong>prix_certificats_co2.csv</strong></td>
+<td>365</td>
+<td>✅ Données propres (EU ETS)</td>
+</tr>
+</tbody>
+</table>
+<p><a id="exemple-de-donnees-problematiques"></a></p>
+<h3>Exemple de données problématiques</h3>
+<p><strong>Production</strong> :</p>
+<pre><code class="language-csv">date,source_energie,production_kwh,capacite_installee_kwh,cout_production_eur
+2025-01-01,Solaire,15000.5,50000,1200.04
+2025-01-01,Charbon,-999,150000,0  ← Code erreur
+2025-01-01,Solaire,15000.5,50000,1200.04  ← DOUBLON
+</code></pre>
+<p><strong>Consommation</strong> :</p>
+<pre><code class="language-csv">date_releve,secteur,consommation_kwh,nombre_sites
+01/01/2025,Industrie,180000.5,250  ← Format DD/MM/YYYY
+2025-01-02,Residentiel,120000.3,450  ← Format YYYY-MM-DD (incohérent)
+</code></pre>
+<hr />
+<p><a id="problematique"></a></p>
+<h2>⚠️ Problématique</h2>
+<p><a id="3-defis-majeurs"></a></p>
+<h3>3 défis majeurs</h3>
+<p><strong>1. Calcul d'empreinte carbone impossible</strong></p>
+<ul>
+<li>Production et facteurs d'émission dans des fichiers séparés</li>
+<li>Pas de lien automatique source → émissions CO2</li>
+<li><strong>Impact</strong> : Impossible de calculer les émissions totales en temps réel</li>
+</ul>
+<p><strong>2. Données sales empêchent le reporting</strong></p>
+<ul>
+<li>Doublons → Surestimation des émissions</li>
+<li>Codes erreur -999 → Calculs faussés</li>
+<li>Dates incohérentes → Impossible de croiser consommation/production</li>
+</ul>
+<p><strong>3. Pas de pilotage des objectifs ESG</strong></p>
+<ul>
+<li>Pas de vue consolidée mix énergétique vs objectifs 2030</li>
+<li>Calculs manuels dans Excel → Erreurs + 2 jours de retard</li>
+<li><strong>Risque réglementaire</strong> : Amendes si non-conformité EU Green Deal</li>
+</ul>
+<hr />
+<p><a id="comment-dataflow-gen2-resout-ces-problemes"></a></p>
+<h2>💡 Comment Dataflow Gen2 résout ces problèmes</h2>
+<p><a id="solution-proposee"></a></p>
+<h3>Solution proposée</h3>
+<table>
+<thead>
+<tr>
+<th>Besoin</th>
+<th>Solution Dataflow Gen2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Calcul émissions CO2</strong></td>
+<td>Jointure production × facteurs_emission</td>
+</tr>
+<tr>
+<td><strong>Nettoyer données</strong></td>
+<td>Filtrage codes erreur + suppression doublons</td>
+</tr>
+<tr>
+<td><strong>Unifier dates</strong></td>
+<td>Transformation DD/MM/YYYY → YYYY-MM-DD</td>
+</tr>
+<tr>
+<td><strong>Enrichir contexte</strong></td>
+<td>Jointure météo + prix CO2 + objectifs ESG</td>
+</tr>
+<tr>
+<td><strong>Piloter objectifs</strong></td>
+<td>Colonnes calculées (écart vs cible, coût carbone)</td>
+</tr>
+</tbody>
+</table>
+<p><a id="architecture-cible"></a></p>
+<h3>Architecture cible</h3>
+<pre><code>6 sources CSV → Dataflow Gen2 → Lakehouse → Power BI Dashboard ESG
+                     ↓
+         [Nettoyage + Calculs + Jointures]
+                     ↓
+         Pipeline (refresh quotidien)
+</code></pre>
+<hr />
+<p><a id="mise-en-uvre-pas-a-pas"></a></p>
+<h2>🛠️ Mise en œuvre pas à pas</h2>
+<p><a id="prerequis"></a></p>
+<h3>Prérequis</h3>
+<ul>
+<li>✅ Workspace Fabric</li>
+<li>✅ Lakehouse <code>LH_ESG_Carbon</code> créé</li>
+<li>✅ Fichiers CSV uploadés dans <code>/Files/data_esg/</code></li>
+</ul>
+<hr />
+<p><a id="etape-1-creer-le-dataflow-gen2"></a></p>
+<h3>ÉTAPE 1 : Créer le Dataflow Gen2</h3>
+<p><strong>1.1 Initialisation</strong></p>
+<ol>
+<li>Workspace → <strong>+ New</strong> → <strong>Dataflow Gen2</strong></li>
+<li>Nom : <code>DF_Calcul_Empreinte_Carbone_ESG</code></li>
+</ol>
+<p><strong>1.2 Ingestion des 6 sources</strong></p>
+<ol>
+<li><strong>Get data</strong> → <strong>OneLake data hub</strong></li>
+<li>Naviguer : <code>Lakehouse → Files → data_esg</code></li>
+<li>Sélectionner les 6 fichiers CSV</li>
+<li><strong>Create</strong> → Power Query Editor</li>
+</ol>
+<hr />
+<p><a id="etape-2-nettoyage-des-donnees"></a></p>
+<h3>ÉTAPE 2 : Nettoyage des données</h3>
+<p><a id="21-requete-productionsourcesenergie"></a></p>
+<h4>2.1 Requête <code>production_sources_energie</code></h4>
+<p><strong>Actions</strong> :</p>
+<ol>
+<li><strong>Home</strong> → <strong>Remove Duplicates</strong> (toutes colonnes)</li>
+<li><strong>Home</strong> → <strong>Filter Rows</strong> → production_kwh ≠ -999</li>
+<li><strong>Home</strong> → <strong>Remove Rows</strong> → <strong>Remove Errors</strong> (production_kwh)</li>
+<li><strong>Transform</strong> → <strong>Data Type</strong> : date → Date</li>
+</ol>
+<p><strong>Résultat</strong> : ~2,300 → ~2,070 lignes (-10% de données invalides)</p>
+<hr />
+<p><a id="22-requete-consommationsecteurs"></a></p>
+<h4>2.2 Requête <code>consommation_secteurs</code></h4>
+<p><strong>Actions</strong> :</p>
+<ol>
+<li><strong>Transform</strong> → <strong>Data Type</strong> : date_releve → Date<br />
+   - Power Query gère automatiquement DD/MM/YYYY et YYYY-MM-DD</li>
+<li><strong>Transform</strong> → <strong>Rename</strong> : date_releve → date</li>
+</ol>
+<p><strong>Résultat</strong> : Dates unifiées</p>
+<hr />
+<p><a id="23-requetes-de-reference-pas-de-nettoyage"></a></p>
+<h4>2.3 Requêtes de référence (pas de nettoyage)</h4>
+<ul>
+<li><code>facteurs_emission_reference</code></li>
+<li><code>meteo_quotidienne</code></li>
+<li><code>objectifs_esg_reglementaires</code></li>
+<li><code>prix_certificats_co2</code></li>
+</ul>
+<p>→ Données propres, juste vérifier les types</p>
+<hr />
+<p><a id="etape-3-calcul-des-emissions-co2"></a></p>
+<h3>ÉTAPE 3 : Calcul des émissions CO2</h3>
+<p><a id="31-enrichir-production-avec-facteurs-demission"></a></p>
+<h4>3.1 Enrichir production avec facteurs d'émission</h4>
+<ol>
+<li>Sélectionner <code>production_sources_energie</code></li>
+<li><strong>Home</strong> → <strong>Merge Queries</strong> → <strong>Merge Queries as New</strong></li>
+<li>Configuration :<br />
+   - Table gauche : production_sources_energie<br />
+   - Table droite : facteurs_emission_reference<br />
+   - Colonnes : source_energie = source_energie<br />
+   - Join : Left Outer</li>
+<li>Nom : <code>production_avec_emissions</code></li>
+<li>Cliquer ⇄ → Sélectionner :<br />
+   - facteur_emission_kgco2_kwh<br />
+   - categorie<br />
+   - objectif_2030_pct</li>
+</ol>
+<p><a id="32-calculer-les-emissions-co2"></a></p>
+<h4>3.2 Calculer les émissions CO2</h4>
+<p><strong>Add Column</strong> → <strong>Custom Column</strong> :</p>
+<pre><code>Nom : emissions_co2_kg
+Formule : [production_kwh] * [facteur_emission_kgco2_kwh]
+</code></pre>
+<p><strong>Add Column</strong> → <strong>Custom Column</strong> :</p>
+<pre><code>Nom : emissions_co2_tonnes
+Formule : [emissions_co2_kg] / 1000
+</code></pre>
+<hr />
+<p><a id="etape-4-enrichissement-contextuel"></a></p>
+<h3>ÉTAPE 4 : Enrichissement contextuel</h3>
+<p><a id="41-ajouter-les-donnees-meteo"></a></p>
+<h4>4.1 Ajouter les données météo</h4>
+<ol>
+<li>Sélectionner <code>production_avec_emissions</code></li>
+<li><strong>Merge Queries as New</strong> :<br />
+   - Droite : meteo_quotidienne<br />
+   - Colonnes : date = date<br />
+   - Join : Left Outer</li>
+<li>Nom : <code>production_enrichie_meteo</code></li>
+<li>Expand : temperature_moy_c, ensoleillement_heures, vitesse_vent_mps</li>
+</ol>
+<p><a id="42-ajouter-les-prix-co2"></a></p>
+<h4>4.2 Ajouter les prix CO2</h4>
+<ol>
+<li><strong>Merge Queries</strong> (sur production_enrichie_meteo) :<br />
+   - Droite : prix_certificats_co2<br />
+   - Colonnes : date = date<br />
+   - Join : Left Outer</li>
+<li>Expand : prix_tonne_co2_eur</li>
+</ol>
+<p><a id="43-calculer-le-cout-carbone"></a></p>
+<h4>4.3 Calculer le coût carbone</h4>
+<p><strong>Add Column</strong> → <strong>Custom Column</strong> :</p>
+<pre><code>Nom : cout_carbone_eur
+Formule : [emissions_co2_tonnes] * [prix_tonne_co2_eur]
+</code></pre>
+<hr />
+<p><a id="etape-5-agregation-et-kpis"></a></p>
+<h3>ÉTAPE 5 : Agrégation et KPIs</h3>
+<p><a id="51-creer-une-vue-agregee-quotidienne"></a></p>
+<h4>5.1 Créer une vue agrégée quotidienne</h4>
+<ol>
+<li>Dupliquer <code>production_enrichie_meteo</code> → Nom : <code>emissions_quotidiennes</code></li>
+<li><strong>Transform</strong> → <strong>Group By</strong> :<br />
+   - Grouper par : date, categorie<br />
+   - Agrégations :<ul>
+<li>production_totale_kwh = Sum(production_kwh)</li>
+<li>emissions_totales_tonnes = Sum(emissions_co2_tonnes)</li>
+<li>cout_carbone_total_eur = Sum(cout_carbone_eur)</li>
+</ul>
+</li>
+</ol>
+<p><a id="52-calculer-la-part-renouvelable"></a></p>
+<h4>5.2 Calculer la part renouvelable</h4>
+<p><strong>Add Column</strong> → <strong>Custom Column</strong> :</p>
+<pre><code>Nom : part_renouvelable_pct
+Formule : 
+let
+    prod_renouvelable = if [categorie] = &quot;Renouvelable&quot; then [production_totale_kwh] else 0,
+    prod_totale = List.Sum(#&quot;Grouped Rows&quot;[production_totale_kwh])
+in
+    (prod_renouvelable / prod_totale) * 100
+</code></pre>
+<p><strong>Simplification si trop complexe</strong> : Créer 2 requêtes séparées (Renouvelable/Fossile) et calculer dans Power BI</p>
+<hr />
+<p><a id="etape-6-jointure-avec-objectifs-esg"></a></p>
+<h3>ÉTAPE 6 : Jointure avec objectifs ESG</h3>
+<p><a id="61-ajouter-la-colonne-annee"></a></p>
+<h4>6.1 Ajouter la colonne année</h4>
+<p>Sur <code>emissions_quotidiennes</code> :</p>
+<p><strong>Add Column</strong> → <strong>Custom Column</strong> :</p>
+<pre><code>Nom : annee
+Formule : Date.Year([date])
+</code></pre>
+<p><a id="62-jointure-avec-objectifs"></a></p>
+<h4>6.2 Jointure avec objectifs</h4>
+<ol>
+<li><strong>Merge Queries</strong> :<br />
+   - Droite : objectifs_esg_reglementaires<br />
+   - Colonnes : annee = annee<br />
+   - Join : Left Outer</li>
+<li>Expand :<br />
+   - reduction_emissions_pct<br />
+   - part_renouvelable_cible_pct<br />
+   - emissions_max_tonnes_co2</li>
+</ol>
+<p><a id="63-calculer-les-ecarts-vs-objectifs"></a></p>
+<h4>6.3 Calculer les écarts vs objectifs</h4>
+<p><strong>Add Column</strong> → <strong>Custom Column</strong> :</p>
+<pre><code>Nom : ecart_objectif_emissions_pct
+Formule : ([emissions_totales_tonnes] / ([emissions_max_kg_co2] / 1000)) * 100
+</code></pre>
+<p><strong>Add Column</strong> → <strong>Custom Column</strong> :</p>
+<pre><code>Nom : conforme_objectif
+Formule : if [ecart_objectif_emissions_pct] &lt;= 0 then &quot;✅ Conforme&quot; else &quot;❌ Non conforme&quot;
+</code></pre>
+<hr />
+<p><a id="etape-7-traiter-la-consommation"></a></p>
+<h3>ÉTAPE 7 : Traiter la consommation</h3>
+<p><a id="71-nettoyer-consommationsecteurs"></a></p>
+<h4>7.1 Nettoyer consommation_secteurs</h4>
+<p>Déjà fait (dates unifiées)</p>
+<p><a id="72-agreger-par-date"></a></p>
+<h4>7.2 Agréger par date</h4>
+<ol>
+<li>Dupliquer → Nom : <code>consommation_quotidienne</code></li>
+<li><strong>Group By</strong> :<br />
+   - Grouper par : date<br />
+   - Agrégations :<ul>
+<li>consommation_totale_kwh = Sum(consommation_kwh)</li>
+<li>nombre_sites_total = Sum(nombre_sites)</li>
+</ul>
+</li>
+</ol>
+<p><a id="73-jointure-productionconsommation-optionnel"></a></p>
+<h4>7.3 Jointure production/consommation (optionnel)</h4>
+<p>Pour calculer le taux de couverture :</p>
+<ol>
+<li><strong>Merge</strong> production_enrichie + consommation_quotidienne (sur date)</li>
+<li>Calculer : taux_couverture = production / consommation</li>
+</ol>
+<hr />
+<p><a id="etape-8-configuration-des-destinations"></a></p>
+<h3>ÉTAPE 8 : Configuration des destinations</h3>
+<p><a id="81-table-principale-emissionscarbonedetaillees"></a></p>
+<h4>8.1 Table principale : emissions_carbone_detaillees</h4>
+<ol>
+<li>Sélectionner <code>production_enrichie_meteo</code> (avec tous les enrichissements)</li>
+<li><strong>Add data destination</strong> → <strong>Lakehouse</strong></li>
+<li>Configuration :<br />
+   - Table : <code>emissions_carbone_detaillees</code><br />
+   - Update method : <strong>Append</strong></li>
+</ol>
+<p><a id="82-table-agregee-emissionsquotidienneskpi"></a></p>
+<h4>8.2 Table agrégée : emissions_quotidiennes_kpi</h4>
+<ol>
+<li>Sélectionner <code>emissions_quotidiennes</code></li>
+<li><strong>Add data destination</strong> → <strong>Lakehouse</strong></li>
+<li>Configuration :<br />
+   - Table : <code>emissions_quotidiennes_kpi</code><br />
+   - Update method : <strong>Replace</strong></li>
+</ol>
+<p><a id="83-table-consommation"></a></p>
+<h4>8.3 Table consommation</h4>
+<ol>
+<li>
+<p>Sélectionner <code>consommation_quotidienne</code></p>
+</li>
+<li>
+<p><strong>Add data destination</strong> → <strong>Lakehouse</strong></p>
+</li>
+<li>
+<p>Configuration :</p>
+</li>
+</ol>
+<ul>
+<li>Table : <code>consommation_par_secteur</code></li>
+<li>Update method : <strong>Append</strong></li>
+</ul>
+<ol start="4">
+<li><strong>Publish</strong></li>
+</ol>
+<hr />
+<p><a id="etape-9-test-et-validation"></a></p>
+<h3>ÉTAPE 9 : Test et validation</h3>
+<p><strong>9.1 Premier refresh</strong></p>
+<ol>
+<li>Workspace → Dataflow → <strong>Refresh now</strong></li>
+<li>Durée attendue : 3-4 minutes</li>
+</ol>
+<p><strong>9.2 Validation dans Lakehouse</strong></p>
+<pre><code class="language-sql">-- 1. Vérifier les émissions totales
+SELECT 
+    SUM(emissions_co2_tonnes) as emissions_totales_tonnes,
+    AVG(prix_tonne_co2_eur) as prix_moyen_co2
+FROM emissions_carbone_detaillees;
+
+-- Résultat attendu : ~400,000 tonnes CO2 pour 2025
+
+-- 2. Vérifier la part renouvelable
+SELECT 
+    categorie,
+    SUM(production_kwh) as production_totale,
+    ROUND(SUM(production_kwh) * 100.0 / SUM(SUM(production_kwh)) OVER(), 2) as part_pct
+FROM emissions_carbone_detaillees
+GROUP BY categorie;
+
+-- Résultat attendu :
+-- Renouvelable : ~45%
+-- Fossile      : ~55%
+
+-- 3. Vérifier conformité objectifs
+SELECT 
+    date,
+    emissions_totales_tonnes,
+    emissions_max_tonnes_co2,
+    conforme_objectif
+FROM emissions_quotidiennes_kpi
+WHERE conforme_objectif = '❌ Non conforme'
+LIMIT 10;
+</code></pre>
+<hr />
+<p><a id="etape-10-pipeline-dorchestration"></a></p>
+<h3>ÉTAPE 10 : Pipeline d'orchestration</h3>
+<p><strong>10.1 Créer le Pipeline</strong></p>
+<ol>
+<li>Workspace → <strong>+ New</strong> → <strong>Data pipeline</strong></li>
+<li>Nom : <code>Pipeline_Daily_ESG_Carbon_Reporting</code></li>
+</ol>
+<p><strong>10.2 Activités</strong></p>
+<ol>
+<li><strong>Dataflow</strong> : <code>DF_Calcul_Empreinte_Carbone_ESG</code></li>
+<li><strong>Send email</strong> (On Success) : "✅ Rapport ESG mis à jour"</li>
+<li><strong>Send email</strong> (On Failure) : "❌ Échec calcul ESG"</li>
+</ol>
+<p><strong>10.3 Planification</strong></p>
+<ul>
+<li>Repeat : Daily</li>
+<li>Time : 07:00 (après arrivée des données)</li>
+</ul>
+<p><strong>10.4 Gestion d'erreurs</strong></p>
+<ul>
+<li>Retry : 3</li>
+<li>Retry interval : 60 seconds</li>
+</ul>
+<hr />
+<p><a id="conclusion-et-interpretation"></a></p>
+<h2>🎯 Conclusion et interprétation</h2>
+<p><a id="transformation-effectuee"></a></p>
+<h3>Transformation effectuée</h3>
+<pre><code>AVANT                           APRÈS
+6 fichiers isolés          →    3 tables unifiées
+Pas de calcul CO2          →    Emissions calculées en temps réel
+Données sales              →    100% propres
+Format Excel manuel        →    Pipeline automatisé
+Retard de 2 jours          →    Dashboard J+1
+</code></pre>
+<p><a id="kpis-esg-crees"></a></p>
+<h3>KPIs ESG créés</h3>
+<p><strong>1. Empreinte carbone</strong></p>
+<ul>
+<li>Emissions totales 2025 : ~400,000 tonnes CO2</li>
+<li>Coût carbone : ~400,000 t × 85 €/t = <strong>34 M€</strong></li>
+<li>Par source :</li>
+<li>Charbon : 35% des émissions (mais 25% de production)</li>
+<li>Gaz : 45% des émissions (33% de production)</li>
+<li>Renouvelables : 20% des émissions (42% de production)</li>
+</ul>
+<p><strong>2. Mix énergétique</strong></p>
+<ul>
+<li>Part renouvelable : 45% (objectif 2025 : 40%) ✅</li>
+<li>Part fossile : 55% (à réduire à 10% d'ici 2030)</li>
+</ul>
+<p><strong>3. Conformité réglementaire</strong></p>
+<ul>
+<li>Objectif émissions 2025 : 500,000 t CO2 max</li>
+<li>Réalisé : 400,000 t CO2</li>
+<li>Écart : -20% ✅ <strong>Conforme EU Green Deal</strong></li>
+</ul>
+<p><a id="valeur-metier"></a></p>
+<h3>Valeur métier</h3>
+<p><strong>Gains quantifiables</strong> :</p>
+<ul>
+<li>⏱️ <strong>Temps économisé</strong> : 2 jours/mois × 12 = <strong>24 jours/an</strong> de reporting manuel éliminé</li>
+<li>💰 <strong>Optimisation mix</strong> : Identifier que le charbon émet 2× plus que le gaz pour production équivalente → Stratégie de sortie du charbon en priorité</li>
+<li>📊 <strong>Transparence ESG</strong> : Reporting automatique pour investisseurs et régulateurs</li>
+<li>🎯 <strong>Pilotage objectifs</strong> : Suivi en temps réel de l'écart vs cibles 2030</li>
+</ul>
+<p><strong>Décisions stratégiques permises</strong> :</p>
+<ol>
+<li><strong>Prioriser sortie du charbon</strong> (35% émissions, seulement 25% production)</li>
+<li><strong>Augmenter solaire/éolien</strong> (production déjà à 30%, peut passer à 50%)</li>
+<li><strong>Acheter certificats CO2</strong> si dépassement prévu (alerte anticipée)</li>
+<li><strong>Négocier prix énergie verte</strong> avec visibilité coût carbone évité</li>
+</ol></main>
+</body>
+</html>

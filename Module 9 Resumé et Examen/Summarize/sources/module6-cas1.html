@@ -1,0 +1,1847 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Eventstream – Traitement des Données Réelles</title>
+  <link rel="stylesheet" href="../assets/source.css">
+</head>
+<body>
+  <header class="src-header">
+    <a href="../index.html" class="back-link">&#8592; Retour à la présentation</a>
+    <h1 class="src-title">Eventstream – Traitement des Données Réelles</h1>
+  </header>
+  <main class="src-content"><p><a id="atelier-monitoring-temps-reel-dun-parc-eolien-eventstream-kql-database"></a></p>
+<h1>Atelier : Monitoring temps réel d'un parc éolien — Eventstream &amp; KQL Database</h1>
+<p>Vous allez ingérer des données IoT simulées (capteurs de turbines éoliennes) dans <strong>Microsoft Fabric</strong> via <strong>Eventstream</strong>, les stocker dans une <strong>KQL Database</strong>, les transformer en temps réel, les analyser avec des requêtes <strong>KQL</strong>, les visualiser dans un <strong>Real-Time Dashboard</strong>, accélérer le dashboard avec une <strong>Materialized View</strong> et configurer des <strong>alertes automatiques</strong> avec <strong>Activator</strong>.</p>
+<p>Résultat attendu : un pipeline temps réel complet qui supervise 5 turbines éoliennes, met en évidence les anomalies (surchauffe, vibrations, sous-performance), enrichit les événements dans le flux et expose un tableau de bord utilisable en conditions quasi réelles.</p>
+<blockquote>
+<p>⚠️ <strong>Note pédagogique sur l'ordre des étapes</strong> : L'atelier démarre le simulateur Python <strong>avant</strong> de configurer la destination Eventhouse. Ce choix est intentionnel — Fabric a besoin de données réelles qui circulent pour valider le schéma JSON dans le wizard de configuration. Si vous configurez la destination sans données, le bouton <strong>Finish</strong> reste grisé.</p>
+</blockquote>
+<hr />
+<p><a id="fichiers-necessaires"></a></p>
+<h2>Fichiers nécessaires</h2>
+<ul>
+<li><code>wind_turbine_simulator.py</code> — script Python fourni en Partie 2.3</li>
+<li>Package Python : <code>azure-eventhub</code></li>
+</ul>
+<p><a id="prerequis"></a></p>
+<h2>Prérequis</h2>
+<ul>
+<li>Tenant Microsoft Fabric avec <strong>Real-Time Intelligence</strong> activé</li>
+<li>Licence <strong>Trial</strong> ou <strong>Capacity</strong> compatible Fabric</li>
+<li>Un <strong>workspace Fabric</strong> existant</li>
+<li><strong>Python 3.9+</strong> installé sur votre poste</li>
+<li>Accès Internet pour envoyer les événements depuis le simulateur Python vers l'endpoint généré par Fabric</li>
+</ul>
+<p><a id="references-officielles-utiles"></a></p>
+<h2>Références officielles utiles</h2>
+<ul>
+<li><strong>Eventstreams overview</strong> : <a href="https://learn.microsoft.com/en-us/fabric/real-time-intelligence/event-streams/overview">https://learn.microsoft.com/en-us/fabric/real-time-intelligence/event-streams/overview</a></li>
+<li><strong>Formats supportés par Eventstream</strong> : <a href="https://learn.microsoft.com/en-us/fabric/real-time-intelligence/event-streams/data-formats">https://learn.microsoft.com/en-us/fabric/real-time-intelligence/event-streams/data-formats</a></li>
+<li><strong>Real-Time Dashboard overview</strong> : <a href="https://learn.microsoft.com/en-us/fabric/real-time-intelligence/real-time-dashboards-overview">https://learn.microsoft.com/en-us/fabric/real-time-intelligence/real-time-dashboards-overview</a></li>
+<li><strong>Activator documentation</strong> : <a href="https://learn.microsoft.com/en-us/fabric/real-time-intelligence/data-activator/">https://learn.microsoft.com/en-us/fabric/real-time-intelligence/data-activator/</a></li>
+<li><strong>Materialized views dans Fabric</strong> : <a href="https://learn.microsoft.com/en-us/fabric/real-time-intelligence/materialized-view">https://learn.microsoft.com/en-us/fabric/real-time-intelligence/materialized-view</a></li>
+</ul>
+<blockquote>
+<p>💡 <strong>Astuce</strong> : Les écrans Fabric évoluent légèrement au fil des mises à jour. Si un libellé diffère un peu, cherchez l'équivalent le plus proche dans <strong>Real-Time Intelligence</strong>, <strong>Eventstream</strong>, <strong>Eventhouse</strong>, <strong>KQL Database</strong> ou <strong>Dashboard</strong>.</p>
+</blockquote>
+<p>⚠️ <strong>Piège</strong> : Vérifiez que vous travaillez toujours dans le <strong>même workspace</strong>. La majorité des erreurs de début d'atelier viennent d'un Eventstream créé dans un workspace et d'un Eventhouse créé dans un autre.</p>
+<hr />
+<p><a id="partie-1-creer-leventhouse"></a></p>
+<h2>Partie 1 — Créer l'Eventhouse</h2>
+<p><a id="11-creer-litem-eventhouse"></a></p>
+<h3>1.1 — Créer l'item Eventhouse</h3>
+<ol>
+<li>Ouvrir <strong>app.fabric.microsoft.com</strong></li>
+<li>Dans la barre latérale gauche, cliquer sur votre <strong>workspace</strong></li>
+<li>En haut de la page du workspace, cliquer sur <strong>+ New item</strong></li>
+<li>Dans la zone de recherche, taper <strong>Eventhouse</strong></li>
+<li>Sélectionner <strong>Eventhouse</strong></li>
+<li>Nom : <strong><code>WindFarmEventhouse</code></strong></li>
+<li>Cliquer <strong>Create</strong></li>
+</ol>
+<p><strong>Ce que vous devez voir à l'écran</strong> :</p>
+<ul>
+<li>Une page Eventhouse qui s'ouvre</li>
+<li>Dans le panneau gauche, une section <strong>KQL databases</strong></li>
+<li>Une base <strong><code>WindFarmEventhouse</code></strong> déjà créée automatiquement</li>
+<li>Une zone centrale d'exploration de données</li>
+</ul>
+<p><a id="12-verifier-la-base-kql"></a></p>
+<h3>1.2 — Vérifier la base KQL</h3>
+<ol>
+<li>Dans le panneau gauche de l'Eventhouse, développer <strong>KQL databases</strong></li>
+<li>Cliquer sur <strong>WindFarmEventhouse</strong></li>
+<li>Vérifier que les sections <strong>Tables</strong>, <strong>Functions</strong>, <strong>Materialized views</strong> et <strong>Shortcuts</strong> sont visibles</li>
+</ol>
+<p><strong>Ce que vous devez voir à l'écran</strong> :</p>
+<ul>
+<li>L'explorateur KQL de la base</li>
+<li>Un éditeur de requêtes ou une zone d'exploration</li>
+<li>Pour l'instant, aucune table métier créée</li>
+</ul>
+<blockquote>
+<p>💡 <strong>Astuce</strong> : Si vous préparez un atelier en direct, laissez cette page ouverte dans un onglet. Vous y reviendrez souvent pour vérifier l'arrivée des événements.</p>
+</blockquote>
+<hr />
+<p><a id="partie-2-creer-leventstream-et-demarrer-le-simulateur"></a></p>
+<h2>Partie 2 — Créer l'Eventstream et démarrer le simulateur</h2>
+<p><a id="21-creer-le-flux-et-le-custom-endpoint"></a></p>
+<h3>2.1 — Créer le flux et le Custom Endpoint</h3>
+<ol>
+<li>Retourner dans votre <strong>workspace</strong></li>
+<li>Cliquer <strong>+ New item</strong></li>
+<li>Rechercher <strong>Eventstream</strong></li>
+<li>Sélectionner <strong>Eventstream</strong></li>
+<li>Nom : <strong><code>WindTurbineStream</code></strong></li>
+<li>Cliquer <strong>Create</strong></li>
+<li>Sur le canvas, repérer la zone de départ du flux</li>
+<li>Cliquer <strong>Use custom endpoint</strong></li>
+<li>Nom du endpoint : <strong><code>WindTurbineStream-Endpoint</code></strong></li>
+<li>Cliquer <strong>Add</strong></li>
+<li>Vérifier qu'un nœud source apparaît sur la partie gauche du canvas</li>
+<li>Cliquer <strong>Publish</strong> en haut à droite</li>
+</ol>
+<p><strong>Ce que vous devez voir à l'écran</strong> :</p>
+<ul>
+<li>Un canvas Eventstream avec un nœud source à gauche</li>
+<li>Un bloc central du type <strong>Transform events or add destination</strong></li>
+<li>Après publication, le stream devient en mode <strong>Live</strong></li>
+</ul>
+<blockquote>
+<p>💡 <strong>Note</strong> : Le <strong>custom endpoint</strong> fournit un point d'entrée compatible pour envoyer les événements depuis votre script Python.</p>
+<p>💡 <strong>Note</strong> : Publiez tôt — sans publication, les clés de connexion ne sont pas finalisées et votre script Python échouera.</p>
+</blockquote>
+<p>⚠️ <strong>Piège</strong> : Le bouton <strong>Publish</strong> est obligatoire. Vérifiez toujours l'état <strong>Published</strong> avant de passer à la suite.</p>
+<p><a id="22-recuperer-les-cles-de-connexion"></a></p>
+<h3>2.2 — Récupérer les clés de connexion</h3>
+<blockquote>
+<p>💡 <strong>Pourquoi maintenant ?</strong> Nous récupérons les clés immédiatement après la publication, <strong>avant</strong> de configurer la destination Eventhouse. Cela nous permet de lancer le simulateur Python en Partie 2.3, ce qui est indispensable pour que le wizard de configuration de la destination détecte automatiquement le schéma JSON.</p>
+</blockquote>
+<ol>
+<li>Passer en mode <strong>Live</strong> si ce n'est pas déjà le cas</li>
+<li>Cliquer sur le nœud <strong>WindTurbineStream-Endpoint</strong></li>
+<li>En bas de l'écran, repérer le panneau <strong>Details</strong></li>
+<li>Dans la colonne du panneau, cliquer <strong>SAS Key Authentication</strong></li>
+<li>Copier ces 2 valeurs dans un bloc-notes</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Valeur</th>
+<th>Où la trouver</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Event hub name</strong></td>
+<td>Affiché en clair dans le panneau</td>
+</tr>
+<tr>
+<td><strong>Connection string-primary key</strong></td>
+<td>Cliquer sur l'icône 👁️ pour révéler, puis copier</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Ce que vous devez voir à l'écran</strong> :</p>
+<ul>
+<li>Une chaîne de connexion longue commençant par <code>Endpoint=sb://...</code></li>
+<li>Un nom d'Event Hub de type <code>es_xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx</code></li>
+</ul>
+<blockquote>
+<p>💡 <strong>Astuce</strong> : Copiez les deux valeurs immédiatement dans un bloc-notes sans les modifier. Vous les collerez dans le script Python à l'étape suivante.</p>
+</blockquote>
+<p><a id="23-preparer-et-lancer-le-simulateur-python"></a></p>
+<h3>2.3 — Préparer et lancer le simulateur Python</h3>
+<blockquote>
+<p>💡 <strong>Pourquoi maintenant ?</strong> Le simulateur doit tourner <strong>avant</strong> la configuration de la destination Eventhouse. Fabric a besoin de données réelles qui circulent dans le stream pour détecter le format JSON et activer le bouton <strong>Finish</strong> dans le wizard de configuration.</p>
+</blockquote>
+<p><a id="installer-le-package"></a></p>
+<h4>Installer le package</h4>
+<p>Ouvrir un <strong>terminal</strong> (PowerShell ou CMD) :</p>
+<pre><code class="language-bash">pip install azure-eventhub
+</code></pre>
+<p><strong>Ce que vous devez voir à l'écran</strong> :</p>
+<ul>
+<li>Le téléchargement du package</li>
+<li>Un message de fin du type <code>Successfully installed azure-eventhub ...</code></li>
+</ul>
+<blockquote>
+<p>💡 <strong>Astuce</strong> : Si <code>pip</code> n'est pas reconnu, essayez <code>py -m pip install azure-eventhub</code>.</p>
+</blockquote>
+<p>⚠️ <strong>Piège</strong> : Installez le package dans le même environnement Python que celui utilisé pour exécuter le script.</p>
+<p><a id="creer-le-script"></a></p>
+<h4>Créer le script</h4>
+<p>Créer un fichier <strong><code>wind_turbine_simulator.py</code></strong> et coller ce code :</p>
+<pre><code class="language-python">import json
+import time
+import random
+from datetime import datetime, timezone
+from azure.eventhub import EventHubProducerClient, EventData
+
+&lt;a id=&quot;section&quot;&gt;&lt;/a&gt;
+# ============================================================
+&lt;a id=&quot;configuration-coller-vos-valeurs-depuis-leventstream&quot;&gt;&lt;/a&gt;
+# CONFIGURATION — Coller vos valeurs depuis l'Eventstream
+&lt;a id=&quot;section-1&quot;&gt;&lt;/a&gt;
+# ============================================================
+CONNECTION_STR = &quot;&lt;votre_connection_string_primary_key&gt;&quot;
+EVENTHUB_NAME = &quot;&lt;votre_event_hub_name&gt;&quot;
+&lt;a id=&quot;section-2&quot;&gt;&lt;/a&gt;
+# ============================================================
+
+TURBINES = [&quot;WT-001&quot;, &quot;WT-002&quot;, &quot;WT-003&quot;, &quot;WT-004&quot;, &quot;WT-005&quot;]
+PARK_NAME = &quot;Parc Eolien Bizerte&quot;
+
+def generate_turbine_event(turbine_id):
+    wind_speed = random.uniform(3.0, 25.0)
+
+    # Courbe de puissance simplifiee
+    if wind_speed &lt; 3.5:
+        power = 0
+    elif wind_speed &gt; 22:
+        power = 0
+    else:
+        power = min(3000, (wind_speed - 3.5) ** 2 * 18)
+
+    rotor_rpm = wind_speed * 1.2 + random.uniform(-1, 1)
+    gen_temp = 55 + (power / 3000) * 35 + random.uniform(-3, 3)
+    vibration = 2.0 + random.uniform(0, 1.5)
+
+    # Injection d'anomalies (10% du temps)
+    # Option atelier intensif :
+    # Pour observer plus vite les anomalies pendant une demo courte,
+    # vous pouvez temporairement remplacer 0.10 par 0.25 ou 0.30.
+    # Revenez ensuite a 0.10 pour garder un flux plus realiste.
+    if random.random() &lt; 0.10:
+        anomaly_type = random.choice([&quot;overheat&quot;, &quot;vibration&quot;, &quot;underperform&quot;])
+        if anomaly_type == &quot;overheat&quot;:
+            gen_temp += random.uniform(25, 45)
+        elif anomaly_type == &quot;vibration&quot;:
+            vibration += random.uniform(5, 12)
+        elif anomaly_type == &quot;underperform&quot;:
+            power *= random.uniform(0.2, 0.5)
+
+    return {
+        &quot;TurbineId&quot;: turbine_id,
+        &quot;Timestamp&quot;: datetime.now(timezone.utc).isoformat(),
+        &quot;WindSpeedMs&quot;: round(wind_speed, 2),
+        &quot;RotorRPM&quot;: round(rotor_rpm, 2),
+        &quot;PowerOutputKW&quot;: round(power, 2),
+        &quot;GeneratorTempC&quot;: round(gen_temp, 2),
+        &quot;VibrationMmS&quot;: round(vibration, 2),
+        &quot;NacelleOrientation&quot;: round(random.uniform(0, 360), 1),
+        &quot;AmbientTempC&quot;: round(random.uniform(15, 35), 1),
+        &quot;ParkName&quot;: PARK_NAME
+    }
+
+def main():
+    producer = EventHubProducerClient.from_connection_string(
+        conn_str=CONNECTION_STR,
+        eventhub_name=EVENTHUB_NAME
+    )
+    print(&quot;Envoi d'evenements vers Fabric Eventstream...&quot;)
+
+    try:
+        while True:
+            batch = producer.create_batch()
+            for turbine_id in TURBINES:
+                event = generate_turbine_event(turbine_id)
+                batch.add(EventData(json.dumps(event)))
+                print(f&quot;  [{event['Timestamp'][:19]}] {turbine_id} | &quot;
+                      f&quot;Vent: {event['WindSpeedMs']}m/s | &quot;
+                      f&quot;Puissance: {event['PowerOutputKW']}kW | &quot;
+                      f&quot;Temp: {event['GeneratorTempC']}C | &quot;
+                      f&quot;Vibration: {event['VibrationMmS']}mm/s&quot;)
+            producer.send_batch(batch)
+            print(f&quot;  -&gt; Batch de {len(TURBINES)} evenements envoye\n&quot;)
+            time.sleep(5)
+    except KeyboardInterrupt:
+        print(&quot;Arret du simulateur.&quot;)
+    finally:
+        producer.close()
+
+if __name__ == &quot;__main__&quot;:
+    main()
+</code></pre>
+<p><a id="configurer-le-script"></a></p>
+<h4>Configurer le script</h4>
+<ol>
+<li>Ouvrir le fichier dans un éditeur de texte</li>
+<li>Remplacer <code>&lt;votre_connection_string_primary_key&gt;</code> par la <strong>Connection string</strong> copiée en 2.2</li>
+<li>Remplacer <code>&lt;votre_event_hub_name&gt;</code> par le <strong>Event hub name</strong> copié en 2.2</li>
+<li>Sauvegarder le fichier</li>
+</ol>
+<p>⚠️ <strong>Piège</strong> : Ne laissez pas d'espaces ou de guillemets supplémentaires autour des valeurs collées.</p>
+<p><a id="lancer-le-simulateur"></a></p>
+<h4>Lancer le simulateur</h4>
+<p>Dans le terminal, naviguer vers le dossier où se trouve le script :</p>
+<pre><code class="language-bash">cd &lt;dossier_ou_se_trouve_le_script&gt;
+py wind_turbine_simulator.py
+</code></pre>
+<p>Si <code>py</code> n'existe pas sur votre poste, utilisez <code>python wind_turbine_simulator.py</code>.</p>
+<p><strong>Output attendu :</strong></p>
+<pre><code class="language-text">Envoi d'evenements vers Fabric Eventstream...
+  [2026-02-10T17:04:26] WT-001 | Vent: 13.16m/s | Puissance: 1678.44kW | Temp: 77.45C | Vibration: 2.7mm/s
+  [2026-02-10T17:04:26] WT-002 | Vent: 23.59m/s | Puissance: 0kW | Temp: 53.19C | Vibration: 2.52mm/s
+  ...
+  -&gt; Batch de 5 evenements envoye
+</code></pre>
+<p><strong>Ce que vous devez voir à l'écran</strong> :</p>
+<ul>
+<li>Une ligne par turbine toutes les 5 secondes</li>
+<li>Des valeurs qui changent à chaque cycle</li>
+<li>Par moments, des températures très hautes ou des vibrations anormales</li>
+</ul>
+<blockquote>
+<p>💡 <strong>Astuce</strong> : Attendez <strong>au moins 2 cycles complets</strong> (10 secondes) avant de passer à l'étape suivante. Fabric a besoin de quelques événements pour détecter le schéma automatiquement.</p>
+<p>💡 <strong>Astuce</strong> : Laissez ce terminal ouvert pendant tout l'atelier. Utilisez <strong>Ctrl+C</strong> uniquement en fin d'atelier.</p>
+</blockquote>
+<p>⚠️ <strong>Piège</strong> : Si le script démarre puis s'arrête immédiatement, vérifiez la connection string, le nom de l'Event Hub et votre accès Internet.</p>
+<p><a id="24-ajouter-la-destination-eventhouse"></a></p>
+<h3>2.4 — Ajouter la destination Eventhouse</h3>
+<blockquote>
+<p>💡 <strong>Pourquoi Direct ingestion ?</strong> Le formulaire "Event processing before ingestion" de Fabric présente un bug d'interface qui rend le bouton Save systématiquement inaccessible, quelle que soit la manipulation tentée. Nous utilisons donc <strong>Direct ingestion</strong> comme chemin principal — c'est une approche officiellement documentée par Microsoft, et la configuration de la table se fait ensuite dans un wizard séparé qui fonctionne parfaitement dès lors que le simulateur envoie déjà des données.</p>
+</blockquote>
+<p><strong>Étape 1 — Créer la connexion au nœud Eventhouse</strong></p>
+<ol>
+<li>Retourner dans l'Eventstream <strong>WindTurbineStream</strong></li>
+<li>Cliquer <strong>Edit</strong> dans la barre supérieure si nécessaire</li>
+<li>Sur le canvas, cliquer le bloc vert <strong>Transform events or add destination</strong></li>
+<li>Sélectionner <strong>Eventhouse</strong></li>
+<li>Dans le panneau de droite, sélectionner <strong>Direct ingestion</strong></li>
+<li>Remplir uniquement ces trois champs :</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Champ</th>
+<th>Valeur</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Destination name</strong></td>
+<td><code>TurbineEventsDestination</code></td>
+</tr>
+<tr>
+<td><strong>Workspace</strong></td>
+<td>Votre workspace</td>
+</tr>
+<tr>
+<td><strong>Eventhouse</strong></td>
+<td><code>WindFarmEventhouse</code></td>
+</tr>
+</tbody>
+</table>
+<ol start="7">
+<li>Cliquer <strong>Save</strong> — le bouton est actif car il n'y a pas de champ table à valider</li>
+<li>Vérifier qu'un nœud Eventhouse apparaît sur la droite du canvas</li>
+<li>Cliquer <strong>Publish</strong> en haut à droite</li>
+<li>Attendre la confirmation puis passer en mode <strong>Live</strong></li>
+</ol>
+<p><strong>Ce que vous devez voir à l'écran</strong> :</p>
+<ul>
+<li>Un nœud Eventhouse connecté à droite du canvas</li>
+<li>Le statut <strong>Published</strong> confirmé</li>
+<li>Aucun message d'erreur rouge</li>
+</ul>
+<p><strong>Étape 2 — Configurer la table via le wizard Get data</strong></p>
+<blockquote>
+<p>💡 <strong>Rappel</strong> : Le simulateur Python tourne depuis l'étape 2.3. Les données circulent déjà — c'est ce qui permet au wizard de détecter automatiquement le schéma JSON et d'activer le bouton Finish.</p>
+</blockquote>
+<ol>
+<li>
+<p>En mode <strong>Live</strong>, cliquer sur le nœud <strong>Eventhouse</strong> sur le canvas</p>
+</li>
+<li>
+<p>Cliquer <strong>Configure</strong></p>
+</li>
+<li>
+<p>L'assistant <strong>Get data</strong> s'ouvre — choisir la KQL Database <strong><code>WindFarmEventhouse</code></strong></p>
+</li>
+<li>
+<p>Cliquer <strong>New table</strong></p>
+</li>
+<li>
+<p>Saisir le nom de table : <strong><code>TurbineEvents</code></strong></p>
+</li>
+<li>
+<p>Conserver le nom de connexion proposé</p>
+</li>
+<li>
+<p>Cliquer <strong>Next</strong></p>
+</li>
+<li>
+<p>Dans l'étape d'inspection, vérifier que le format détecté est <strong>JSON</strong></p>
+</li>
+</ol>
+<blockquote>
+<p>Le format est détecté automatiquement car le simulateur envoie déjà des événements JSON. Le bouton <strong>Finish</strong> est actif.</p>
+<p>Si le format n'est pas détecté : cliquer sur le sélecteur de format et choisir manuellement <strong>JSON</strong>.</p>
+</blockquote>
+<ol start="9">
+<li>
+<p>Cliquer <strong>Finish</strong></p>
+</li>
+<li>
+<p>Dans l'écran de résumé, cliquer <strong>Close</strong></p>
+</li>
+</ol>
+<p><strong>Ce que vous devez voir à l'écran</strong> :</p>
+<ul>
+<li>L'assistant Get data s'est complété avec succès</li>
+<li>La table <code>TurbineEvents</code> est créée dans l'Eventhouse</li>
+<li>Les premières lignes de données commencent à arriver</li>
+</ul>
+<p>⚠️ <strong>Piège</strong> : En Direct ingestion, les transformations de flux (colonnes calculées, filtres) ne s'appliquent pas avant l'écriture dans la table. La Partie 2.6 sur les transformations reste dans l'atelier comme extension optionnelle pour les profils qui souhaitent aller plus loin.</p>
+<p><a id="25-verifier-la-structure-du-flux"></a></p>
+<h3>2.5 — Vérifier la structure du flux</h3>
+<ol>
+<li>Sur le canvas, vérifier que vous avez bien :<br />
+  - Un nœud <strong>source custom endpoint</strong> à gauche<br />
+  - Un chemin de traitement au centre<br />
+  - Une destination <strong>Eventhouse</strong> à droite</li>
+<li>En haut à droite, vérifier que le flux est bien <strong>Published</strong></li>
+</ol>
+<p><strong>Ce que vous devez voir à l'écran</strong> :</p>
+<ul>
+<li>Un flux lisible de gauche à droite</li>
+<li>Aucun message d'erreur rouge sur les nœuds</li>
+<li>Une vue stable, qui reçoit les événements du simulateur</li>
+</ul>
+<blockquote>
+<p>💡 <strong>Astuce</strong> : Prenez une capture d'écran du canvas. Elle vous servira de référence si vous devez expliquer l'architecture.</p>
+</blockquote>
+<hr />
+<p><a id="partie-26-transformations-eventstream-extension-optionnelle-profils-avances"></a></p>
+<h2>Partie 2.6 — Transformations Eventstream (extension optionnelle — profils avancés)</h2>
+<blockquote>
+<p>⚠️ <strong>Cette partie ne fait pas partie du parcours principal de l'atelier.</strong> En mode <strong>Direct ingestion</strong>, les transformations dans l'Eventstream n'ont aucun effet sur les données écrites dans la table — elles sont ignorées. Les colonnes calculées de diagnostic seront produites directement en KQL dans la Partie 4, avec le même résultat analytique.</p>
+<p><strong>→ Passez directement à la Partie 3.</strong></p>
+</blockquote>
+<p>Pour information, si vous souhaitez explorer les transformations Eventstream dans un autre contexte : dans la barre d'outils supérieure du canvas Eventstream, le bouton <strong>"Transform events"</strong> donne accès aux opérateurs disponibles (Manage fields, Filter, Aggregate, etc.). Ces transformations ne sont efficaces qu'en mode <strong>Event processing before ingestion</strong>.</p>
+<hr />
+<p><a id="partie-3-verifier-lingestion-des-donnees"></a></p>
+<h2>Partie 3 — Vérifier l'ingestion des données</h2>
+<p><a id="31-verifier-que-la-table-a-ete-creee"></a></p>
+<h3>3.1 — Vérifier que la table a été créée</h3>
+<ol>
+<li>Retourner sur <strong>app.fabric.microsoft.com</strong></li>
+<li>Ouvrir <strong>WindFarmEventhouse</strong></li>
+<li>Dans le panneau gauche, développer <strong>KQL databases</strong></li>
+<li>Cliquer sur <strong>WindFarmEventhouse</strong></li>
+<li>Sous <strong>Tables</strong>, vérifier que <strong>TurbineEvents</strong> apparaît</li>
+</ol>
+<p><strong>Ce que vous devez voir à l'écran</strong> :</p>
+<ul>
+<li>Une table <code>TurbineEvents</code></li>
+<li>Un explorateur qui se remplit automatiquement</li>
+</ul>
+<blockquote>
+<p>💡 <strong>Astuce</strong> : Si la table n'apparaît pas immédiatement, attendez 20 à 60 secondes puis actualisez la vue.</p>
+</blockquote>
+<p>⚠️ <strong>Piège</strong> : Si le flux n'était pas publié ou si le script n'envoie rien, la table peut ne pas être créée tout de suite.</p>
+<p><a id="32-previsualiser-les-donnees"></a></p>
+<h3>3.2 — Prévisualiser les données</h3>
+<ol>
+<li>Cliquer sur <strong>TurbineEvents</strong></li>
+<li>Ouvrir l'onglet <strong>Data preview</strong></li>
+<li>Attendre quelques secondes si nécessaire</li>
+</ol>
+<p><strong>Résultat attendu</strong> : un tableau avec les colonnes :</p>
+<ul>
+<li><code>TurbineId</code>, <code>Timestamp</code>, <code>WindSpeedMs</code>, <code>RotorRPM</code>, <code>PowerOutputKW</code>, <code>GeneratorTempC</code>, <code>VibrationMmS</code>, <code>NacelleOrientation</code>, <code>AmbientTempC</code>, <code>ParkName</code></li>
+<li>Plus les colonnes enrichies éventuelles : <code>TempCategory</code>, <code>VibrationCategory</code>, <code>PowerBand</code>, <code>IngestionLabel</code>, <code>SiteRegion</code>, <code>MaintenanceZone</code>, <code>DataSourceType</code>, <code>AlertScore</code></li>
+</ul>
+<blockquote>
+<p>💡 <strong>Astuce</strong> : Si vous voyez déjà les colonnes enrichies dans l'aperçu, cela confirme que les transformations Eventstream ont bien été appliquées avant l'ingestion.</p>
+</blockquote>
+<p>⚠️ <strong>Piège</strong> : Fabric peut parfois ajouter un espace à la fin du nom de la table lors d'une création automatique. Si une requête KQL échoue avec <code>Failed to resolve table 'TurbineEvents'</code>, utilisez <strong><code>TurbineEvents</code></strong>.</p>
+<p>⚠️ <strong>Piège</strong> : Selon l'inférence automatique du schéma, la colonne <strong><code>Timestamp</code></strong> peut être interprétée comme du <strong>texte</strong>. Les requêtes ci-dessous convertissent explicitement <code>Timestamp</code> avec <code>todatetime(Timestamp)</code>.</p>
+<p><a id="33-verifier-avec-une-requete-simple"></a></p>
+<h3>3.3 — Vérifier avec une requête simple</h3>
+<ol>
+<li>Ouvrir le queryset de la base ou la zone de requête KQL</li>
+<li>Coller :</li>
+</ol>
+<pre><code class="language-kql">TurbineEvents
+| take 10
+</code></pre>
+<ol start="3">
+<li>Cliquer <strong>Run</strong></li>
+</ol>
+<p><strong>Ce que vous devez voir à l'écran</strong> :</p>
+<ul>
+<li>Une grille de résultats avec 10 lignes</li>
+<li>Des colonnes identiques à celles observées dans l'aperçu</li>
+</ul>
+<blockquote>
+<p>💡 <strong>Astuce</strong> : Si votre table n'a pas d'espace final, remplacez <code>TurbineEvents</code> par <code>TurbineEvents</code>.</p>
+</blockquote>
+<hr />
+<p><a id="partie-4-requetes-analytiques-kql"></a></p>
+<h2>Partie 4 — Requêtes analytiques KQL</h2>
+<ol>
+<li>Dans le panneau gauche, cliquer sur le <strong>queryset</strong> lié à la base</li>
+<li>Supprimer le contenu par défaut si besoin</li>
+<li>Copier-coller et exécuter chaque requête avec <strong>Run</strong></li>
+</ol>
+<blockquote>
+<p>💡 <strong>Astuce</strong> : Sélectionnez uniquement la requête à exécuter avant de cliquer <strong>Run</strong>.</p>
+<p>💡 <strong>Astuce</strong> : Laissez tourner le simulateur pendant toute cette partie pour voir les résultats évoluer.</p>
+</blockquote>
+<p>⚠️ <strong>Piège</strong> : Si vous travaillez dans un autre queryset ou une autre base que <code>WindFarmEventhouse</code>, les requêtes peuvent sembler correctes mais ne renverront rien.</p>
+<hr />
+<p><a id="41-verification-rapide"></a></p>
+<h3>4.1 — Vérification rapide</h3>
+<pre><code class="language-kql">TurbineEvents
+| extend EventTime = todatetime(Timestamp)
+| take 20
+</code></pre>
+<ul>
+<li>
+<p><strong><code>extend</code></strong> : Crée une nouvelle colonne <code>EventTime</code> en convertissant <code>Timestamp</code> (texte → date/heure).</p>
+</li>
+<li>
+<p><strong><code>take 20</code></strong> : Renvoie 20 lignes arbitraires pour un aperçu immédiat.</p>
+</li>
+</ul>
+<p><strong>Ce que vous voyez</strong> : les derniers événements ingérés, avec les colonnes de télémétrie brutes et éventuellement les colonnes enrichies.</p>
+<hr />
+<p><a id="42-production-moyenne-par-turbine-10-dernieres-minutes"></a></p>
+<h3>4.2 — Production moyenne par turbine (10 dernières minutes)</h3>
+<pre><code class="language-kql">TurbineEvents
+| extend EventTime = todatetime(Timestamp)
+| where EventTime &gt; ago(10m)
+| summarize
+    AvgPower = avg(PowerOutputKW),
+    AvgWind = avg(WindSpeedMs),
+    EventCount = count()
+  by TurbineId
+| order by AvgPower desc
+</code></pre>
+<ul>
+<li>
+<p><strong><code>where EventTime &gt; ago(10m)</code></strong> : Filtre les 10 dernières minutes.</p>
+</li>
+<li>
+<p><strong><code>summarize ... by TurbineId</code></strong> : Groupe par turbine et calcule moyenne/occurrences.</p>
+</li>
+<li>
+<p><strong><code>order by AvgPower desc</code></strong> : Classe de la plus productive à la moins productive.</p>
+</li>
+</ul>
+<p><strong>Ce que vous voyez</strong> : chaque turbine avec sa puissance moyenne, sa vitesse de vent moyenne et son nombre d'événements récents.</p>
+<hr />
+<p><a id="43-detection-danomalies-thermiques-95c"></a></p>
+<h3>4.3 — Détection d'anomalies thermiques (&gt; 95°C)</h3>
+<pre><code class="language-kql">TurbineEvents
+| extend EventTime = todatetime(Timestamp)
+| where EventTime &gt; ago(30m)
+| where GeneratorTempC &gt; 95
+| project EventTime, TurbineId, GeneratorTempC, PowerOutputKW, WindSpeedMs
+| order by GeneratorTempC desc
+</code></pre>
+<ul>
+<li>
+<p><strong><code>where GeneratorTempC &gt; 95</code></strong> : Seuil critique au-delà du risque de casse.</p>
+</li>
+<li>
+<p><strong><code>project</code></strong> : Ne conserve que les colonnes utiles pour le diagnostic.</p>
+</li>
+<li>
+<p><strong><code>order by GeneratorTempC desc</code></strong> : Les plus chaudes d'abord.</p>
+</li>
+</ul>
+<p><strong>Ce que vous voyez</strong> : uniquement les événements où le générateur a dépassé 95°C.</p>
+<hr />
+<p><a id="44-detection-de-vibrations-anormales-8-mms"></a></p>
+<h3>4.4 — Détection de vibrations anormales (&gt; 8 mm/s)</h3>
+<pre><code class="language-kql">TurbineEvents
+| extend EventTime = todatetime(Timestamp)
+| where EventTime &gt; ago(30m)
+| where VibrationMmS &gt; 8.0
+| project EventTime, TurbineId, VibrationMmS, RotorRPM, GeneratorTempC
+| order by VibrationMmS desc
+</code></pre>
+<ul>
+<li>
+<p><strong><code>where VibrationMmS &gt; 8.0</code></strong> : Seuil de vibration dangereuse.</p>
+</li>
+<li>
+<p>Idem 4.3, mais appliqué aux vibrations.</p>
+</li>
+</ul>
+<p><strong>Ce que vous voyez</strong> : les événements avec des vibrations dangereuses.</p>
+<hr />
+<p><a id="45-rendement-energetique-par-turbine-fenetre-de-5-min"></a></p>
+<h3>4.5 — Rendement énergétique par turbine (fenêtre de 5 min)</h3>
+<pre><code class="language-kql">TurbineEvents
+| extend EventTime = todatetime(Timestamp)
+| where EventTime &gt; ago(30m)
+| where WindSpeedMs between (4.0 .. 20.0)
+| summarize
+    AvgPower = avg(PowerOutputKW),
+    AvgWind = avg(WindSpeedMs)
+  by TurbineId, bin(EventTime, 5m)
+| extend EfficiencyRatio = AvgPower / (AvgWind * AvgWind * AvgWind) * 1000
+| order by EventTime desc, TurbineId
+</code></pre>
+<ul>
+<li>
+<p><strong><code>bin(EventTime, 5m)</code></strong> : Regroupe les événements par tranches de 5 minutes.</p>
+</li>
+<li>
+<p><strong><code>extend EfficiencyRatio = ... / (AvgWind³) * 1000</code></strong> : Rendement simplifié (puissance / vent³).</p>
+</li>
+<li>
+<p>Utile pour comparer l'efficacité entre turbines à vent égal.</p>
+</li>
+</ul>
+<p><strong>Ce que vous voyez</strong> : un ratio de rendement simplifié par turbine toutes les 5 minutes.</p>
+<hr />
+<p><a id="46-etat-de-sante-global-des-turbines"></a></p>
+<h3>4.6 — État de santé global des turbines</h3>
+<pre><code class="language-kql">TurbineEvents
+| extend EventTime = todatetime(Timestamp)
+| where EventTime &gt; ago(30m)
+| summarize
+    AvgTemp = avg(GeneratorTempC),
+    MaxTemp = max(GeneratorTempC),
+    AvgVibration = avg(VibrationMmS),
+    MaxVibration = max(VibrationMmS),
+    AvgPower = avg(PowerOutputKW),
+    TotalEvents = count()
+  by TurbineId
+| extend HealthStatus = case(
+    MaxTemp &gt; 95 or MaxVibration &gt; 8.0, &quot;CRITIQUE&quot;,
+    MaxTemp &gt; 85 or MaxVibration &gt; 6.0, &quot;ATTENTION&quot;,
+    &quot;NORMAL&quot;)
+| order by HealthStatus asc, TurbineId asc
+</code></pre>
+<ul>
+<li>
+<p><strong><code>case(...)</code></strong> : Attribue un statut <code>CRITIQUE</code> / <code>ATTENTION</code> / <code>NORMAL</code>.</p>
+</li>
+<li>
+<p>Synthèse par turbine sur température max, vibration max, puissance moyenne.</p>
+</li>
+<li>
+<p><strong><code>order by HealthStatus asc</code></strong> : Remonte d'abord les plus critiques.</p>
+</li>
+</ul>
+<p><strong>Ce que vous voyez</strong> : un tableau de synthèse avec un statut <strong>CRITIQUE</strong>, <strong>ATTENTION</strong> ou <strong>NORMAL</strong> par turbine.</p>
+<hr />
+<p><a id="47-courbe-glissante-de-temperature-granularite-1-minute"></a></p>
+<h3>4.7 — Courbe glissante de température (granularité 1 minute)</h3>
+<pre><code class="language-kql">TurbineEvents
+| extend EventTime = todatetime(Timestamp)
+| where EventTime &gt; ago(1h)
+| summarize AvgTemp = avg(GeneratorTempC) by TurbineId, bin(EventTime, 1m)
+| order by EventTime asc
+</code></pre>
+<ul>
+<li>
+<p><strong><code>bin(EventTime, 1m)</code></strong> : Agrège par minute.</p>
+</li>
+<li>
+<p>Idéal pour un <strong>graphique en ligne</strong> où on suit l'évolution minute par minute.</p>
+</li>
+</ul>
+<p><strong>Ce que vous voyez</strong> : une série temporelle idéale pour un graphique en ligne.</p>
+<hr />
+<p><a id="48-detection-de-sous-performance-par-comparaison-puissancevent"></a></p>
+<h3>4.8 — Détection de sous-performance par comparaison puissance/vent</h3>
+<pre><code class="language-kql">TurbineEvents
+| extend EventTime = todatetime(Timestamp)
+| where EventTime &gt; ago(30m)
+| where WindSpeedMs between (6.0 .. 20.0)
+| extend ExpectedPowerKW = min_of(3000.0, pow(WindSpeedMs - 3.5, 2) * 18.0)
+| extend PerformanceRatio = iif(ExpectedPowerKW == 0, real(null), PowerOutputKW / ExpectedPowerKW)
+| where PerformanceRatio &lt; 0.60
+| project EventTime, TurbineId, WindSpeedMs, PowerOutputKW, ExpectedPowerKW, PerformanceRatio
+| order by PerformanceRatio asc
+</code></pre>
+<ul>
+<li>
+<p><strong><code>pow(WindSpeedMs - 3.5, 2) * 18.0</code></strong> : Puissance théorique attendue.</p>
+</li>
+<li>
+<p><strong><code>PerformanceRatio &lt; 0.60</code></strong> : La turbine produit moins de 60% de l'attendu → sous-performance.</p>
+</li>
+</ul>
+<p><strong>Ce que vous voyez</strong> : les cas où la puissance réellement produite est très en dessous de la puissance attendue.</p>
+<hr />
+<p><a id="49-carte-de-chaleur-simple-de-la-temperature"></a></p>
+<h3>4.9 — Carte de chaleur simple de la température</h3>
+<pre><code class="language-kql">TurbineEvents
+| extend EventTime = todatetime(Timestamp)
+| where EventTime &gt; ago(1h)
+| summarize AvgTemp = avg(GeneratorTempC) by TurbineId, TimeSlot = bin(EventTime, 5m)
+| order by TimeSlot asc, TurbineId asc
+</code></pre>
+<ul>
+<li>
+<p><strong><code>summarize AvgTemp by TurbineId, bin(EventTime, 5m)</code></strong> : Préparé pour heatmap.</p>
+</li>
+<li>
+<p>Chaque case = température moyenne d'une turbine sur 5 minutes.</p>
+</li>
+</ul>
+<p><strong>Ce que vous voyez</strong> : un tableau prêt à être affiché en <strong>heatmap</strong> dans un dashboard.</p>
+<hr />
+<p><a id="410-jointure-avec-une-petite-table-de-reference"></a></p>
+<h3>4.10 — Jointure avec une petite table de référence</h3>
+<pre><code class="language-kql">let TurbineReference = datatable(TurbineId:string, SiteArea:string, NominalPowerKW:real, CommissionYear:int)
+[
+    &quot;WT-001&quot;, &quot;Nord-Ouest&quot;, 3000.0, 2021,
+    &quot;WT-002&quot;, &quot;Nord-Ouest&quot;, 3000.0, 2021,
+    &quot;WT-003&quot;, &quot;Centre&quot;, 3000.0, 2022,
+    &quot;WT-004&quot;, &quot;Centre&quot;, 3000.0, 2022,
+    &quot;WT-005&quot;, &quot;Sud&quot;, 3000.0, 2023
+];
+TurbineEvents
+| extend EventTime = todatetime(Timestamp)
+| where EventTime &gt; ago(15m)
+| summarize AvgPower = avg(PowerOutputKW), MaxTemp = max(GeneratorTempC) by TurbineId
+| join kind=leftouter TurbineReference on TurbineId
+| extend LoadPct = round((AvgPower / NominalPowerKW) * 100.0, 2)
+| project TurbineId, SiteArea, CommissionYear, AvgPower, LoadPct, MaxTemp
+| order by LoadPct desc
+</code></pre>
+<ul>
+<li>
+<p><strong><code>let TurbineReference = datatable(...)</code></strong> : Table temporaire (site, année, puissance nominale).</p>
+</li>
+<li>
+<p><strong><code>join kind=leftouter</code></strong> : Enrichit les données de télémétrie avec des métadonnées.</p>
+</li>
+<li>
+<p><strong><code>LoadPct = round(AvgPower / NominalPowerKW * 100, 2)</code></strong> : Charge relative.</p>
+</li>
+</ul>
+<p><strong>Ce que vous voyez</strong> : une analyse enrichie par des métadonnées de référence.</p>
+<hr />
+<p><a id="411-top-3-anomalies-par-score-combine"></a></p>
+<h3>4.11 — Top 3 anomalies par score combiné</h3>
+<pre><code class="language-kql">TurbineEvents
+| extend EventTime = todatetime(Timestamp)
+| where EventTime &gt; ago(30m)
+| extend ExpectedPowerKW = min_of(3000.0, pow(WindSpeedMs - 3.5, 2) * 18.0)
+| extend UnderPerfPenalty = iif(WindSpeedMs &gt;= 8 and PowerOutputKW &lt; ExpectedPowerKW * 0.6, 25.0, 0.0)
+| extend TempPenalty = iif(GeneratorTempC &gt; 95, 50.0, iif(GeneratorTempC &gt; 85, 20.0, 0.0))
+| extend VibPenalty = iif(VibrationMmS &gt; 8, 40.0, iif(VibrationMmS &gt; 6, 15.0, 0.0))
+| extend AnomalyScore = TempPenalty + VibPenalty + UnderPerfPenalty
+| where AnomalyScore &gt; 0
+| top 3 by AnomalyScore desc
+| project EventTime, TurbineId, GeneratorTempC, VibrationMmS, PowerOutputKW, WindSpeedMs, AnomalyScore
+</code></pre>
+<ul>
+<li>
+<p><strong>Trois pénalités additionnées</strong> : sous-performance (25), surchauffe (20/50), vibration (15/40).</p>
+</li>
+<li>
+<p><strong><code>top 3 by AnomalyScore desc</code></strong> : Événements les plus graves en premier.</p>
+</li>
+</ul>
+<p><strong>Ce que vous voyez</strong> : les 3 événements les plus préoccupants, classés selon un score combiné.</p>
+<hr />
+<p><a id="412-tendance-recente-de-production-par-comparaison-entre-deux-fenetres"></a></p>
+<h3>4.12 — Tendance récente de production par comparaison entre deux fenêtres</h3>
+<pre><code class="language-kql">let CurrentWindow =
+    TurbineEvents
+    | extend EventTime = todatetime(Timestamp)
+    | where EventTime between (ago(10m) .. now())
+    | summarize CurrentAvgPower = avg(PowerOutputKW) by TurbineId;
+let PreviousWindow =
+    TurbineEvents
+    | extend EventTime = todatetime(Timestamp)
+    | where EventTime between (ago(20m) .. ago(10m))
+    | summarize PreviousAvgPower = avg(PowerOutputKW) by TurbineId;
+CurrentWindow
+| join kind=inner PreviousWindow on TurbineId
+| extend DeltaPower = CurrentAvgPower - PreviousAvgPower
+| extend Trend = case(DeltaPower &gt; 150, &quot;HAUSSE&quot;, DeltaPower &lt; -150, &quot;BAISSE&quot;, &quot;STABLE&quot;)
+| project TurbineId, PreviousAvgPower, CurrentAvgPower, DeltaPower, Trend
+| order by DeltaPower asc
+</code></pre>
+<ul>
+<li>
+<p><strong>Deux sous-requêtes</strong> : fenêtre courante (10m) vs fenêtre précédente (20m à 10m).</p>
+</li>
+<li>
+<p><strong><code>join</code> puis <code>case(...)</code></strong> : Compare les puissances moyennes → <code>HAUSSE</code> / <code>BAISSE</code> / <code>STABLE</code>.</p>
+</li>
+</ul>
+<p><strong>Ce que vous voyez</strong> : si chaque turbine est en hausse, en baisse ou stable par rapport à la fenêtre précédente.</p>
+<hr />
+<p><a id="partie-5-creer-le-real-time-dashboard"></a></p>
+<h2>Partie 5 — Créer le Real-Time Dashboard</h2>
+<p>Vous allez maintenant créer un dashboard opérationnel avec <strong>au moins 6 tuiles</strong>.</p>
+<p><a id="51-premiere-tuile-tableau-de-sante"></a></p>
+<h3>5.1 — Première tuile : tableau de santé</h3>
+<ol>
+<li>Dans le queryset, sélectionner la <strong>requête 4.6</strong></li>
+<li>Cliquer <strong>Save to Dashboard</strong></li>
+<li>Sélectionner <strong>Create new dashboard</strong></li>
+<li>Nom du dashboard : <strong><code>WindFarm-LiveMonitoring</code></strong></li>
+<li>Nom de la tuile : <strong><code>Etat de sante des turbines</code></strong></li>
+<li>Cliquer <strong>Create</strong></li>
+<li>Cliquer <strong>Open dashboard</strong></li>
+</ol>
+<p><strong>Résultat attendu</strong> : un tableau avec les 5 turbines et leur statut de santé.</p>
+<blockquote>
+<p>💡 <strong>Astuce</strong> : Il est possible d'atteindre le dashboard via la barre de recherches en haut au centre s'il est fermé</p>
+</blockquote>
+<p><a id="52-deuxieme-tuile-graphique-temperature"></a></p>
+<h3>5.2 — Deuxième tuile : graphique température</h3>
+<ol>
+<li>Vérifier que vous êtes dans l'onglet <strong>Home</strong> du dashboard</li>
+<li>Cliquer <strong>New tile</strong></li>
+<li>Connecter à la <strong>database</strong> <code>WindFarmEventhouse</code> si demandé</li>
+<li>Coller cette requête :</li>
+</ol>
+<pre><code class="language-kql">TurbineEvents
+| extend EventTime = todatetime(Timestamp)
+| where EventTime &gt; ago(1h)
+| summarize MaxTemp = max(GeneratorTempC) by TurbineId, bin(EventTime, 1m)
+</code></pre>
+<ul>
+<li>
+<p><strong><code>todatetime(Timestamp)</code></strong> : Convertit le champ texte en type date/heure pour les filtres temporels.</p>
+</li>
+<li>
+<p><strong><code>where EventTime &gt; ago(1h)</code></strong> : Limite l'analyse à la dernière heure glissante.</p>
+</li>
+<li>
+<p><strong><code>bin(EventTime, 1m)</code></strong> : Regroupe les événements par tranches de 1 minute (arrondi à la minute inférieure).</p>
+</li>
+<li>
+<p><strong><code>summarize MaxTemp = max(...) by TurbineId, bin(...)</code></strong> : Pour chaque turbine et chaque minute, garde la température la plus élevée.</p>
+</li>
+<li>
+<p><strong>Utilité</strong> : Idéal pour un graphique en ligne ou une heatmap — on voit les pics de température minute par minute.</p>
+</li>
+</ul>
+<ol start="5">
+<li>Cliquer <strong>Run</strong></li>
+<li>Cliquer <strong>+ Add visual</strong></li>
+<li>Dans le panneau de configuration à droite, remplir les champs dans cet ordre :</li>
+</ol>
+<p><strong>Section générale</strong></p>
+<table>
+<thead>
+<tr>
+<th>Champ</th>
+<th>Valeur</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Tile name</strong></td>
+<td><code>Température max par turbine</code></td>
+</tr>
+<tr>
+<td><strong>Visual type</strong></td>
+<td><code>Line chart</code></td>
+</tr>
+<tr>
+<td><strong>Y columns</strong></td>
+<td><code>MaxTemp</code></td>
+</tr>
+<tr>
+<td><strong>X column</strong></td>
+<td><code>EventTime</code></td>
+</tr>
+<tr>
+<td><strong>Series columns</strong></td>
+<td><code>TurbineId</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Section Y Axis</strong> (faire défiler le panneau vers le bas)</p>
+<table>
+<thead>
+<tr>
+<th>Champ</th>
+<th>Valeur</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Label</strong></td>
+<td><code>Température (°C)</code></td>
+</tr>
+<tr>
+<td><strong>Maximum value</strong></td>
+<td><code>Infer</code> (laisser par défaut)</td>
+</tr>
+<tr>
+<td><strong>Minimum value</strong></td>
+<td><code>40</code></td>
+</tr>
+<tr>
+<td><strong>Y axis scale</strong></td>
+<td><code>Linear</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Section X Axis</strong></p>
+<table>
+<thead>
+<tr>
+<th>Champ</th>
+<th>Valeur</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Label</strong></td>
+<td><code>Heure</code></td>
+</tr>
+<tr>
+<td><strong>X axis scale</strong></td>
+<td><code>Linear</code></td>
+</tr>
+</tbody>
+</table>
+<ol start="8">
+<li>Cliquer <strong>Apply changes</strong> en haut à droite</li>
+</ol>
+<p><strong>Résultat attendu</strong> : 5 courbes colorées, une par turbine, avec des pics visibles lors des surchauffes.</p>
+<p>⚠️ <strong>Piège</strong> : Si toutes les courbes se superposent de manière illisible, vérifiez que <strong>Series columns</strong> est bien défini sur <code>TurbineId</code>.</p>
+<p>⚠️ <strong>Piège</strong> : Si le graphique affiche une ligne plate à zéro, vérifiez que <strong>Y columns</strong> est bien <code>MaxTemp</code> et non une autre colonne.</p>
+<p><a id="53-troisieme-tuile-vibrations-area-chart"></a></p>
+<h3>5.3 — Troisième tuile : vibrations (Area chart)</h3>
+<ol>
+<li>Dans l'onglet <strong>Home</strong>, cliquer <strong>New tile</strong></li>
+<li>Coller cette requête :</li>
+</ol>
+<pre><code class="language-kql">TurbineEvents
+| extend EventTime = todatetime(Timestamp)
+| where EventTime &gt; ago(1h)
+| summarize MaxVibration = max(VibrationMmS) by TurbineId, bin(EventTime, 1m)
+</code></pre>
+<ul>
+<li>
+<p><strong><code>todatetime(Timestamp)</code></strong> : Conversion du timestamp texte en format date/heure exploitable.</p>
+</li>
+<li>
+<p><strong><code>where EventTime &gt; ago(1h)</code></strong> : Filtre sur la dernière heure glissante uniquement.</p>
+</li>
+<li>
+<p><strong><code>bin(EventTime, 1m)</code></strong> : Arrondit chaque timestamp à la minute inférieure pour agréger par tranche.</p>
+</li>
+<li>
+<p><strong><code>summarize MaxVibration = max(VibrationMmS) by TurbineId, bin(...)</code></strong> : Pour chaque turbine et chaque minute, ne retient que la valeur de vibration la plus élevée.</p>
+</li>
+<li>
+<p><strong>Utilité</strong> : Parfait pour détecter les pics de vibration anormaux et les corréler avec d'autres événements (température, vent).</p>
+</li>
+</ul>
+<ol start="3">
+<li>Cliquer <strong>Run</strong></li>
+<li>Cliquer <strong>+ Add visual</strong></li>
+<li>Dans le panneau <strong>Visual formatting</strong> à droite, remplir les champs :</li>
+</ol>
+<p><strong>Section générale</strong></p>
+<table>
+<thead>
+<tr>
+<th>Champ</th>
+<th>Valeur</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Tile name</strong></td>
+<td><code>Vibrations max par turbine</code></td>
+</tr>
+<tr>
+<td><strong>Visual type</strong></td>
+<td><code>Area chart</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Section Data</strong></p>
+<table>
+<thead>
+<tr>
+<th>Champ</th>
+<th>Valeur</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Y columns</strong></td>
+<td><code>MaxVibration</code></td>
+</tr>
+<tr>
+<td><strong>X column</strong></td>
+<td><code>EventTime</code></td>
+</tr>
+<tr>
+<td><strong>Series columns</strong></td>
+<td><code>TurbineId</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Section Legend</strong></p>
+<table>
+<thead>
+<tr>
+<th>Champ</th>
+<th>Valeur</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Show</strong></td>
+<td>Activé</td>
+</tr>
+<tr>
+<td><strong>Legend location</strong></td>
+<td><code>Bottom</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Section Y Axis</strong></p>
+<table>
+<thead>
+<tr>
+<th>Champ</th>
+<th>Valeur</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Label</strong></td>
+<td><code>Vibration (mm/s)</code></td>
+</tr>
+<tr>
+<td><strong>Maximum value</strong></td>
+<td><code>Infer</code></td>
+</tr>
+<tr>
+<td><strong>Minimum value</strong></td>
+<td><code>Infer</code></td>
+</tr>
+<tr>
+<td><strong>Y axis scale</strong></td>
+<td><code>Linear</code></td>
+</tr>
+</tbody>
+</table>
+<ol start="6">
+<li>Cliquer <strong>Apply changes</strong> en haut à droite</li>
+</ol>
+<p><strong>Résultat attendu</strong> : 5 zones colorées superposées, une par turbine, avec des pics lors des anomalies de vibration.</p>
+<blockquote>
+<p>💡 <strong>Astuce</strong> : L'Area chart rend les pics de vibration plus visibles que le Line chart car les zones colorées se distinguent bien visuellement. Placez cette tuile à côté de la température pour comparer les deux types d'anomalies.</p>
+</blockquote>
+<p><a id="54-quatrieme-tuile-production-moyenne-minute-par-minute"></a></p>
+<h3>5.4 — Quatrième tuile : production moyenne minute par minute</h3>
+<ol>
+<li>Dans l'onglet <strong>Home</strong>, cliquer <strong>New tile</strong></li>
+<li>Coller cette requête :</li>
+</ol>
+<pre><code class="language-kql">TurbineEvents
+| extend EventTime = todatetime(Timestamp)
+| where EventTime &gt; ago(1h)
+| summarize AvgPower = avg(PowerOutputKW) by TurbineId, bin(EventTime, 1m)
+</code></pre>
+<ul>
+<li>
+<p><strong><code>todatetime(Timestamp)</code></strong> : Conversion du champ texte en type date/heure pour les opérations temporelles.</p>
+</li>
+<li>
+<p><strong><code>where EventTime &gt; ago(1h)</code></strong> : Restreint l'analyse à la dernière heure de fonctionnement.</p>
+</li>
+<li>
+<p><strong><code>bin(EventTime, 1m)</code></strong> : Regroupe les événements par tranches horaires d'une minute.</p>
+</li>
+<li>
+<p><strong><code>summarize AvgPower = avg(PowerOutputKW) by TurbineId, bin(...)</code></strong> : Pour chaque turbine et chaque minute, calcule la puissance moyenne produite.</p>
+</li>
+<li>
+<p><strong>Utilité</strong> : Visualise l'évolution de la production en continu, détecte les baisses de régime ou les arrêts soudains turbine par turbine.</p>
+</li>
+</ul>
+<ol start="3">
+<li>Cliquer <strong>Run</strong></li>
+<li>Cliquer <strong>+ Add visual</strong></li>
+<li>Dans le panneau <strong>Visual formatting</strong> à droite, remplir les champs :</li>
+</ol>
+<p><strong>Section générale</strong></p>
+<table>
+<thead>
+<tr>
+<th>Champ</th>
+<th>Valeur</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Tile name</strong></td>
+<td><code>Production moyenne par turbine</code></td>
+</tr>
+<tr>
+<td><strong>Visual type</strong></td>
+<td><code>Column chart</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Section Data</strong> — Fabric peut mal inférer les colonnes, vérifier et corriger si nécessaire</p>
+<table>
+<thead>
+<tr>
+<th>Champ</th>
+<th>Valeur</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Y columns</strong></td>
+<td><code>AvgPower</code> uniquement</td>
+</tr>
+<tr>
+<td><strong>X column</strong></td>
+<td><code>EventTime</code></td>
+</tr>
+<tr>
+<td><strong>Series columns</strong></td>
+<td><code>TurbineId</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Section Y Axis</strong></p>
+<table>
+<thead>
+<tr>
+<th>Champ</th>
+<th>Valeur</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Label</strong></td>
+<td><code>Puissance (kW)</code></td>
+</tr>
+<tr>
+<td><strong>Minimum value</strong></td>
+<td><code>0</code></td>
+</tr>
+<tr>
+<td><strong>Maximum value</strong></td>
+<td><code>Infer</code></td>
+</tr>
+<tr>
+<td><strong>Y axis scale</strong></td>
+<td><code>Linear</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Section X Axis</strong></p>
+<table>
+<thead>
+<tr>
+<th>Champ</th>
+<th>Valeur</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Label</strong></td>
+<td><code>Heure</code></td>
+</tr>
+</tbody>
+</table>
+<ol start="6">
+<li>Cliquer <strong>Apply changes</strong> en haut à droite</li>
+</ol>
+<p><strong>Résultat attendu</strong> : des colonnes groupées par tranche de temps, une couleur par turbine, avec des variations visibles selon le vent.</p>
+<p>⚠️ <strong>Piège</strong> : Si Fabric place <code>EventTime</code> dans Y columns et <code>TurbineId</code> dans X column, corrigez-les manuellement — l'inférence automatique se trompe parfois avec les Column charts.</p>
+<p><a id="55-cinquieme-tuile-kpi-global"></a></p>
+<h3>5.5 — Cinquième tuile : KPI global</h3>
+<ol>
+<li>Dans l'onglet <strong>Home</strong>, cliquer <strong>New tile</strong></li>
+<li>Coller cette requête :</li>
+</ol>
+<pre><code class="language-kql">TurbineEvents
+| extend EventTime = todatetime(Timestamp)
+| where EventTime &gt; ago(10m)
+| summarize TotalAvgPowerKW = round(avg(PowerOutputKW), 2)
+</code></pre>
+<ul>
+<li>
+<p><strong><code>where EventTime &gt; ago(10m)</code></strong> : Filtre sur la fenêtre des 10 dernières minutes seulement.</p>
+</li>
+<li>
+<p><strong><code>avg(PowerOutputKW)</code></strong> : Calcule la moyenne de toutes les turbines confondues sur cette période.</p>
+</li>
+<li>
+<p><strong><code>round(..., 2)</code></strong> : Arrondit le résultat à 2 décimales pour une lecture propre.</p>
+</li>
+<li>
+<p><strong>Absence de <code>by</code></strong> : Pas de regroupement par turbine → une valeur unique, globale.</p>
+</li>
+<li>
+<p><strong>Utilité</strong> : KPI synthétique pour supervision en salle de contrôle — donne la température globale de la production du parc.</p>
+</li>
+</ul>
+<ol start="3">
+<li>Cliquer <strong>Run</strong></li>
+<li>Cliquer <strong>+ Add visual</strong>, choisir <strong>Card</strong> ou <strong>Stat</strong> selon votre interface</li>
+<li>Cliquer <strong>Apply changes</strong></li>
+</ol>
+<blockquote>
+<p>💡 <strong>Astuce</strong> : Les tuiles KPI sont très utiles pour un écran de supervision en salle d'exploitation.</p>
+</blockquote>
+<p><a id="56-sixieme-tuile-carte-de-chaleur-temperature"></a></p>
+<h3>5.6 — Sixième tuile : carte de chaleur température</h3>
+<ol>
+<li>Dans l'onglet <strong>Home</strong>, cliquer <strong>New tile</strong></li>
+<li>Coller cette requête :</li>
+</ol>
+<pre><code class="language-kql">TurbineEvents
+| extend EventTime = todatetime(Timestamp)
+| where EventTime &gt; ago(1h)
+| summarize AvgTemp = avg(GeneratorTempC) by TurbineId, TimeSlot = bin(EventTime, 5m)
+| order by TimeSlot asc
+</code></pre>
+<ul>
+<li>
+<p><strong><code>bin(EventTime, 5m)</code></strong> : Regroupe par tranches de 5 minutes (plus lisible qu'1 minute pour une heatmap).</p>
+</li>
+<li>
+<p><strong><code>summarize AvgTemp = avg(...) by TurbineId, TimeSlot = bin(...)</code></strong> : Température moyenne de chaque turbine sur chaque tranche de 5 minutes.</p>
+</li>
+<li>
+<p><strong><code>order by TimeSlot asc</code></strong> : Classe les tranches de la plus ancienne à la plus récente.</p>
+</li>
+<li>
+<p><strong>Structure idéale pour heatmap</strong> : Lignes = <code>TurbineId</code>, colonnes = <code>TimeSlot</code>, valeurs = <code>AvgTemp</code>.</p>
+</li>
+<li>
+<p><strong>Utilité</strong> : Visualisation immédiate des périodes de surchauffe — plus la case est rouge, plus la turbine a chauffé.</p>
+</li>
+</ul>
+<ol start="3">
+<li>Cliquer <strong>Run</strong></li>
+<li>Cliquer <strong>+ Add visual</strong></li>
+<li>Dans le panneau <strong>Visual formatting</strong> à droite, remplir les champs :</li>
+</ol>
+<p><strong>Section générale</strong></p>
+<table>
+<thead>
+<tr>
+<th>Champ</th>
+<th>Valeur</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Tile name</strong></td>
+<td><code>Carte de chaleur température</code></td>
+</tr>
+<tr>
+<td><strong>Visual type</strong></td>
+<td><code>Heatmap</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Section Data</strong> — la Heatmap a une structure différente des autres visuels</p>
+<table>
+<thead>
+<tr>
+<th>Champ</th>
+<th>Valeur</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Y column</strong></td>
+<td><code>TurbineId</code></td>
+</tr>
+<tr>
+<td><strong>X column</strong></td>
+<td><code>TimeSlot</code></td>
+</tr>
+<tr>
+<td><strong>Value column</strong></td>
+<td><code>AvgTemp</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Section X Axis</strong></p>
+<table>
+<thead>
+<tr>
+<th>Champ</th>
+<th>Valeur</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Label</strong></td>
+<td><code>Tranche horaire</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Section Y Axis</strong></p>
+<table>
+<thead>
+<tr>
+<th>Champ</th>
+<th>Valeur</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Label</strong></td>
+<td><code>Turbine</code></td>
+</tr>
+</tbody>
+</table>
+<ol start="6">
+<li>Cliquer <strong>Apply changes</strong> en haut à droite</li>
+</ol>
+<p><strong>Résultat attendu</strong> : une grille avec les turbines en lignes, les tranches de 5 minutes en colonnes, et une intensité de couleur qui monte avec la température.</p>
+<blockquote>
+<p>💡 <strong>Astuce</strong> : La Heatmap est le seul visual qui utilise <strong>Y column</strong> + <strong>X column</strong> + <strong>Value column</strong> au lieu de Y columns + Series columns. Ne pas confondre avec les autres tuiles.</p>
+</blockquote>
+<p>⚠️ <strong>Piège</strong> : Si les colonnes sont mal inférées, vérifiez que <strong>Value column</strong> est bien <code>AvgTemp</code> — c'est elle qui détermine la couleur de chaque case.</p>
+<p>⚠️ <strong>Piège</strong> : Selon la version de l'interface, la heatmap peut être présentée sous un autre nom. Si vous ne la trouvez pas, gardez une table colorée.</p>
+<p><a id="57-septieme-tuile-top-anomalies"></a></p>
+<h3>5.7 — Septième tuile : top anomalies</h3>
+<ol>
+<li>Dans l'onglet <strong>Home</strong>, cliquer <strong>New tile</strong></li>
+<li>Coller cette requête :</li>
+</ol>
+<pre><code class="language-kql">TurbineEvents
+| extend EventTime = todatetime(Timestamp)
+| where EventTime &gt; ago(30m)
+| extend ExpectedPowerKW = min_of(3000.0, pow(WindSpeedMs - 3.5, 2) * 18.0)
+| extend UnderPerfPenalty = iif(WindSpeedMs &gt;= 8 and PowerOutputKW &lt; ExpectedPowerKW * 0.6, 25.0, 0.0)
+| extend TempPenalty = iif(GeneratorTempC &gt; 95, 50.0, iif(GeneratorTempC &gt; 85, 20.0, 0.0))
+| extend VibPenalty = iif(VibrationMmS &gt; 8, 40.0, iif(VibrationMmS &gt; 6, 15.0, 0.0))
+| extend AnomalyScore = TempPenalty + VibPenalty + UnderPerfPenalty
+| where AnomalyScore &gt; 0
+| top 10 by AnomalyScore desc
+| project EventTime, TurbineId, GeneratorTempC, VibrationMmS, PowerOutputKW, AnomalyScore
+</code></pre>
+<ul>
+<li>
+<p><strong><code>ExpectedPowerKW = min_of(3000, pow(vitesse - 3.5, 2) * 18)</code></strong> : Puissance théorique max selon la vitesse du vent (plafonnée à 3000 kW).</p>
+</li>
+<li>
+<p><strong>Trois pénalités additionnées</strong> : Sous-performance (25 pts), surchauffe (20/50 pts selon sévérité), vibration (15/40 pts selon sévérité).</p>
+</li>
+<li>
+<p><strong><code>AnomalyScore = somme des pénalités</code></strong> : Plus le score est élevé, plus l'événement cumule de problèmes.</p>
+</li>
+<li>
+<p><strong><code>top 10 by AnomalyScore desc</code></strong> : Remonte les 10 événements les plus graves en premier.</p>
+</li>
+<li>
+<p><strong>Utilité</strong> : Priorisation des interventions — on traite d'abord la turbine avec le score le plus élevé.</p>
+</li>
+</ul>
+<ol start="3">
+<li>Cliquer <strong>Run</strong></li>
+<li>Cliquer <strong>+ Add visual</strong>, choisir <strong>Table</strong></li>
+<li>Cliquer <strong>Apply changes</strong></li>
+</ol>
+<blockquote>
+<p>💡 <strong>Astuce</strong> : Cette tuile complète parfaitement le KPI global. Le KPI montre l'état général, la tuile anomalies montre les cas précis à investiguer.</p>
+</blockquote>
+<p><a id="58-activer-le-rafraichissement-automatique"></a></p>
+<h3>5.8 — Activer le rafraîchissement automatique</h3>
+<ol>
+<li>Dans le dashboard, cliquer l'onglet <strong>Manage</strong> (barre du haut)</li>
+<li>Ouvrir <strong>Auto refresh</strong></li>
+<li>Sélectionner <strong>30 secondes</strong> ou la valeur la plus proche disponible</li>
+<li>Sauvegarder</li>
+</ol>
+<blockquote>
+<p>💡 <strong>Astuce</strong> : Si rien ne bouge dans le dashboard, vérifiez d'abord que le simulateur Python tourne encore.</p>
+</blockquote>
+<hr />
+<p><a id="partie-6-pipeline-dalertes-industriel-update-policy-function-materialized-view"></a></p>
+<h2>Partie 6 — Pipeline d'alertes industriel : Update Policy + Function + Materialized View</h2>
+<p>Dans cette partie, vous allez construire un <strong>système d'alerting complet</strong> entièrement dans l'Eventhouse, sans dépendance externe. L'architecture finale est :</p>
+<p><code>TurbineEvents</code> → <em>(Update Policy)</em> → <code>fn_DetectAnomaly()</code> → <code>TurbineAlerts</code> → <em>(Materialized View)</em> → <code>MV_AlertSummary</code> → <em>(Dashboard)</em></p>
+<blockquote>
+<p>💡 <strong>Pourquoi cette approche ?</strong> L'Update Policy est un mécanisme natif de l'Eventhouse : à chaque ingestion dans <code>TurbineEvents</code>, la fonction de détection s'exécute automatiquement et écrit les anomalies dans <code>TurbineAlerts</code>. Pas d'email, pas de Teams, pas de dépendance externe. Les alertes sont immédiatement requêtables et visualisables dans le dashboard.</p>
+</blockquote>
+<p><a id="61-creer-la-table-turbinealerts"></a></p>
+<h3>6.1 — Créer la table TurbineAlerts</h3>
+<ol>
+<li>Ouvrir <strong>WindFarmEventhouse_queryset</strong></li>
+<li>Coller et exécuter cette commande :</li>
+</ol>
+<pre><code class="language-kql">.create table TurbineAlerts (
+    AlertTime: datetime,
+    TurbineId: string,
+    AlertType: string,
+    Severity: string,
+    AlertValue: real,
+    Threshold: real,
+    Message: string
+)
+</code></pre>
+<ol start="3">
+<li>Cliquer <strong>Run</strong></li>
+</ol>
+<p><strong>Ce que vous devez voir</strong> : un message de succès. La table <code>TurbineAlerts</code> apparaît dans le panneau gauche sous <strong>Tables</strong>.</p>
+<p><a id="62-creer-la-fonction-de-detection-fndetectanomaly"></a></p>
+<h3>6.2 — Créer la fonction de détection fn_DetectAnomaly</h3>
+<p>La logique de détection des 3 types d'anomalies est centralisée dans une seule fonction réutilisable. L'Update Policy appellera cette fonction — si vous souhaitez ajouter une règle, vous modifiez uniquement la fonction.</p>
+<ol>
+<li>Coller et exécuter cette commande :</li>
+</ol>
+<pre><code class="language-kql">.create-or-alter function fn_DetectAnomaly() {
+    TurbineEvents
+    | extend EventTime = todatetime(Timestamp)
+    | extend ExpectedPowerKW = min_of(3000.0, pow(WindSpeedMs - 3.5, 2) * 18.0)
+    | extend PerformanceRatio = iif(
+        ExpectedPowerKW == 0 or WindSpeedMs &lt; 6.0 or WindSpeedMs &gt; 20.0,
+        real(null),
+        PowerOutputKW / ExpectedPowerKW)
+    | where GeneratorTempC &gt; 95
+        or VibrationMmS &gt; 8
+        or (isnotnull(PerformanceRatio) and PerformanceRatio &lt; 0.60)
+    | extend AlertType = case(
+        GeneratorTempC &gt; 95, &quot;SURCHAUFFE&quot;,
+        VibrationMmS &gt; 8,    &quot;VIBRATION&quot;,
+                             &quot;SOUS_PERFORMANCE&quot;)
+    | extend AlertValue = case(
+        GeneratorTempC &gt; 95, GeneratorTempC,
+        VibrationMmS &gt; 8,    VibrationMmS,
+                             round(PerformanceRatio * 100, 1))
+    | extend Threshold = case(
+        GeneratorTempC &gt; 95, 95.0,
+        VibrationMmS &gt; 8,    8.0,
+                             60.0)
+    | extend Severity = case(
+        GeneratorTempC &gt; 120 or VibrationMmS &gt; 14, &quot;CRITIQUE&quot;,
+                                                    &quot;ATTENTION&quot;)
+    | extend Message = strcat(
+        AlertType, &quot; sur &quot;, TurbineId,
+        &quot; — Valeur: &quot;, tostring(round(AlertValue, 2)),
+        &quot; / Seuil: &quot;, tostring(Threshold))
+    | project AlertTime = EventTime, TurbineId, AlertType, Severity, AlertValue, Threshold, Message
+}
+</code></pre>
+<ol start="2">
+<li>Cliquer <strong>Run</strong></li>
+</ol>
+<p><strong>Ce que vous devez voir</strong> : un message de succès. La fonction <code>fn_DetectAnomaly</code> apparaît sous <strong>Functions</strong> dans le panneau gauche.</p>
+<blockquote>
+<p>💡 <strong>Astuce</strong> : Testez la fonction seule avant de l'attacher à la policy — exécutez <code>fn_DetectAnomaly()</code> dans le queryset et vérifiez que des lignes d'anomalies apparaissent.</p>
+</blockquote>
+<p><a id="63-activer-lupdate-policy"></a></p>
+<h3>6.3 — Activer l'Update Policy</h3>
+<ol>
+<li>Coller et exécuter cette commande :</li>
+</ol>
+<pre><code class="language-kql">.alter table TurbineAlerts policy update
+@'[{&quot;IsEnabled&quot;: true, &quot;Source&quot;: &quot;TurbineEvents&quot;, &quot;Query&quot;: &quot;fn_DetectAnomaly()&quot;, &quot;IsTransactional&quot;: false, &quot;PropagateIngestionProperties&quot;: false}]'
+</code></pre>
+<ol start="2">
+<li>Cliquer <strong>Run</strong></li>
+</ol>
+<p><strong>Ce que vous devez voir</strong> : un message de succès confirmant l'activation.</p>
+<blockquote>
+<p>💡 <strong>Ce qui se passe maintenant</strong> : à chaque batch ingéré dans <code>TurbineEvents</code>, Fabric exécute automatiquement <code>fn_DetectAnomaly()</code> et écrit les anomalies dans <code>TurbineAlerts</code>. Le pipeline est actif en temps réel.</p>
+</blockquote>
+<p>⚠️ <strong>Piège</strong> : L'Update Policy ne retraite pas les données déjà présentes dans <code>TurbineEvents</code>. Elle s'applique uniquement aux nouvelles ingestions. Attendez un cycle du simulateur (5 secondes) avant de vérifier.</p>
+<p><a id="64-creer-la-materialized-view-mvalertsummary"></a></p>
+<h3>6.4 — Créer la Materialized View MV_AlertSummary</h3>
+<p>Pour accélérer le dashboard d'alertes, créez une vue pré-agrégée par turbine, type et heure.</p>
+<ol>
+<li>Coller et exécuter cette commande :</li>
+</ol>
+<pre><code class="language-kql">.create-or-alter materialized-view with (backfill=true) MV_AlertSummary on table TurbineAlerts
+{
+    TurbineAlerts
+    | summarize
+        NbAlertes = count(),
+        DerniereAlerte = max(AlertTime)
+      by TurbineId, AlertType, Severity, bin(AlertTime, 1h)
+}
+</code></pre>
+<ol start="2">
+<li>Cliquer <strong>Run</strong></li>
+</ol>
+<p><strong>Ce que vous devez voir</strong> : un message de succès. <code>MV_AlertSummary</code> apparaît sous <strong>Materialized views</strong>.</p>
+<p><a id="65-requetes-de-validation-interactives"></a></p>
+<h3>6.5 — Requêtes de validation interactives</h3>
+<p>Attendez un cycle du simulateur puis exécutez ces requêtes dans le queryset pour valider le pipeline :</p>
+<p><strong>Comptage par type et sévérité (30 dernières minutes)</strong></p>
+<pre><code class="language-kql">TurbineAlerts
+| where AlertTime &gt; ago(30m)
+| summarize count() by AlertType, Severity
+| order by count_ desc
+</code></pre>
+<p><strong>Tendance des alertes par turbine et par tranche de 5 minutes</strong></p>
+<pre><code class="language-kql">TurbineAlerts
+| where AlertTime &gt; ago(1h)
+| summarize NbAlertes = count() by TurbineId, AlertType, bin(AlertTime, 5m)
+| order by AlertTime desc
+</code></pre>
+<p><strong>Lecture directe de la Materialized View</strong></p>
+<pre><code class="language-kql">MV_AlertSummary
+| where AlertTime &gt; ago(1h)
+| order by DerniereAlerte desc
+</code></pre>
+<blockquote>
+<p>💡 <strong>Astuce</strong> : Pour générer rapidement des alertes de test, remplacez temporairement <code>0.10</code> par <code>0.50</code> dans le simulateur Python (taux d'anomalie), relancez le script et attendez 2 cycles.</p>
+</blockquote>
+<p><a id="66-tuile-dashboard-alertes-en-cours"></a></p>
+<h3>6.6 — Tuile dashboard "Alertes en cours"</h3>
+<ol>
+<li>Dans le dashboard <strong>WindFarm-LiveMonitoring</strong>, onglet <strong>Home</strong>, cliquer <strong>New tile</strong></li>
+<li>Coller cette requête :</li>
+</ol>
+<pre><code class="language-kql">TurbineAlerts
+| where AlertTime &gt; ago(30m)
+| summarize NbAlertes = count(), DerniereAlerte = max(AlertTime) by TurbineId, AlertType, Severity
+| order by DerniereAlerte desc
+</code></pre>
+<ol start="3">
+<li>Cliquer <strong>Run</strong></li>
+<li>Cliquer <strong>+ Add visual</strong></li>
+<li>Configurer :</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Champ</th>
+<th>Valeur</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Tile name</strong></td>
+<td><code>Alertes en cours (30 min)</code></td>
+</tr>
+<tr>
+<td><strong>Visual type</strong></td>
+<td><code>Table</code></td>
+</tr>
+</tbody>
+</table>
+<ol start="6">
+<li>Cliquer <strong>Apply changes</strong></li>
+<li>Dans l'onglet <strong>Manage</strong>, vérifier que <strong>Auto refresh</strong> est à <strong>30 secondes</strong> (configuré en 5.8)</li>
+</ol>
+<p><strong>Résultat attendu</strong> : une tuile tableau qui se met à jour automatiquement, listant les turbines en anomalie avec le type, la sévérité et le nombre d'occurrences récentes.</p>
+<p><a id="67-surveiller-le-pipeline-dalertes"></a></p>
+<h3>6.7 — Surveiller le pipeline d'alertes</h3>
+<blockquote>
+<p>💡 <strong>Note</strong> : Microsoft Fabric dispose d'un <strong>Workspace Monitoring</strong> dédié — un Eventhouse séparé qui collecte les logs d'activité du workspace (ingestion, requêtes, performances, erreurs d'Update Policy). Ce volet est traité en détail dans la <strong>Partie 9 — Monitoring du Workspace</strong>.</p>
+</blockquote>
+<p>En attendant, pour vérifier rapidement que l'Update Policy fonctionne, exécutez cette requête dans le queryset :</p>
+<pre><code class="language-kql">TurbineAlerts
+| summarize LastAlert = max(AlertTime), Total = count()
+| extend PipelineActif = iff(LastAlert &gt; ago(1m), &quot;✅ OK&quot;, &quot;⚠️ Vérifier&quot;)
+</code></pre>
+<p>Si <code>PipelineActif</code> affiche <code>⚠️ Vérifier</code>, assurez-vous que le simulateur Python tourne et qu'au moins un cycle (5 secondes) s'est écoulé depuis l'activation de l'Update Policy.</p>
+<hr />
+<p><a id="partie-7-materialized-view-sur-turbineevents"></a></p>
+<h2>Partie 7 — Materialized View sur TurbineEvents</h2>
+<blockquote>
+<p>💡 <strong>Rappel</strong> : Une <code>MV_AlertSummary</code> sur <code>TurbineAlerts</code> a déjà été créée en Partie 6.4. Cette partie crée une seconde Materialized View, <code>mv_turbine_health_1m</code>, sur la table brute <code>TurbineEvents</code>. Les deux vues ont des rôles distincts : <code>MV_AlertSummary</code> agrège les alertes, <code>mv_turbine_health_1m</code> agrège la télémétrie brute pour accélérer les tuiles du dashboard opérationnel.</p>
+</blockquote>
+<p>Dans un contexte réel, les dashboards exécutent souvent les mêmes agrégations en permanence. Une <strong>Materialized View</strong> pré-calcule les résultats une fois et les met à jour incrémentalement.</p>
+<p><a id="71-creer-mvturbinehealth1m"></a></p>
+<h3>7.1 — Créer mv_turbine_health_1m</h3>
+<ol>
+<li>Dans <strong>WindFarmEventhouse</strong>, cliquer <strong>+ New</strong> → <strong>Materialized view</strong></li>
+<li>Remplacer le contenu par la commande suivante :</li>
+</ol>
+<pre><code class="language-kql">.create-or-alter materialized-view with (backfill=true) mv_turbine_health_1m on table TurbineEvents
+{
+    TurbineEvents
+    | extend EventTime = todatetime(Timestamp)
+    | summarize
+        AvgPower = avg(PowerOutputKW),
+        MaxTemp = max(GeneratorTempC),
+        MaxVibration = max(VibrationMmS),
+        AvgWind = avg(WindSpeedMs),
+        EventCount = count()
+      by TurbineId, bin(EventTime, 1m)
+}
+</code></pre>
+<ol start="3">
+<li>Cliquer <strong>Run</strong></li>
+</ol>
+<p><strong>Ce que vous devez voir</strong> : un message de succès. <code>mv_turbine_health_1m</code> apparaît sous <strong>Materialized views</strong>.</p>
+<blockquote>
+<p><code>backfill=true</code> recalcule immédiatement toutes les données historiques. Les cinq agrégats (puissance, température, vibration, vent, count) sont pré-calculés par turbine et par minute.</p>
+</blockquote>
+<p><a id="72-verifier-la-vue"></a></p>
+<h3>7.2 — Vérifier la vue</h3>
+<pre><code class="language-kql">mv_turbine_health_1m
+| where EventTime &gt; ago(30m)
+| order by EventTime desc
+| take 20
+</code></pre>
+<p><strong>Ce que vous devez voir</strong> : une ligne par turbine et par minute, avec les colonnes <code>AvgPower</code>, <code>MaxTemp</code>, <code>MaxVibration</code>, <code>AvgWind</code>, <code>EventCount</code>.</p>
+<p><a id="73-utiliser-la-vue-dans-le-dashboard"></a></p>
+<h3>7.3 — Utiliser la vue dans le dashboard</h3>
+<p>Remplacez les requêtes coûteuses du dashboard par des requêtes sur la vue :</p>
+<pre><code class="language-kql">mv_turbine_health_1m
+| where EventTime &gt; ago(1h)
+| project EventTime, TurbineId, MaxTemp
+</code></pre>
+<pre><code class="language-kql">mv_turbine_health_1m
+| where EventTime &gt; ago(1h)
+| project EventTime, TurbineId, MaxVibration
+</code></pre>
+<blockquote>
+<p>💡 Gardez la table brute <code>TurbineEvents</code> pour l'exploration détaillée et les deux Materialized Views pour l'affichage opérationnel temps réel.</p>
+</blockquote>
+<p>⚠️ <strong>Piège</strong> : Une Materialized View n'est pas un remplacement total de la table brute. Elle accélère des agrégations répétitives bien identifiées.</p>
+<hr />
+<p><a id="partie-8-lecture-guidee-des-resultats"></a></p>
+<h2>Partie 8 — Lecture guidée des résultats</h2>
+<p><a id="81-ce-que-vous-devez-observer-cote-eventstream"></a></p>
+<h3>8.1 — Ce que vous devez observer côté Eventstream</h3>
+<ol>
+<li>Le canvas est publié</li>
+<li>Les nœuds source et destination sont reliés</li>
+<li>Aucun nœud ne présente d'erreur bloquante</li>
+<li>La destination Eventhouse est active en mode Direct ingestion</li>
+</ol>
+<p><a id="82-ce-que-vous-devez-observer-cote-kql-database"></a></p>
+<h3>8.2 — Ce que vous devez observer côté KQL Database</h3>
+<p><strong>Tables</strong></p>
+<ul>
+<li><code>TurbineEvents</code> reçoit régulièrement des lignes (simulateur actif)</li>
+<li><code>TurbineAlerts</code> s'alimente automatiquement via l'Update Policy</li>
+</ul>
+<p><strong>Functions</strong></p>
+<ul>
+<li><code>fn_DetectAnomaly</code> est visible et peut être exécutée directement pour tester la logique</li>
+</ul>
+<p><strong>Materialized views</strong></p>
+<ul>
+<li><code>mv_turbine_health_1m</code> agrège la télémétrie par turbine et par minute</li>
+<li><code>MV_AlertSummary</code> agrège les alertes par turbine, type et heure</li>
+</ul>
+<p><a id="83-ce-que-vous-devez-observer-cote-dashboard"></a></p>
+<h3>8.3 — Ce que vous devez observer côté Dashboard</h3>
+<ol>
+<li>La tuile de santé affiche les 5 turbines avec leur statut CRITIQUE/ATTENTION/NORMAL</li>
+<li>Le graphique température montre des pics occasionnels au-dessus de 95°C</li>
+<li>Le graphique vibrations (Area chart) révèle les pics mécaniques</li>
+<li>Le Column chart de production varie selon le vent simulé</li>
+<li>Le KPI global de puissance change à chaque rafraîchissement</li>
+<li>La heatmap révèle les turbines et tranches horaires les plus chaudes</li>
+<li>La tuile top anomalies liste les événements les plus critiques par score</li>
+<li>La tuile <strong>Alertes en cours</strong> liste les turbines en anomalie avec type et sévérité</li>
+</ol>
+<p><a id="84-ce-que-vous-devez-observer-cote-pipeline-dalertes"></a></p>
+<h3>8.4 — Ce que vous devez observer côté Pipeline d'alertes</h3>
+<ol>
+<li>La table <code>TurbineAlerts</code> reçoit de nouvelles lignes à chaque cycle du simulateur</li>
+<li>Les trois types d'alertes sont présents : <code>SURCHAUFFE</code>, <code>VIBRATION</code>, <code>SOUS_PERFORMANCE</code></li>
+<li>Les sévérités <code>CRITIQUE</code> et <code>ATTENTION</code> sont correctement attribuées</li>
+<li><code>MV_AlertSummary</code> reflète les comptages agrégés par heure</li>
+<li>Le panneau <strong>Monitoring → Ingestion</strong> de l'Eventhouse ne montre aucune erreur d'Update Policy</li>
+</ol>
+<blockquote>
+<p>💡 <strong>Astuce</strong> : Pendant une démonstration, gardez trois onglets ouverts : <strong>simulateur Python</strong>, <strong>dashboard</strong>, <strong>KQL queryset</strong>. C'est la combinaison la plus parlante pour montrer le temps réel.</p>
+</blockquote>
+<hr />
+<hr />
+<p><a id="partie-9-monitoring-du-workspace"></a></p>
+<h2>Partie 9 — Monitoring du Workspace</h2>
+<p>Le <strong>Workspace Monitoring</strong> de Microsoft Fabric est un Eventhouse dédié qui collecte automatiquement les logs d'activité de votre workspace : ingestion, requêtes, commandes DDL, performances. Il vous permet de diagnostiquer les erreurs d'Update Policy, les goulets d'ingestion et les requêtes lentes directement en KQL.</p>
+<blockquote>
+<p>⚠️ <strong>Prérequis</strong> : Vous devez avoir le rôle <strong>Admin</strong> sur le workspace pour activer cette fonctionnalité.</p>
+</blockquote>
+<p><a id="91-activer-le-workspace-monitoring"></a></p>
+<h3>9.1 — Activer le Workspace Monitoring</h3>
+<p><strong>Chemin principal — Workspace Settings :</strong></p>
+<ol>
+<li>Dans votre workspace, cliquer sur l'icône <strong>engrenage ⚙️</strong> en haut à droite → <strong>Workspace settings</strong></li>
+<li>Dans le panneau gauche, cliquer <strong>Monitoring</strong></li>
+<li>Cliquer le bouton <strong>+ Eventhouse</strong></li>
+<li>Attendre quelques secondes</li>
+</ol>
+<p><strong>Ce que vous voyez à l'écran</strong> :</p>
+<ul>
+<li>Message de confirmation : <em>"Successfully added the monitoring Eventhouse and turned on logging"</em></li>
+<li><strong>Log workspace activity : On</strong></li>
+<li>Un lien cliquable <strong>Monitoring database</strong> apparaît dans ce même panneau</li>
+</ul>
+<blockquote>
+<p>💡 <strong>Accès alternatif</strong> : depuis l'item <strong>WindFarmEventhouse</strong> dans le workspace, dans le panneau de navigation gauche, un lien <strong>Monitoring</strong> permet d'accéder directement à la base de monitoring.</p>
+</blockquote>
+<hr />
+<p><a id="92-acceder-a-la-base-monitoring"></a></p>
+<h3>9.2 — Accéder à la base Monitoring</h3>
+<p><strong>Option A — Via le lien dans Workspace Settings :</strong></p>
+<ol>
+<li>Rester dans <strong>Workspace settings → Monitoring</strong></li>
+<li>Cliquer le lien <strong>Monitoring database</strong></li>
+</ol>
+<p><strong>Option B — Via l'Eventhouse :</strong></p>
+<ol>
+<li>Depuis le workspace, ouvrir <strong>WindFarmEventhouse</strong></li>
+<li>Dans le panneau gauche, cliquer <strong>Monitoring</strong></li>
+</ol>
+<p>Dans les deux cas, vous atterrissez dans une KQL Database dédiée, distincte de <strong>WindFarmDB</strong>.</p>
+<hr />
+<p><a id="93-decouvrir-les-tables-disponibles"></a></p>
+<h3>9.3 — Découvrir les tables disponibles</h3>
+<p>Avant d'écrire des requêtes, explorez les tables présentes dans la base Monitoring :</p>
+<pre><code class="language-kql">.show tables
+</code></pre>
+<p>Les principales tables pertinentes pour cet atelier :</p>
+<table>
+<thead>
+<tr>
+<th>Table</th>
+<th>Contenu</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>EventhouseDataOperationLogs</code></td>
+<td>Toutes les opérations de données : ingestion, requêtes, commandes — filtrées par <code>DataOperationKind</code></td>
+</tr>
+</tbody>
+</table>
+<p>Les colonnes clés de <code>EventhouseDataOperationLogs</code> :</p>
+<table>
+<thead>
+<tr>
+<th>Colonne</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Timestamp</code></td>
+<td>datetime</td>
+<td>Horodatage de l'opération</td>
+</tr>
+<tr>
+<td><code>OperationName</code></td>
+<td>string</td>
+<td>Nom de l'opération</td>
+</tr>
+<tr>
+<td><code>DatabaseName</code></td>
+<td>string</td>
+<td>Base de données cible</td>
+</tr>
+<tr>
+<td><code>TableName</code></td>
+<td>string</td>
+<td>Table cible (ingestion)</td>
+</tr>
+<tr>
+<td><code>DataOperationKind</code></td>
+<td>string</td>
+<td>Type d'opération : <code>Ingest</code>, <code>Query</code>, <code>Command</code>, etc.</td>
+</tr>
+<tr>
+<td><code>Status</code></td>
+<td>string</td>
+<td>Résultat : <code>Succeeded</code>, <code>Failed</code>, <code>PartiallySucceeded</code></td>
+</tr>
+<tr>
+<td><code>DurationMs</code></td>
+<td>long</td>
+<td>Durée en millisecondes</td>
+</tr>
+<tr>
+<td><code>TotalRowsCount</code></td>
+<td>long</td>
+<td>Nombre de lignes ingérées</td>
+</tr>
+<tr>
+<td><code>OriginalSizeInBytes</code></td>
+<td>long</td>
+<td>Taille des données reçues</td>
+</tr>
+<tr>
+<td><code>CpuTimeMs</code></td>
+<td>long</td>
+<td>CPU consommé</td>
+</tr>
+<tr>
+<td><code>ItemName</code></td>
+<td>string</td>
+<td>Nom de l'Eventhouse source</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>💡 Ces tables sont en <strong>lecture seule</strong>. Pour voir le schéma complet : <code>.show table EventhouseDataOperationLogs schema</code></p>
+</blockquote>
+<hr />
+<p><a id="nettoyage-optionnel"></a></p>
+<h2>Nettoyage (optionnel)</h2>
+<p><a id="1-arreter-lenvoi-des-evenements"></a></p>
+<h3>1 — Arrêter l'envoi des événements</h3>
+<ol>
+<li>Revenir dans le terminal</li>
+<li>Appuyer sur <strong>Ctrl+C</strong></li>
+<li>Vérifier le message : <code>Arret du simulateur.</code></li>
+</ol>
+<p><a id="2-supprimer-le-pipeline-dalertes"></a></p>
+<h3>2 — Supprimer le pipeline d'alertes</h3>
+<ol>
+<li>Dans le queryset, exécuter ces deux commandes :</li>
+</ol>
+<pre><code class="language-kql">.drop table TurbineAlerts
+</code></pre>
+<pre><code class="language-kql">.drop function fn_DetectAnomaly
+</code></pre>
+<ol start="2">
+<li>Sous <strong>Materialized views</strong>, supprimer <strong>MV_AlertSummary</strong> via le menu <strong>...</strong></li>
+</ol>
+<p><a id="3-supprimer-les-tuiles-ou-le-dashboard"></a></p>
+<h3>3 — Supprimer les tuiles ou le dashboard</h3>
+<ol>
+<li>Ouvrir le dashboard <strong>WindFarm-LiveMonitoring</strong></li>
+<li>Cliquer <strong>Manage</strong></li>
+<li>Supprimer les tuiles ou le dashboard complet</li>
+</ol>
+<p><a id="4-supprimer-les-materialized-views-de-telemetrie"></a></p>
+<h3>4 — Supprimer les Materialized Views de télémétrie</h3>
+<ol>
+<li>Dans la base <strong>WindFarmEventhouse</strong>, sous <strong>Materialized views</strong>, repérer <strong>mv_turbine_health_1m</strong></li>
+<li>Ouvrir le menu <strong>...</strong></li>
+<li>Cliquer <strong>Delete</strong></li>
+</ol>
+<p><a id="5-supprimer-leventstream"></a></p>
+<h3>5 — Supprimer l'Eventstream</h3>
+<ol>
+<li>Revenir au <strong>workspace</strong></li>
+<li>Sur <strong>WindTurbineStream</strong>, cliquer <strong>...</strong> → <strong>Delete</strong> → Confirmer</li>
+</ol>
+<p><a id="6-supprimer-leventhouse"></a></p>
+<h3>6 — Supprimer l'Eventhouse</h3>
+<ol>
+<li>Sur <strong>WindFarmEventhouse</strong>, cliquer <strong>...</strong> → <strong>Delete</strong> → Confirmer</li>
+</ol>
+<blockquote>
+<p>⚠️ La suppression de l'Eventhouse supprime également toutes les tables, fonctions et Materialized Views qu'il contient.</p>
+</blockquote>
+<p><a id="7-supprimer-eventuellement-tout-le-workspace-de-laboratoire"></a></p>
+<h3>7 — Supprimer éventuellement tout le workspace de laboratoire</h3>
+<ol>
+<li>Ouvrir <strong>Workspace settings</strong> → <strong>General</strong> → <strong>Remove this workspace</strong></li>
+</ol></main>
+</body>
+</html>

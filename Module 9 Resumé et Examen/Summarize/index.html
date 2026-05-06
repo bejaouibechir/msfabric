@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MS Fabric – Formation Interactive</title>
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<!-- ===== NAVBAR ===== -->
+<header id="navbar">
+  <div id="nav-brand">
+    <!-- Logo Microsoft Fabric (SVG inline) -->
+    <svg width="26" height="26" viewBox="0 0 26 26" fill="none" aria-hidden="true">
+      <defs>
+        <linearGradient id="fbg" x1="0" y1="0" x2="26" y2="26">
+          <stop offset="0%" stop-color="#0078d4"/>
+          <stop offset="100%" stop-color="#8b5cf6"/>
+        </linearGradient>
+      </defs>
+      <rect width="26" height="26" rx="5" fill="url(#fbg)"/>
+      <text x="5" y="19" fill="white" font-size="15" font-weight="bold"
+            font-family="Segoe UI,sans-serif">F</text>
+    </svg>
+    <div class="brand-text">
+      <span class="brand-ms">Microsoft</span>
+      <span class="brand-fabric">Fabric</span>
+    </div>
+  </div>
+
+  <div id="nav-chapter-badge" title="Chapitre en cours"></div>
+
+  <nav id="nav-controls" aria-label="Navigation des slides">
+    <button id="btn-prev" title="Slide précédente (←)" aria-label="Précédent">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+        <path d="M10.5 2L5 8l5.5 6" stroke="currentColor" stroke-width="2"
+              fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span>Précédent</span>
+    </button>
+    <span id="slide-counter" aria-live="polite">1 / 1</span>
+    <button id="btn-next" title="Slide suivante (→)" aria-label="Suivant">
+      <span>Suivant</span>
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+        <path d="M5.5 2L11 8l-5.5 6" stroke="currentColor" stroke-width="2"
+              fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+  </nav>
+
+  <button id="btn-fullscreen" title="Plein écran" aria-label="Plein écran">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"
+         stroke="currentColor" stroke-width="1.8">
+      <path d="M1 1h4M1 1v4M15 1h-4M15 1v4M1 15h4M1 15v-4M15 15h-4M15 15v-4"/>
+    </svg>
+  </button>
+</header>
+
+<!-- ===== BARRE DE PROGRESSION ===== -->
+<div id="progress-wrap"><div id="progress-bar"></div></div>
+
+<!-- ===== LAYOUT PRINCIPAL ===== -->
+<div id="layout">
+
+  <!-- Sidebar chapitres -->
+  <aside id="sidebar" aria-label="Chapitres">
+    <div id="sidebar-title">Chapitres</div>
+    <ul id="chapter-list" role="list"></ul>
+  </aside>
+
+  <!-- Zone de slide centrée -->
+  <main id="slide-area">
+    <div id="slide-card">
+      <div id="slide-chapter-label"></div>
+      <h1 id="slide-heading"></h1>
+      <div id="slide-body"></div>
+    </div>
+  </main>
+
+</div>
+
+<!-- ===== PANNEAU SOURCE (iframe droite) ===== -->
+<div id="source-overlay" class="hidden"></div>
+<aside id="source-panel" class="hidden" aria-label="Document source">
+  <div id="source-panel-header">
+    <span id="source-panel-title">Document source</span>
+    <button id="btn-close-source" aria-label="Fermer">&#10005;</button>
+  </div>
+  <iframe id="source-frame" src="" title="Document source"></iframe>
+</aside>
+
+<!-- ===== POPUP RÉFÉRENCE ===== -->
+<div id="ref-popup" class="hidden" role="tooltip">
+  <div id="ref-popup-header">
+    <span id="ref-popup-icon">&#128196;</span>
+    <strong id="ref-popup-title"></strong>
+  </div>
+  <p id="ref-popup-excerpt"></p>
+  <button id="ref-popup-btn">Ouvrir la source &#8594;</button>
+</div>
+
+<script src="data.js"></script>
+<script src="assets/main.js"></script>
+</body>
+</html>

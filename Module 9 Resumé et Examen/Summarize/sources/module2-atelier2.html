@@ -1,0 +1,2333 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Atelier Pipeline – Étude de cas 2</title>
+  <link rel="stylesheet" href="../assets/source.css">
+</head>
+<body>
+  <header class="src-header">
+    <a href="../index.html" class="back-link">&#8592; Retour à la présentation</a>
+    <h1 class="src-title">Atelier Pipeline – Étude de cas 2</h1>
+  </header>
+  <main class="src-content"><p><a id="atelier-2-architecture-medallion-complete-bronze-silver-gold-avec-orchestration"></a></p>
+<h1>Atelier 2 : Architecture Medallion complète — Bronze → Silver → Gold avec orchestration</h1>
+<p><a id="contexte-transition-urbaine-vers-une-grille-energetique-intelligente"></a></p>
+<h2>Contexte : Transition urbaine vers une grille énergétique intelligente</h2>
+<p><a id="le-contexte"></a></p>
+<h2>Le contexte</h2>
+<p>Une <strong>ville intelligente</strong> modernise son réseau électrique en déployant 100 capteurs IoT pour monitorer la consommation, détecter les anomalies et réduire les pertes énergétiques.</p>
+<p><a id="1-etat-des-lieux"></a></p>
+<h3>1. État des lieux</h3>
+<p>Les données brutes arrivent en continu et doivent être nettoyées, enrichies avec des seuils de référence, puis analysées pour détecter les incidents.</p>
+<ul>
+<li><strong>100 capteurs IoT</strong> déployés dans 4 quartiers</li>
+<li><strong>7200 relevés</strong> sur 3 jours (données temps réel)</li>
+<li><strong>50 incidents</strong> détectés automatiquement</li>
+<li><strong>Données brutes</strong> non structurées nécessitant nettoyage</li>
+<li><strong>Table de référence</strong> avec seuils d'alerte par type de capteur</li>
+</ul>
+<p><a id="2-problematique"></a></p>
+<h3>2. Problématique</h3>
+<p><strong>Comment transformer les données IoT brutes (Bronze) en données nettoyées et enrichies (Silver), en détectant les anomalies, en appliquant des règles métier et en bouclant avec Until pour traiter les incidents non résolus ?</strong></p>
+<p>Contraintes :</p>
+<ul>
+<li>✅ Charger d'abord les CSV en tables Bronze</li>
+<li>✅ Enrichir avec les seuils via un <strong>Lookup</strong> (depuis table)</li>
+<li>✅ Filtrer les capteurs actifs avec <strong>If Condition</strong></li>
+<li>✅ Boucler sur les incidents non résolus avec <strong>Until</strong></li>
+<li>✅ Tracer les anomalies détectées</li>
+</ul>
+<p><a id="3-solution-pipeline-de-transformation-intelligent"></a></p>
+<h3>3. Solution : Pipeline de transformation intelligent</h3>
+<p>Pipeline qui :</p>
+<ol>
+<li><strong>Charge</strong> les 5 CSV vers tables Bronze (sans <code>_</code> ni <code>-</code>)</li>
+<li><strong>Lit</strong> la table de référence avec <strong>Lookup</strong></li>
+<li><strong>Copie</strong> et <strong>transforme</strong> Bronze → Silver</li>
+<li><strong>Filtre</strong> les données valides avec <strong>If Condition</strong></li>
+<li><strong>Boucle</strong> avec <strong>Until</strong> jusqu'à résolution des incidents</li>
+<li><strong>Trace</strong> les traitements</li>
+</ol>
+<hr />
+<p><a id="fichiers-necessaires"></a></p>
+<h2>Fichiers nécessaires</h2>
+<p>Téléchargez les <strong>5 fichiers CSV</strong> fournis :</p>
+<ul>
+<li><code>infrastructures_existantes.csv</code> (100 capteurs)</li>
+<li><code>monitoring_iot.csv</code> (7200 relevés)</li>
+<li><code>incidents_alertes.csv</code> (50 incidents)</li>
+<li><code>metriques_performance.csv</code> (28 métriques)</li>
+<li><code>seuils_alertes_ref.csv</code> (4 seuils - <strong>table de référence</strong>)</li>
+</ul>
+<hr />
+<p><a id="etapes"></a></p>
+<h2>Étapes</h2>
+<p><a id="1-creer-les-lakehouses-bronze-et-silver"></a></p>
+<h3>1. Créer les lakehouses Bronze et Silver</h3>
+<p><a id="11-lakehouse-bronze-donnees-brutes"></a></p>
+<h4>1.1 Lakehouse Bronze (données brutes)</h4>
+<ol>
+<li>Dans le workspace <strong>WS_Energie_Renouvelable</strong>, cliquez <strong>+ New item</strong></li>
+<li>Sélectionnez <strong>Lakehouse</strong></li>
+<li><strong>Name</strong> : <code>LH_Energie_Bronze</code></li>
+<li>Cliquez <strong>Create</strong></li>
+</ol>
+<p>⏳ Attendez la création (15-30 secondes)</p>
+<p><a id="12-lakehouse-silver-donnees-transformees"></a></p>
+<h4>1.2 Lakehouse Silver (données transformées)</h4>
+<ol>
+<li>Cliquez <strong>+ New item</strong> → <strong>Lakehouse</strong></li>
+<li><strong>Name</strong> : <code>LH_Energie_Silver</code></li>
+<li>Cliquez <strong>Create</strong></li>
+</ol>
+<p>⏳ Attendez la création (15-30 secondes)</p>
+<p>💡 <strong>Architecture Medallion</strong> : Bronze = données brutes ingérées, Silver = données nettoyées et enrichies</p>
+<hr />
+<p><a id="2-charger-les-csv-dans-bronzefiles"></a></p>
+<h3>2. Charger les CSV dans Bronze/Files</h3>
+<p>⚠️ <strong>Important</strong> : Les fichiers CSV (données brutes) doivent être dans le lakehouse <strong>Bronze</strong> !</p>
+<ol>
+<li>Ouvrez <strong>LH_Energie_Bronze</strong></li>
+<li>Section <strong>Files</strong> → créez un dossier <strong>smartgrid</strong></li>
+<li>Uploadez les 5 fichiers CSV dans <code>LH_Energie_Bronze/Files/smartgrid/</code></li>
+</ol>
+<p>✅ Vérifiez : <code>Files/smartgrid/</code> contient 5 fichiers</p>
+<p>💡 <strong>Astuce</strong> : Le pipeline 1 lit depuis Bronze/Files et écrit dans Bronze/Tables</p>
+<hr />
+<p><a id="3-creer-le-pipeline-de-chargement-initial"></a></p>
+<h3>3. Créer le pipeline de chargement initial</h3>
+<ol>
+<li>Dans le workspace, cliquez <strong>+ New item</strong> → <strong>Data pipeline</strong></li>
+<li><strong>Name</strong> : <code>PL_Chargement_CSV_Bronze</code></li>
+<li>Cliquez <strong>Create</strong></li>
+</ol>
+<p>💡 <strong>Astuce</strong> : Ce pipeline charge les CSV en tables (sans underscore ni tiret)</p>
+<hr />
+<p><a id="4-charger-les-5-csv-en-tables"></a></p>
+<h3>4. Charger les 5 CSV en tables</h3>
+<p>⚠️ <strong>RÈGLE CRITIQUE</strong> : Les noms de tables NE DOIVENT PAS contenir <code>_</code> ni <code>-</code></p>
+<p>Nous allons créer <strong>5 activités Copy Data</strong> pour charger chaque CSV.</p>
+<p><a id="copy-1-infrastructures"></a></p>
+<h4>Copy 1 - Infrastructures</h4>
+<ol>
+<li><strong>Activities</strong> → Créer <strong>Copy data Activity</strong></li>
+<li>Onglet <strong>General</strong> :<br />
+   - <strong>Name</strong> : <code>ChargerInfrastructures</code></li>
+</ol>
+<p><strong>Source</strong> :</p>
+<ul>
+<li>
+<p><strong>Connection</strong> : <code>LH_Energie_Bronze</code></p>
+</li>
+<li>
+<p><strong>Lakehouse</strong> : <code>LH_Energie_Bronze</code></p>
+</li>
+<li>
+<p><strong>File path type:</strong> <strong>File path</strong> :</p>
+</li>
+<li>
+<p>Folder : <code>smartgrid</code></p>
+</li>
+<li>
+<p>File : <code>infrastructures_existantes.csv</code></p>
+</li>
+<li>
+<p><strong>File format</strong> : <strong>DelimitedText</strong></p>
+</li>
+</ul>
+<p>Verifier dans <strong>Settings</strong></p>
+<ul>
+<li><strong>First row as header</strong> : coché</li>
+</ul>
+<p><strong>Destination</strong> :</p>
+<ul>
+<li><strong>Connection</strong> : <code>LH_Energie_Bronze</code></li>
+<li><strong>Lakehouse</strong> : <code>LH_Energie_Bronze</code></li>
+<li><strong>Root folder</strong> : <strong>Tables</strong></li>
+<li><strong>Table</strong> :</li>
+<li>Cochez <strong>Enter manually</strong></li>
+<li>Schema : <code>dbo</code> (ou laissez vide)</li>
+<li>Table : <code>infrastructures</code> ⚠️ (sans underscore !)</li>
+<li><strong>Table action</strong> : <strong>Overwrite</strong></li>
+</ul>
+<p><a id="copy-2-monitoring"></a></p>
+<h4>Copy 2 - Monitoring</h4>
+<ol start="3">
+<li>Onglet <strong>General</strong> : <strong>Name</strong> = <code>ChargerMonitoring</code></li>
+<li><strong>Source</strong> → File : <code>monitoring_iot.csv</code></li>
+<li><strong>Destination</strong> → <strong>Lakehouse</strong> : <code>LH_Energie_Bronze</code> → Table : <code>monitoring</code> ⚠️ (sans underscore !)</li>
+<li><strong>Table action</strong> : <strong>Overwrite</strong> ⚠️</li>
+</ol>
+<blockquote>
+<p>🔴 <strong>ATTENTION après duplication</strong> : vérifiez impérativement les <strong>3 champs</strong> modifiés : le <strong>nom</strong> de l'activité, le <strong>fichier source</strong> ET la <strong>table destination</strong>. Oublier l'un d'eux provoque un conflit Delta Lake (<code>MetadataChangedException</code>) car deux activités écrivent sur la même table en parallèle.</p>
+</blockquote>
+<p><a id="copy-3-incidents"></a></p>
+<h4>Copy 3 - Incidents</h4>
+<ol start="8">
+<li>Dupliquez à nouveau</li>
+<li><strong>Name</strong> : <code>ChargerIncidents</code></li>
+<li><strong>Source</strong> → File : <code>incidents_alertes.csv</code></li>
+<li><strong>Destination</strong> → <strong>Lakehouse</strong> : <code>LH_Energie_Bronze</code> → Table : <code>incidents</code> ⚠️ (sans underscore !)</li>
+<li><strong>Table action</strong> : <strong>Overwrite</strong> ⚠️</li>
+</ol>
+<p><a id="copy-4-metriques"></a></p>
+<h4>Copy 4 - Métriques</h4>
+<ol start="13">
+<li>Dupliquez à nouveau</li>
+<li><strong>Name</strong> : <code>ChargerMetriques</code></li>
+<li><strong>Source</strong> → File : <code>metriques_performance.csv</code></li>
+<li><strong>Destination</strong> → <strong>Lakehouse</strong> : <code>LH_Energie_Bronze</code> → Table : <code>metriques</code> ⚠️ (sans underscore !)</li>
+<li><strong>Table action</strong> : <strong>Overwrite</strong> ⚠️</li>
+</ol>
+<p><a id="copy-5-seuils-table-de-reference"></a></p>
+<h4>Copy 5 - Seuils (table de référence)</h4>
+<ol start="18">
+<li>Dupliquez à nouveau</li>
+<li><strong>Name</strong> : <code>ChargerSeuils</code></li>
+<li><strong>Source</strong> → File : <code>seuils_alertes_ref.csv</code></li>
+<li><strong>Destination</strong> → <strong>Lakehouse</strong> : <code>LH_Energie_Bronze</code> → Table : <code>seuils</code> ⚠️ (sans underscore !)</li>
+<li><strong>Table action</strong> : <strong>Overwrite</strong> ⚠️</li>
+</ol>
+<blockquote>
+<p>✅ <strong>Checklist avant d'exécuter</strong> : chaque activité doit avoir un nom unique, un fichier source unique et une table destination unique. Aucune table ne doit apparaître deux fois dans la colonne Destination.</p>
+</blockquote>
+<p>&lt;&lt;&lt;&lt;&lt;&lt;&lt; HEAD<br />
+| Activité               | Fichier source                 | Lakehouse source  | Table destination | Lakehouse dest.   |<br />
+| ---------------------- | ------------------------------ | ----------------- | ----------------- | ----------------- |<br />
+| ChargerInfrastructures | infrastructures_existantes.csv | LH_Energie_Bronze | infrastructures   | LH_Energie_Bronze |<br />
+| ChargerMonitoring      | monitoring_iot.csv             | LH_Energie_Bronze | monitoring        | LH_Energie_Bronze |<br />
+| ChargerIncidents       | incidents_alertes.csv          | LH_Energie_Bronze | incidents         | LH_Energie_Bronze |<br />
+| ChargerMetriques       | metriques_performance.csv      | LH_Energie_Bronze | metriques         | LH_Energie_Bronze |<br />
+| ChargerSeuils          | seuils_alertes_ref.csv         | LH_Energie_Bronze | seuils            | LH_Energie_Bronze |<br />
+=======<br />
+| Activité | Fichier source | Table destination |<br />
+| --- | --- | --- |<br />
+| ChargerInfrastructures | infrastructures_existantes.csv | infrastructures |<br />
+| ChargerMonitoring | monitoring_iot.csv | monitoring |<br />
+| ChargerIncidents | incidents_alertes.csv | incidents |<br />
+| ChargerMetriques | metriques_performance.csv | metriques |<br />
+| ChargerSeuils | seuils_alertes_ref.csv | seuils |</p>
+<blockquote>
+<blockquote>
+<blockquote>
+<blockquote>
+<blockquote>
+<blockquote>
+<blockquote>
+<p>f88dff602ffaacd4231b505c0bc0f2b02880184a</p>
+</blockquote>
+</blockquote>
+</blockquote>
+</blockquote>
+</blockquote>
+</blockquote>
+</blockquote>
+<p>⚠️ <strong>Important</strong> : Ne reliez PAS les activités entre elles (elles s'exécutent en parallèle)</p>
+<hr />
+<p><a id="5-tester-le-chargement-initial"></a></p>
+<h3>5. Tester le chargement initial</h3>
+<ol>
+<li>
+<p>Cliquez <strong>Save</strong></p>
+</li>
+<li>
+<p>Cliquez <strong>Run</strong></p>
+</li>
+<li>
+<p>Atendez l'exécution (30-60 secondes)</p>
+</li>
+<li>
+<p>Vérifiez dans <strong>LH_Energie_Bronze</strong> → <strong>Tables</strong> :</p>
+</li>
+</ol>
+<ul>
+<li>✅ <code>infrastructures</code> (100 lignes)</li>
+<li>✅ <code>monitoring</code> (7200 lignes)</li>
+<li>✅ <code>incidents</code> (50 lignes)</li>
+<li>✅ <code>metriques</code> (28 lignes)</li>
+<li>✅ <code>seuils</code> (4 lignes)<br />
+     =======</li>
+</ul>
+<p>💡 <strong>Astuce</strong> : Toutes les tables brutes sont dans Bronze. Silver reste vide pour l'instant !</p>
+<hr />
+<p><a id="6-creer-le-pipeline-de-transformation"></a></p>
+<h3>6. Créer le pipeline de transformation</h3>
+<ol>
+<li>Dans le workspace, cliquez <strong>+ New item</strong> → <strong>Data pipeline</strong></li>
+<li><strong>Name</strong> : <code>PL_Transformation_Bronze_Silver</code></li>
+<li>Cliquez <strong>Create</strong></li>
+</ol>
+<p><a id="7-creer-une-connexion"></a></p>
+<h3>7. Créer une connexion</h3>
+<p>Allez vers les <strong>Settings</strong>  → <strong>Manage Conections And Getways</strong> → <strong>+New</strong></p>
+<p>Senctionnez <strong>Cloud</strong> comme type de connexion</p>
+<p>Donner un nom <strong>Lakehouse Participant</strong> à la connexion</p>
+<p>Chosir <strong>Lakehouse</strong> comme type de connexion</p>
+<p>Selctionner le mode d'authentification <strong>OAuth 2.0</strong> </p>
+<p>Cliquez <strong>Edit credentials</strong> et entrer les paramètres d'accès</p>
+<p>Configurer les paramètres d'accès <strong>Organizational</strong></p>
+<p>Cette connection qui s'appelera  <strong>Lakehouse Participant (Preview)</strong> va être utilisée tout au long de cet atelier</p>
+<hr />
+<p><a id="7-ajouter-lactivite-lookup-lire-table-de-reference"></a></p>
+<h3>7. Ajouter l'activité Lookup (lire table de référence)</h3>
+<ol>
+<li><strong>Activities</strong> → <strong>General</strong> → <strong>Lookup</strong> sur le canvas</li>
+<li>Cliquez sur <strong>Lookup</strong></li>
+<li>Onglet <strong>General</strong> : <strong>Name</strong> = <code>LireSeuilsReference</code></li>
+<li>Onglet <strong>Settings</strong> :<br />
+   - <strong>Connection</strong> : <code>Lakehouse Participant (Preview)</code><br />
+   - <strong>Lakehouse</strong> : <code>LH_Energie_Bronze</code><br />
+   - <strong>Root folder</strong> : <strong>Tables</strong><br />
+   - <strong>Use query</strong> : <strong>Table</strong><br />
+   - <strong>Table</strong> : sélectionnez <code>seuils</code><br />
+   - <strong>First row only</strong> : <strong>DÉCOCHEZ</strong> ✅</li>
+</ol>
+<p>💡 <strong>Architecture</strong> : La table <code>seuils</code> est une donnée de référence brute → elle reste dans Bronze</p>
+<p>💡 <strong>Asuce</strong> : Décocher "First row only" retourne toutes les lignes (4 seuils)</p>
+<hr />
+<p><a id="8-creer-les-variables-du-pipeline"></a></p>
+<h3>8. Créer les variables du pipeline</h3>
+<p>Onglet <strong>Variables</strong> (en bas), créez :</p>
+<p><strong>Variable 1</strong> :</p>
+<ul>
+<li><strong>Name</strong> : <code>AnomaliesDetectees</code></li>
+<li><strong>Type</strong> : <code>Array</code></li>
+<li><strong>Default value</strong> : laissez vide</li>
+</ul>
+<p><strong>Variable 2</strong> :</p>
+<ul>
+<li><strong>Name</strong> : <code>IncidentsNonResolus</code></li>
+<li><strong>Type</strong> : <code>Integer</code></li>
+<li><strong>Default value</strong> : <code>50</code></li>
+</ul>
+<p><strong>Variable 3</strong> :</p>
+<ul>
+<li><strong>Name</strong> : <code>NombreIterations</code></li>
+<li><strong>Type</strong> : <code>Integer</code></li>
+<li><strong>Default value</strong> : <code>0</code></li>
+</ul>
+<hr />
+<p><a id="8-ajouter-lactivite-lookup-lire-table-de-reference"></a></p>
+<h3>8. Ajouter l'activité Lookup (lire table de référence)</h3>
+<ol>
+<li><strong>Activities</strong> → <strong>General</strong> → <strong>Lookup</strong> sur le canvas</li>
+<li>Cliquez sur <strong>Lookup</strong></li>
+<li>Onglet <strong>General</strong> : <strong>Name</strong> = <code>LireSeuilsReference</code></li>
+<li>Onglet <strong>Settings</strong> :<br />
+   - <strong>Connection</strong> : <code>LH_Energie_Silver</code><br />
+   - <strong>Lakehouse</strong> : <code>LH_Energie_Silver</code><br />
+   - <strong>Root folder</strong> : <strong>Tables</strong><br />
+   - <strong>Use query</strong> : <strong>Table</strong><br />
+   - <strong>Table</strong> : sélectionnez <code>seuils</code><br />
+   - <strong>First row only</strong> : <strong>DÉCOCHEZ</strong> ✅</li>
+</ol>
+<p>💡 <strong>Asuce</strong> : Décocher "First row only" retourne toutes les lignes (4 seuils)</p>
+<hr />
+<p><a id="9-ajouter-copy-data-copier-infrastructures-actives"></a></p>
+<h3>9. Ajouter Copy Data - Copier Infrastructures actives</h3>
+<ol>
+<li><strong>Activities</strong> → <strong>Copy data</strong> → glissez sur le canvas</li>
+<li>Reliez <strong>LireSeuilsReference</strong> → <strong>Copy data</strong> (flèche verte)</li>
+<li>Onglet <strong>General</strong> : <strong>Name</strong> = <code>CopierInfrastructuresActives</code></li>
+</ol>
+<p><strong>Source</strong> :</p>
+<ul>
+<li><strong>Connection</strong> : <code>Lakehouse Participant (Preview)</code></li>
+<li><strong>Lakehouse</strong> : <code>LH_Energie_Bronze</code></li>
+<li><strong>Root folder</strong> : <strong>Tables</strong></li>
+<li><strong>Use query</strong> : <strong>T-SQL Query</strong></li>
+<li><strong>Query</strong> :</li>
+</ul>
+<pre><code class="language-sql">SELECT * FROM infrastructures WHERE Statut = 'Actif'
+</code></pre>
+<p><strong>Destination</strong> :</p>
+<ul>
+<li>
+<p><strong>Connection</strong> : <code>Lakehouse Participant (Preview)</code></p>
+</li>
+<li>
+<p><strong>Lakehouse</strong> : <code>LH_Energie_Silver</code></p>
+</li>
+<li>
+<p><strong>Root folder</strong> : <strong>Tables</strong></p>
+</li>
+<li>
+<p><strong>Table</strong> :</p>
+</li>
+<li>
+<p>Cochez <strong>Enter manually</strong></p>
+</li>
+<li>
+<p>Table : <code>CapteursSilver</code> ⚠️ (pas de <code>_</code> dans les noms de tables!)</p>
+</li>
+<li>
+<p>Table : <code>MonitoringSilver</code> ⚠️ (pas de <code>_</code> dans les noms de tables!)</p>
+</li>
+<li>
+<p><strong>Table action</strong> : <strong>Overwrite</strong></p>
+</li>
+</ul>
+<p>💡 <strong>Architecture Medallion</strong> : Source = Bronze (données brutes), Destination = Silver (données filtrées et transformées)</p>
+<hr />
+<p><a id="10-ajouter-if-condition-verifier-donnees-copiees"></a></p>
+<h3>10. Ajouter If Condition (vérifier données copiées)</h3>
+<ol>
+<li>
+<p><strong>Activities</strong> → <strong>If Condition</strong> → glissez</p>
+</li>
+<li>
+<p>Reliez <strong>CopierInfrastructuresActives</strong> → <strong>If Condition</strong></p>
+</li>
+<li>
+<p>Onglet <strong>General</strong> : <strong>Name</strong> = <code>VerifierDonneesCopiees</code></p>
+</li>
+<li>
+<p>Onglet <strong>Activities</strong> :</p>
+</li>
+</ol>
+<ul>
+<li><strong>Expression</strong> :</li>
+</ul>
+<p><code>@greater(activity('CopierInfrastructuresActives').output.rowsCopied, 0)</code></p>
+<p>💡 <strong>Astuce</strong> : Vérifie qu'au moins 1 ligne a été copiée</p>
+<hr />
+<p><a id="11-configurer-branche-true-copy-monitoring"></a></p>
+<h3>11. Configurer branche True - Copy Monitoring</h3>
+<ol>
+<li>Cliquez sur le <strong>crayon</strong> dans la section <strong>True</strong></li>
+<li><strong>Activities</strong> → <strong>Copy data</strong> → glissez</li>
+<li>Onglet <strong>General</strong> : <strong>Name</strong> = <code>CopierMonitoringSilver</code></li>
+</ol>
+<p><strong>Source</strong> :</p>
+<ul>
+<li><strong>Connection</strong> : <code>LH_Energie_Bronze</code></li>
+<li><strong>Lakehouse</strong> : <code>LH_Energie_Bronze</code></li>
+<li><strong>Root folder</strong> : <strong>Tables</strong></li>
+<li><strong>Use query</strong> : <strong>T-SQL Query</strong></li>
+<li><strong>Query</strong> :</li>
+</ul>
+<pre><code class="language-sql">SELECT m.*
+FROM monitoring m
+INNER JOIN infrastructures i ON m.CapteurID = i.CapteurID
+WHERE i.Statut = 'Actif'
+</code></pre>
+<p><strong>Destination</strong> :</p>
+<ul>
+<li><strong>Connection</strong> : <code>LH_Energie_Silver</code></li>
+<li><strong>Lakehouse</strong> : <code>LH_Energie_Silver</code></li>
+<li><strong>Root folder</strong> : <strong>Tables</strong></li>
+<li><strong>Table</strong> : <code>MonitoringSilver</code> ⚠️ (sans <code>_</code> dans le nom de la table !)</li>
+<li><strong>Table action</strong> : <strong>Overwrite</strong></li>
+</ul>
+<p>💡 <strong>Architecture Medallion</strong> : Le JOIN se fait sur les tables Bronze brutes, et le résultat filtré est écrit dans Silver</p>
+<hr />
+<p><a id="12-retourner-au-canvas-principal-et-ajouter-until"></a></p>
+<h3>12. Retourner au canvas principal et ajouter Until</h3>
+<p>⚠️ <strong>IMPORTANT</strong> : Until doit être <strong>au niveau principal</strong>, PAS dans la branche True !</p>
+<ol>
+<li>Cliquez sur le <strong>fil d'Ariane</strong> en haut : <strong>PL_Transformation_Bronze_Silver</strong></li>
+<li>Vous revenez au canvas principal</li>
+<li><strong>Activities</strong> → <strong>Iteration &amp; Conditionals</strong> → glissez <strong>Until</strong> sur le canvas</li>
+<li><strong>Reliez</strong> : <strong>VerifierDonneesCopiees</strong> (If Condition) → <strong>Until</strong> (flèche verte)</li>
+</ol>
+<hr />
+<p><a id="13-configurer-until-loop"></a></p>
+<h3>13. Configurer Until Loop</h3>
+<ol>
+<li>
+<p>Cliquez sur <strong>Until</strong></p>
+</li>
+<li>
+<p>Onglet <strong>General</strong> : <strong>Name</strong> = <code>BouclerJusquaResolution</code></p>
+</li>
+<li>
+<p>Onglet <strong>Settings</strong> :</p>
+</li>
+</ol>
+<ul>
+<li><strong>Expression</strong> :</li>
+</ul>
+<p><code>@or(equals(variables('IncidentsNonResolus'), 0), greater(variables('NombreIterations'), 5))</code></p>
+<ul>
+<li><strong>Timeout</strong> : <code>0.01:00:00</code> (1 heure)</li>
+</ul>
+<p>💡 <strong>Astuce</strong> : Boucle tant qu'il reste des incidents ET qu'on n'a pas dépassé 5 itérations</p>
+<hr />
+<p><a id="14-dans-until-ajouter-les-5-activites"></a></p>
+<h3>14. Dans Until - Ajouter les 5 activités</h3>
+<p><strong>Double-cliquez</strong> sur <strong>BouclerJusquaResolution</strong> pour entrer dedans ou cliquer le crayon.</p>
+<p><a id="141-lookup-incidents"></a></p>
+<h4>14.1 Lookup Incidents</h4>
+<ol>
+<li>
+<p><strong>Activities</strong> → <strong>Lookup</strong> → glissez</p>
+</li>
+<li>
+<p>Onglet <strong>General</strong> : <strong>Name</strong> = <code>CompterIncidentsNonResolus</code></p>
+</li>
+<li>
+<p>Onglet <strong>Settings</strong> :<br />
+   &lt;&lt;&lt;&lt;&lt;&lt;&lt; HEAD</p>
+</li>
+</ol>
+<ul>
+<li><strong>Connection</strong> : <code>LH_Energie_Bronze</code></li>
+<li><strong>Lakehouse</strong> : <code>LH_Energie_Bronze</code></li>
+<li><strong>Root folder</strong> : <strong>Tables</strong></li>
+<li><strong>Use query</strong> : <strong>T-SQL Query</strong></li>
+<li><strong>Query</strong> :</li>
+</ul>
+<p><code>sql
+   SELECT COUNT(*) as NbIncidents FROM incidents WHERE Resolu = 'False'</code></p>
+<ul>
+<li><strong>First row only</strong> : <strong>COCHEZ</strong> ✅</li>
+</ul>
+<p>💡 <strong>Note</strong> : La table <code>incidents</code> est dans Bronze (donnée brute non transformée)</p>
+<p>💡 <strong>Note</strong> : <code>Resolu = 'False'</code> (texte, pas booléen 0)</p>
+<p><a id="142-set-variable-compteur"></a></p>
+<h4>14.2 Set Variable - Compteur</h4>
+<ol start="4">
+<li>
+<p>Ajoutez <strong>Set Variable</strong> → Reliez depuis Lookup</p>
+</li>
+<li>
+<p>Onglet <strong>General</strong> : <strong>Name</strong> = <code>MettreAJourCompteurIncidents</code></p>
+</li>
+<li>
+<p>Onglet <strong>Settings</strong> :</p>
+</li>
+</ol>
+<ul>
+<li><strong>Variable</strong> : <code>IncidentsNonResolus</code></li>
+<li><strong>Value</strong> :</li>
+</ul>
+<p><code>@activity('CompterIncidentsNonResolus').output.firstRow.NbIncidents</code></p>
+<p><a id="143-wait"></a></p>
+<h4>14.3 Wait</h4>
+<ol start="7">
+<li>Ajoutez <strong>Wait</strong> → Reliez depuis Set Variable</li>
+<li>Onglet <strong>General</strong> : <strong>Name</strong> = <code>SimulerTraitement</code></li>
+<li>Onglet <strong>Settings</strong> : <strong>Wait time in seconds</strong> = <code>3</code></li>
+</ol>
+<p><a id="144-append-variable"></a></p>
+<h4>14.4 Append Variable</h4>
+<ol start="10">
+<li>
+<p>Ajoutez <strong>Append Variable</strong> → Reliez depuis Wait</p>
+</li>
+<li>
+<p>Onglet <strong>General</strong> : <strong>Name</strong> = <code>TracerIteration</code></p>
+</li>
+<li>
+<p>Onglet <strong>Settings</strong> :</p>
+<ul>
+<li><strong>Variable</strong> : <code>AnomaliesDetectees</code></li>
+<li><strong>Value</strong> :</li>
+</ul>
+<p><code>@utcNow()</code></p>
+</li>
+</ol>
+<p><a id="145-set-variable-nombre-iterations"></a></p>
+<h4>14.5 Set Variable - Nombre Iterations</h4>
+<ol start="13">
+<li>
+<p>Ajoutez <strong>Set Variable</strong> → Reliez depuis Append</p>
+</li>
+<li>
+<p>Onglet <strong>General</strong> : <strong>Name</strong> = <code>MettreAJourNombreIterations</code></p>
+</li>
+<li>
+<p>Onglet <strong>Settings</strong> :</p>
+<ul>
+<li><strong>Variable</strong> : <code>NombreIterations</code></li>
+<li><strong>Value</strong> :</li>
+</ul>
+<p><code>@length(variables('AnomaliesDetectees'))</code></p>
+</li>
+</ol>
+<hr />
+<p><a id="15-retourner-au-canvas-principal"></a></p>
+<h3>15. Retourner au canvas principal</h3>
+<ol>
+<li>Cliquez sur le fil d'Ariane : <strong>PL_Transformation_Bronze_Silver</strong></li>
+<li>Vous revenez au canvas principal</li>
+</ol>
+<hr />
+<p><a id="16-sauvegarder-le-pipeline"></a></p>
+<h3>16. Sauvegarder le pipeline</h3>
+<ol>
+<li>Cliquez <strong>Save</strong></li>
+<li>Attendez la confirmation (✅ en haut à droite)</li>
+</ol>
+<hr />
+<p><a id="17-tester-le-pipeline"></a></p>
+<h3>17. Tester le pipeline</h3>
+<ol>
+<li>Cliquez <strong>Run</strong></li>
+<li>Attendez l'exécution (30-90 secondes)</li>
+<li>Observez le <strong>Output</strong> :<br />
+   - <strong>LireSeuilsReference</strong> : 4 lignes (array)<br />
+   - <strong>CopierInfrastructuresActives</strong> : ~75 lignes (capteurs actifs)<br />
+   - <strong>VerifierDonneesCopiees</strong> : True<br />
+   - <strong>CopierMonitoringSilver</strong> : ~3960 lignes (relevés filtrés)<br />
+   - <strong>BouclerJusquaResolution</strong> : 1-5 itérations</li>
+</ol>
+<hr />
+<p><a id="18-valider-les-tables-bronze-et-silver"></a></p>
+<h3>18. Valider les tables Bronze et Silver</h3>
+<ol>
+<li>Ouvrez <strong>LH_Energie_Silver</strong> → <strong>Tables</strong> :</li>
+</ol>
+<ul>
+<li><code>CapteursSilver</code> (~55 lignes - capteurs actifs filtrés)</li>
+<li><code>MonitoringSilver</code> (~3960 lignes - relevés des capteurs actifs)</li>
+</ul>
+<ol start="2">
+<li>Ouvrez <strong>LH_Energie_Silver</strong></li>
+</ol>
+<hr />
+<p><a id="resultat-attendu"></a></p>
+<h2>Résultat attendu</h2>
+<pre><code>📦 LH_Energie_Bronze/Tables/   ← Données BRUTES ingérées
+├── infrastructures (100 lignes)
+├── monitoring (7200 lignes)
+├── incidents (50 lignes)
+├── metriques (28 lignes)
+└── seuils (4 lignes - référence)
+
+🥈 LH_Energie_Silver/Tables/   ← Données TRANSFORMÉES
+├── CapteursSilver (~55 capteurs actifs)
+└── MonitoringSilver (~3960 relevés filtrés)
+
+📋 Variables pipeline :
+├── AnomaliesDetectees : [&quot;2026-01-27T22:30:15Z&quot;, &quot;2026-01-27T22:30:18Z&quot;, ...]
+├── NombreIterations : 3 (exemple)
+└── IncidentsNonResolus : 0
+
+🔄 Activités clés utilisées :
+✅ Lookup (table de référence depuis Bronze)
+✅ Copy Data (Bronze → Silver avec SQL filtering)
+✅ If Condition (validation données)
+✅ Until (boucle conditionnelle - au niveau principal !)
+✅ Wait (simulation)
+✅ Set Variable &amp; Append Variable (traçabilité)
+</code></pre>
+<hr />
+<p><a id="partie-ii"></a></p>
+<h1>Partie II</h1>
+<p><a id="bonus-pipeline-orchestrateur"></a></p>
+<h1>🍒 BONUS : Pipeline Orchestrateur</h1>
+<p><a id="objectif"></a></p>
+<h2>Objectif</h2>
+<p>Créer un <strong>pipeline maître</strong> qui orchestre l'exécution séquentielle des 2 pipelines avec synchronisation.</p>
+<p><strong>Workflow</strong> :</p>
+<pre><code>PL_Chargement_CSV_Bronze → Wait (synchronisation) → PL_Transformation_Bronze_Silver
+</code></pre>
+<hr />
+<p><a id="avantages"></a></p>
+<h2>Avantages</h2>
+<p>✅ <strong>Exécution automatique</strong> : Un seul clic pour tout exécuter<br />
+✅ <strong>Synchronisation garantie</strong> : Wait assure que Pipeline 1 est terminé<br />
+✅ <strong>Traçabilité</strong> : Suivi centralisé de l'exécution complète<br />
+✅ <strong>Gestion d'erreurs</strong> : Si Pipeline 1 échoue, Pipeline 2 ne s'exécute pas</p>
+<hr />
+<p><a id="etapes-1"></a></p>
+<h2>Étapes</h2>
+<p><a id="1-creer-le-pipeline-orchestrateur"></a></p>
+<h3>1. Créer le pipeline orchestrateur</h3>
+<ol>
+<li>Dans le workspace <strong>WS_Energie_Renouvelable</strong>, cliquez <strong>+ New item</strong></li>
+<li>Sélectionnez <strong>Data pipeline</strong></li>
+<li><strong>Name</strong> : <code>PL_Orchestrateur_Master</code></li>
+<li>Cliquez <strong>Create</strong></li>
+</ol>
+<hr />
+<p><a id="2-ajouter-lactivite-execute-pipeline-1"></a></p>
+<h3>2. Ajouter l'activité Execute Pipeline 1</h3>
+<ol>
+<li><strong>Activities</strong> → <strong>General</strong> → glissez <strong>Execute Pipeline</strong> sur le canvas</li>
+<li>Cliquez sur l'activité</li>
+<li>Onglet <strong>General</strong> :<br />
+   - <strong>Name</strong> : <code>ExecuterChargementCSV</code></li>
+<li>Onglet <strong>Settings</strong> :<br />
+   - <strong>Invoked pipeline</strong> : Sélectionnez <code>PL_Chargement_CSV_Bronze</code><br />
+   - <strong>Wait on completion</strong> : <strong>COCHEZ</strong> ✅</li>
+</ol>
+<p>💡 <strong>Astuce</strong> : "Wait on completion" bloque l'exécution jusqu'à la fin du pipeline 1</p>
+<hr />
+<p><a id="3-ajouter-wait-synchronisation"></a></p>
+<h3>3. Ajouter Wait (synchronisation)</h3>
+<ol>
+<li><strong>Activities</strong> → <strong>General</strong> → glissez <strong>Wait</strong></li>
+<li><strong>Reliez</strong> : <strong>ExecuterChargementCSV</strong> → <strong>Wait</strong> (flèche verte)</li>
+<li>Cliquez sur <strong>Wait</strong></li>
+<li>Onglet <strong>General</strong> :<br />
+   - <strong>Name</strong> : <code>SynchronisationDonnees</code></li>
+<li>Onglet <strong>Settings</strong> :<br />
+   - <strong>Wait time in seconds</strong> : <code>5</code></li>
+</ol>
+<p>💡 <strong>Astuce</strong> : 5 secondes pour permettre à Fabric de finaliser l'écriture des tables</p>
+<hr />
+<p><a id="4-ajouter-lactivite-execute-pipeline-2"></a></p>
+<h3>4. Ajouter l'activité Execute Pipeline 2</h3>
+<ol>
+<li><strong>Activities</strong> → <strong>General</strong> → glissez <strong>Execute Pipeline</strong></li>
+<li><strong>Reliez</strong> : <strong>SynchronisationDonnees</strong> → <strong>Execute Pipeline</strong> (flèche verte)</li>
+<li>Cliquez sur l'activité</li>
+<li>Onglet <strong>General</strong> :<br />
+   - <strong>Name</strong> : <code>ExecuterTransformationSilver</code></li>
+<li>Onglet <strong>Settings</strong> :<br />
+   - <strong>Invoked pipeline</strong> : Sélectionnez <code>PL_Transformation_Bronze_Silver</code><br />
+   - <strong>Wait on completion</strong> : <strong>COCHEZ</strong> ✅</li>
+</ol>
+<hr />
+<p><a id="5-sauvegarder-le-pipeline"></a></p>
+<h3>5. Sauvegarder le pipeline</h3>
+<ol>
+<li>Cliquez <strong>Save</strong></li>
+<li>Attendez la confirmation (✅ en haut à droite)</li>
+</ol>
+<hr />
+<p><a id="6-tester-le-pipeline-orchestrateur"></a></p>
+<h3>6. Tester le pipeline orchestrateur</h3>
+<ol>
+<li>
+<p>Cliquez <strong>Run</strong></p>
+</li>
+<li>
+<p>Observez l'exécution :</p>
+</li>
+</ol>
+<ul>
+<li>⏳ <strong>ExecuterChargementCSV</strong> : 30-60 secondes (charge les 5 CSV)</li>
+<li>⏱️ <strong>SynchronisationDonnees</strong> : 5 secondes (pause)</li>
+<li>⏳ <strong>ExecuterTransformationSilver</strong> : 30-90 secondes (transforme les données)</li>
+</ul>
+<ol start="3">
+<li>Vérifiez le <strong>Output</strong> :</li>
+</ol>
+<ul>
+<li><strong>ExecuterChargementCSV</strong> : Status = Succeeded</li>
+<li><strong>SynchronisationDonnees</strong> : Status = Succeeded</li>
+<li><strong>ExecuterTransformationSilver</strong> : Status = Succeeded</li>
+</ul>
+<hr />
+<p><a id="7-valider-le-resultat-final"></a></p>
+<h3>7. Valider le résultat final</h3>
+<ol>
+<li>Ouvrez <strong>LH_Energie_Silver</strong> → <strong>Tables</strong> — vérifiez <strong>2 tables</strong> (Pipeline 2) :</li>
+</ol>
+<ul>
+<li>✅ <code>CapteursSilver</code> (~55 lignes - capteurs actifs)</li>
+<li>✅<code>MonitoringSilver</code> (~3960 lignes - relevés filtrés)</li>
+</ul>
+<ol start="2">
+<li>Ouvrez <strong>LH_Energie_Silver</strong> → <strong>Tables</strong></li>
+</ol>
+<hr />
+<p><a id="structure-du-pipeline-orchestrateur"></a></p>
+<h2>Structure du pipeline orchestrateur</h2>
+<pre><code>Canvas principal :
+├── ExecuterChargementCSV (Execute Pipeline)
+│   └── Exécute : PL_Chargement_CSV_Bronze
+│   └── Wait on completion : true
+├── SynchronisationDonnees (Wait)
+│   └── Wait time : 5 seconds
+└── ExecuterTransformationSilver (Execute Pipeline)
+    └── Exécute : PL_Transformation_Bronze_Silver
+    └── Wait on completion : true
+</code></pre>
+<p><a id="activites-fabric-utilisees-dans-les-3-pipelines"></a></p>
+<h2>🎓 Activités Fabric utilisées dans les 3 pipelines</h2>
+<table>
+<thead>
+<tr>
+<th>Activité</th>
+<th>Pipeline 1</th>
+<th>Pipeline 2</th>
+<th>Orchestrateur</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Copy Data</strong></td>
+<td>✅ (x5)</td>
+<td>✅ (x2)</td>
+<td>❌</td>
+</tr>
+<tr>
+<td><strong>Lookup</strong></td>
+<td>❌</td>
+<td>✅ (x2)</td>
+<td>❌</td>
+</tr>
+<tr>
+<td><strong>If Condition</strong></td>
+<td>❌</td>
+<td>✅</td>
+<td>❌</td>
+</tr>
+<tr>
+<td><strong>Until</strong></td>
+<td>❌</td>
+<td>✅</td>
+<td>❌</td>
+</tr>
+<tr>
+<td><strong>Wait</strong></td>
+<td>❌</td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><strong>Set Variable</strong></td>
+<td>❌</td>
+<td>✅ (x2)</td>
+<td>❌</td>
+</tr>
+<tr>
+<td><strong>Append Variable</strong></td>
+<td>❌</td>
+<td>✅</td>
+<td>❌</td>
+</tr>
+<tr>
+<td><strong>Execute Pipeline</strong></td>
+<td>❌</td>
+<td>❌</td>
+<td>✅ (x2)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Total</strong> : 8 activités différentes</p>
+<hr />
+<p><a id="resultat-attendu-1"></a></p>
+<h2>Résultat attendu</h2>
+<p><a id="avant-execution"></a></p>
+<h3>Avant exécution</h3>
+<pre><code>📦 LH_Energie_Bronze/
+├── Files/
+│   └── smartgrid/
+│       ├── infrastructures_existantes.csv
+│       ├── monitoring_iot.csv
+│       ├── incidents_alertes.csv
+│       ├── metriques_performance.csv
+│       └── seuils_alertes_ref.csv
+└── Tables/ (vide)
+
+🥈 LH_Energie_Silver/
+└── Tables/ (vide)
+</code></pre>
+<p><a id="apres-execution-du-pipeline-orchestrateur"></a></p>
+<h3>Après exécution du pipeline orchestrateur</h3>
+<pre><code>📦 LH_Energie_Bronze/
+├── Files/ (inchangé - CSV sources)
+└── Tables/
+    ├── infrastructures (100 lignes)
+    ├── monitoring (7200 lignes)
+    ├── incidents (50 lignes)
+    ├── metriques (28 lignes)
+    └── seuils (4 lignes)
+
+🥈 LH_Energie_Silver/
+└── Tables/
+    ├── CapteursSilver (~55 lignes)
+    └── MonitoringSilver (~3960 lignes)
+</code></pre>
+<p><a id="section-analyse-interpretation-des-resultats-et-satisfaction-de-la-problematique"></a></p>
+<h1>Section Analyse : Interprétation des résultats et satisfaction de la problématique</h1>
+<p><a id="rappel-de-la-problematique"></a></p>
+<h2>🎯 Rappel de la problématique</h2>
+<p>Une ville intelligente déploie 100 capteurs IoT pour monitorer son réseau électrique.</p>
+<p>Comment transformer les données brutes en données exploitables pour détecter les anomalies et réduire les pertes énergétiques ?</p>
+<hr />
+<p><a id="analyse-des-resultats-pipeline-1-chargement"></a></p>
+<h2>📊 Analyse des résultats - Pipeline 1 : Chargement</h2>
+<p><a id="resultats-obtenus"></a></p>
+<h3>Résultats obtenus</h3>
+<p>Après exécution du pipeline <code>PL_Chargement_CSV_Bronze</code>, vérifiez dans <strong>LH_Energie_Bronze</strong> → <strong>Tables</strong> → cliquez sur chaque table :</p>
+<table>
+<thead>
+<tr>
+<th>Table</th>
+<th>Lignes attendues</th>
+<th>Lignes obtenues</th>
+<th>Statut</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>infrastructures</code></td>
+<td>100</td>
+<td>✅ Vérifiez</td>
+<td>OK si = 100</td>
+</tr>
+<tr>
+<td><code>monitoring</code></td>
+<td>7200</td>
+<td>✅ Vérifiez</td>
+<td>OK si = 7200</td>
+</tr>
+<tr>
+<td><code>incidents</code></td>
+<td>50</td>
+<td>✅ Vérifiez</td>
+<td>OK si = 50</td>
+</tr>
+<tr>
+<td><code>metriques</code></td>
+<td>28</td>
+<td>✅ Vérifiez</td>
+<td>OK si = 28</td>
+</tr>
+<tr>
+<td><code>seuils</code></td>
+<td>4</td>
+<td>✅ Vérifiez</td>
+<td>OK si = 4</td>
+</tr>
+</tbody>
+</table>
+<p><a id="questions-danalyse-guidee"></a></p>
+<h3>Questions d'analyse guidée</h3>
+<p><a id="question-1-volume-de-donnees-iot"></a></p>
+<h4>Question 1 : Volume de données IoT</h4>
+<p><strong>Observez la table <code>monitoring</code></strong> :</p>
+<pre><code class="language-sql">SELECT COUNT(*) as TotalReleves FROM monitoring
+</code></pre>
+<p><strong>Résultat attendu</strong> : 7200 relevés</p>
+<p><strong>Interprétation</strong> :</p>
+<ul>
+<li>7200 relevés sur 3 jours = 2400 relevés/jour</li>
+<li>2400 relevés/jour ÷ 100 capteurs = 24 relevés/capteur/jour</li>
+<li><strong>Conclusion</strong> : Chaque capteur envoie <strong>1 relevé par heure</strong> (24h × 3 jours = 72 relevés/capteur)</li>
+</ul>
+<p>💡 <strong>Impact métier</strong> : Mesurer la fréquence de monitoring pour détecter les anomalies en temps quasi-réel.</p>
+<hr />
+<p><a id="question-2-repartition-geographique"></a></p>
+<h4>Question 2 : Répartition géographique</h4>
+<p><strong>Observez la table <code>infrastructures</code></strong> :</p>
+<pre><code class="language-sql">SELECT Quartier, COUNT(*) as NbCapteurs 
+FROM infrastructures 
+GROUP BY Quartier
+ORDER BY NbCapteurs DESC
+</code></pre>
+<p><strong>Résultat obtenu</strong> :</p>
+<table>
+<thead>
+<tr>
+<th>Quartier</th>
+<th>Nb Capteurs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Quartier_Residentiel</td>
+<td>28</td>
+</tr>
+<tr>
+<td>Centre_Ville</td>
+<td>26</td>
+</tr>
+<tr>
+<td>Zone_Commerciale</td>
+<td>23</td>
+</tr>
+<tr>
+<td>Zone Industrielle</td>
+<td>23</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Interprétation</strong> :</p>
+<ul>
+<li>Répartition <strong>légèrement inégale</strong> des capteurs (de 23 à 28 selon les zones)</li>
+<li>Le <strong>Quartier Résidentiel</strong> est le mieux couvert (28 capteurs), cohérent avec une densité de population plus élevée</li>
+<li>La <strong>Zone Industrielle et la Zone Commerciale</strong> sont moins couvertes (23 capteurs chacune), ce qui peut représenter un risque si la consommation y est plus variable ou plus élevée</li>
+</ul>
+<p>💡 <strong>Impact métier</strong> : La couverture est globalement satisfaisante, mais une attention particulière devrait être portée sur la Zone Industrielle — moins couverte mais potentiellement à plus fort risque d'anomalie énergétique. Il serait pertinent d'y ajouter 2 à 5 capteurs supplémentaires pour équilibrer la surveillance.</p>
+<hr />
+<p><a id="question-3-etat-des-capteurs"></a></p>
+<h4>Question 3 : État des capteurs</h4>
+<p><strong>Observez la table <code>infrastructures</code></strong> :</p>
+<pre><code class="language-sql">SELECT Statut, COUNT(*) as NbCapteurs
+FROM infrastructures
+GROUP BY Statut
+</code></pre>
+<p><strong>Résultat attendu</strong> :</p>
+<table>
+<thead>
+<tr>
+<th>Statut</th>
+<th>Nb Capteurs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Actif</td>
+<td>55</td>
+</tr>
+<tr>
+<td>En_Maintenance</td>
+<td>27</td>
+</tr>
+<tr>
+<td>En_Panne</td>
+<td>5</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Interprétation</strong> :</p>
+<ul>
+<li><strong>55%</strong> des capteurs sont opérationnels (55/100)</li>
+<li><strong>27%</strong> sont en maintenance (En_Maintenance)</li>
+<li><strong>5%</strong> sont en panne (En_Panne)</li>
+<li><strong>13%</strong> ont un statut non renseigné (55+27+5 = 87 sur 100)</li>
+</ul>
+<p>💡 <strong>Impact métier</strong> : Taux de disponibilité en dessous du seuil recommandé (&lt; 70%). Il est urgent de planifier la remise en service des capteurs En_Maintenance et d'investiguer les capteurs En_Panne pour remonter à au moins 70% de disponibilité.</p>
+<hr />
+<p><a id="question-4-criticite-des-incidents"></a></p>
+<h4>Question 4 : Criticité des incidents</h4>
+<p><strong>Observez la table <code>incidents</code></strong> :</p>
+<pre><code class="language-sql">SELECT Severite, COUNT(*) as NbIncidents
+FROM incidents
+GROUP BY Severite
+ORDER BY 
+  CASE Severite 
+    WHEN 'Critique' THEN 1 
+    WHEN 'Haute' THEN 2 
+    WHEN 'Moyenne' THEN 3 
+    WHEN 'Faible' THEN 4
+  END
+</code></pre>
+<p><strong>Résultat attendu</strong> :</p>
+<table>
+<thead>
+<tr>
+<th>Severite</th>
+<th>Nb Incidents</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Critique</td>
+<td>8</td>
+</tr>
+<tr>
+<td>Haute</td>
+<td>16</td>
+</tr>
+<tr>
+<td>Moyenne</td>
+<td>12</td>
+</tr>
+<tr>
+<td>Faible</td>
+<td>14</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Interprétation</strong> :</p>
+<ul>
+<li><strong>16%</strong> d'incidents critiques (8/50) → nécessitent une intervention <strong>immédiate</strong></li>
+<li><strong>32%</strong> d'incidents de haute sévérité (16/50) → à traiter en <strong>priorité</strong></li>
+<li><strong>24%</strong> d'incidents de sévérité moyenne (12/50) → planifier sous 48h</li>
+<li><strong>28%</strong> d'incidents de faible sévérité (14/50) → surveillance continue</li>
+</ul>
+<p>⚠️ <strong>Alerte</strong> : Critique + Haute représentent <strong>48% des incidents</strong> (24/50) — presque la moitié. La pyramide de criticité est <strong>inversée</strong> : trop d'incidents graves par rapport aux incidents faibles.</p>
+<p>💡 <strong>Impact métier</strong> : Ce profil d'incidents révèle un réseau sous tension. Il est impératif de traiter en urgence les 24 incidents Critique/Haute avant qu'ils n'impactent la distribution électrique de la ville. Une maintenance préventive renforcée est recommandée.</p>
+<hr />
+<p><a id="analyse-des-resultats-pipeline-2-transformation"></a></p>
+<h2>📊 Analyse des résultats - Pipeline 2 : Transformation</h2>
+<p><a id="resultats-obtenus-1"></a></p>
+<h3>Résultats obtenus</h3>
+<p>Après exécution du pipeline <code>PL_Transformation_Bronze_Silver</code> :</p>
+<table>
+<thead>
+<tr>
+<th>Table</th>
+<th>Lignes obtenues</th>
+<th>Origine</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CapteursSilver</code></td>
+<td>~55</td>
+<td>Capteurs actifs uniquement</td>
+</tr>
+<tr>
+<td><code>MonitoringSilver</code></td>
+<td>~3960</td>
+<td>Relevés des capteurs actifs</td>
+</tr>
+</tbody>
+</table>
+<p><a id="questions-danalyse-guidee-1"></a></p>
+<h3>Questions d'analyse guidée</h3>
+<p><a id="question-5-filtrage-des-capteurs-actifs"></a></p>
+<h4>Question 5 : Filtrage des capteurs actifs</h4>
+<p><strong>Comparez les volumes</strong> :</p>
+<p>Dans <strong>LH_Energie_Bronze</strong> → SQL Analytics Endpoint :</p>
+<pre><code class="language-sql">-- Avant filtrage (données brutes)
+SELECT COUNT(*) FROM infrastructures
+</code></pre>
+<p>Dans <strong>LH_Energie_Silver</strong> → SQL Analytics Endpoint :</p>
+<pre><code class="language-sql">-- Après filtrage (données transformées)
+SELECT COUNT(*) FROM CapteursSilver
+</code></pre>
+<p><strong>Résultat attendu</strong> :</p>
+<ul>
+<li>Avant : 100 capteurs</li>
+<li>Après : 55 capteurs</li>
+</ul>
+<p><strong>Interprétation</strong> :</p>
+<ul>
+<li><strong>45 capteurs exclus</strong> (En_Maintenance ou En_Panne)</li>
+<li><strong>Réduction de 45%</strong> du volume de données à analyser</li>
+<li><strong>Qualité augmentée</strong> : on ne traite que les données des capteurs opérationnels</li>
+</ul>
+<p>💡 <strong>Impact métier</strong> : Économie significative de ressources de calcul. Cependant, avec seulement 55% de capteurs actifs, il est recommandé de prioriser la remise en service des capteurs En_Maintenance.</p>
+<hr />
+<p><a id="question-6-reduction-du-volume-de-monitoring"></a></p>
+<h4>Question 6 : Réduction du volume de monitoring</h4>
+<p><strong>Comparez les volumes</strong> :</p>
+<p>Dans <strong>LH_Energie_Bronze</strong> → SQL Analytics Endpoint :</p>
+<pre><code class="language-sql">-- Avant filtrage (données brutes)
+SELECT COUNT(*) FROM monitoring
+</code></pre>
+<p>Dans <strong>LH_Energie_Silver</strong> → SQL Analytics Endpoint :</p>
+<pre><code class="language-sql">-- Après filtrage (données transformées)
+SELECT COUNT(*) FROM MonitoringSilver
+</code></pre>
+<p><strong>Résultat attendu</strong> :</p>
+<ul>
+<li>Avant : 7200 relevés (tous capteurs)</li>
+<li>Après : ~3960 relevés (capteurs actifs uniquement)</li>
+</ul>
+<p><strong>Calcul</strong> : 7200 × 55% = 3960 ✓</p>
+<p><strong>Interprétation</strong> :</p>
+<ul>
+<li><strong>Réduction de 45%</strong> du volume de données</li>
+<li><strong>Cohérence</strong> avec le filtrage des capteurs (55% conservés)</li>
+<li><strong>Données exploitables</strong> uniquement</li>
+</ul>
+<p>💡 <strong>Impact métier</strong> : Réduction importante du volume à analyser. Les analyses futures ne porteront que sur des données fiables, réduisant les faux positifs dans la détection d'anomalies.</p>
+<hr />
+<p><a id="question-7-enrichissement-avec-les-seuils-de-reference"></a></p>
+<h4>Question 7 : Enrichissement avec les seuils de référence</h4>
+<p><strong>Observez l'activité Lookup</strong> → Output :</p>
+<pre><code class="language-json">{
+  &quot;value&quot;: [
+    {&quot;TypeCapteur&quot;: &quot;Consommation&quot;, &quot;SeuilMin&quot;: 0, &quot;SeuilMax&quot;: 5000},
+    {&quot;TypeCapteur&quot;: &quot;Temperature&quot;, &quot;SeuilMin&quot;: -10, &quot;SeuilMax&quot;: 45},
+    {&quot;TypeCapteur&quot;: &quot;Tension&quot;, &quot;SeuilMin&quot;: 210, &quot;SeuilMax&quot;: 240},
+    {&quot;TypeCapteur&quot;: &quot;Frequence&quot;, &quot;SeuilMin&quot;: 49, &quot;SeuilMax&quot;: 51}
+  ]
+}
+</code></pre>
+<p><strong>Interprétation</strong> :</p>
+<ul>
+<li><strong>4 types de capteurs</strong> avec seuils spécifiques</li>
+<li>Les <strong>seuils de référence</strong> sont maintenant disponibles pour détecter les anomalies</li>
+<li>Exemple : Tension normale = 210-240V, si hors de cette plage → anomalie</li>
+</ul>
+<p>💡 <strong>Impact métier</strong> : Permet de détecter automatiquement les valeurs anormales en temps réel.</p>
+<hr />
+<p><a id="question-8-boucle-until-traitement-des-incidents"></a></p>
+<h4>Question 8 : Boucle Until - Traitement des incidents</h4>
+<p><strong>Observez les variables</strong> après exécution :</p>
+<pre><code>Variables finales :
+├── AnomaliesDetectees : [&quot;2026-01-27T22:30:15Z&quot;, &quot;2026-01-27T22:30:18Z&quot;, &quot;2026-01-27T22:30:21Z&quot;]
+├── NombreIterations : 3
+└── IncidentsNonResolus : 0
+</code></pre>
+<p><strong>Interprétation</strong> :</p>
+<ul>
+<li><strong>3 itérations</strong> nécessaires pour traiter tous les incidents</li>
+<li><strong>50 incidents</strong> au départ → <strong>0 incident</strong> à la fin</li>
+<li><strong>Durée totale</strong> : 3 × 3 secondes = 9 secondes de simulation</li>
+</ul>
+<p><strong>Calcul de la vélocité</strong> :</p>
+<ul>
+<li>50 incidents ÷ 3 itérations = ~17 incidents traités par itération</li>
+</ul>
+<p>💡 <strong>Impact métier</strong> : Le système peut traiter environ <strong>17 incidents par cycle</strong>, ce qui correspond à un temps de résolution de 3 minutes pour 50 incidents en production.</p>
+<hr />
+<p><a id="synthese-reponse-a-la-problematique"></a></p>
+<h2>🎯 Synthèse : Réponse à la problématique</h2>
+<p><a id="problematique-rappelee"></a></p>
+<h3>Problématique rappelée</h3>
+<blockquote>
+<p>Comment transformer les données IoT brutes (Bronze) en données nettoyées et enrichies (Silver), en détectant les anomalies, en appliquant des règles métier avec une table de référence via Lookup, et en bouclant avec Until pour traiter les incidents non résolus ?</p>
+</blockquote>
+<p><a id="resultats-obtenus-2"></a></p>
+<h3>Résultats obtenus</h3>
+<table>
+<thead>
+<tr>
+<th>Objectif</th>
+<th>Méthode</th>
+<th>Résultat</th>
+<th>Impact métier</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>1. Charger les données brutes</strong></td>
+<td>5 activités Copy parallèles</td>
+<td>✅ 5 tables créées (7378 lignes totales)</td>
+<td>Données centralisées et structurées</td>
+</tr>
+<tr>
+<td><strong>2. Nettoyer les données</strong></td>
+<td>Filtrage SQL <code>WHERE Statut = 'Actif'</code></td>
+<td>✅ 45% de réduction (capteurs inactifs/en panne exclus)</td>
+<td>Qualité des données améliorée</td>
+</tr>
+<tr>
+<td><strong>3. Enrichir avec référence</strong></td>
+<td>Lookup sur table <code>seuils</code></td>
+<td>✅ 4 seuils chargés en mémoire</td>
+<td>Détection d'anomalies possible</td>
+</tr>
+<tr>
+<td><strong>4. Valider la qualité</strong></td>
+<td>If Condition sur <code>rowsCopied</code></td>
+<td>✅ Validation automatique</td>
+<td>Garantie de complétude</td>
+</tr>
+<tr>
+<td><strong>5. Traiter les incidents</strong></td>
+<td>Until Loop (max 5 itérations)</td>
+<td>✅ 50 incidents traités en 3 cycles</td>
+<td>Temps de résolution prévisible</td>
+</tr>
+<tr>
+<td><strong>6. Tracer l'exécution</strong></td>
+<td>Variables Array + Integer</td>
+<td>✅ Historique des itérations</td>
+<td>Audit et traçabilité</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<p><a id="indicateurs-cles-de-performance-kpi"></a></p>
+<h2>📈 Indicateurs clés de performance (KPI)</h2>
+<blockquote>
+<p>Tables Bronze (<code>infrastructures</code>, <code>monitoring</code>, <code>incidents</code>, <code>seuils</code>) : ouvrez <strong>LH_Energie_Bronze</strong> → <strong>SQL Analytics Endpoint</strong>.<br />
+Tables Silver (<code>CapteursSilver</code>, <code>MonitoringSilver</code>) : ouvrez <strong>LH_Energie_Silver</strong> → <strong>SQL Analytics Endpoint</strong>.<br />
+Pour les KPI croisant les deux couches, utilisez le SQL Endpoint de <strong>LH_Energie_Silver</strong> avec des références croisées (voir note KPI 2).</p>
+</blockquote>
+<p><a id="kpi-1-taux-de-couverture-reseau"></a></p>
+<h3>KPI 1 : Taux de couverture réseau</h3>
+<pre><code class="language-sql">SELECT
+    COUNT(*)                                                         AS TotalCapteurs,
+    SUM(CASE WHEN Statut = 'Actif' THEN 1 ELSE 0 END)               AS CapteursActifs,
+    ROUND(
+        100.0 * SUM(CASE WHEN Statut = 'Actif' THEN 1 ELSE 0 END)
+              / COUNT(*), 1
+    )                                                                AS TauxCouverture_Pct
+FROM infrastructures
+</code></pre>
+<p><strong>Résultat attendu</strong> : <code>100 | 55 | 55.0</code> <strong>Cible</strong> : &gt; 70% — ❌ Objectif non atteint, action corrective requise.</p>
+<hr />
+<p><a id="kpi-2-taux-de-reduction-des-donnees"></a></p>
+<h3>KPI 2 : Taux de réduction des données</h3>
+<blockquote>
+<p>⚠️ Ce KPI croise Bronze et Silver. Exécutez séparément dans chaque SQL Endpoint.</p>
+</blockquote>
+<p>Dans <strong>LH_Energie_Bronze</strong> → SQL Analytics Endpoint :</p>
+<pre><code class="language-sql">SELECT COUNT(*) AS DonnesBrutes FROM monitoring
+</code></pre>
+<p>Dans <strong>LH_Energie_Silver</strong> → SQL Analytics Endpoint :</p>
+<pre><code class="language-sql">SELECT COUNT(*) AS DonneesFiltrees FROM MonitoringSilver
+</code></pre>
+<p><strong>Résultat attendu</strong> : <code>7200 bruts | 3960 filtrés | 55.0%</code> <strong>Interprétation</strong> : 45% des relevés éliminés (capteurs inactifs/en panne). Taux élevé, cohérent avec le KPI 1.</p>
+<hr />
+<p><a id="kpi-3-velocite-de-traitement-des-incidents"></a></p>
+<h3>KPI 3 : Vélocité de traitement des incidents</h3>
+<pre><code class="language-sql">SELECT
+    COUNT(*)                                                AS TotalIncidents,
+    SUM(CASE WHEN Resolu = 'True' THEN 1 ELSE 0 END)       AS Resolus,
+    ROUND(AVG(CAST(TempsResolution_Min AS FLOAT)), 1)       AS TempsResolutionMoyen_Min,
+    MIN(CAST(TempsResolution_Min AS FLOAT))                 AS TempsMin_Min,
+    MAX(CAST(TempsResolution_Min AS FLOAT))                 AS TempsMax_Min
+FROM incidents
+WHERE Resolu = 'True'
+</code></pre>
+<p><strong>Résultat attendu</strong> : <code>50 | 50 | ~75 min | ... | ...</code> <strong>Interprétation</strong> : Temps moyen de résolution par incident. À comparer à la SLA cible de l'exploitant réseau.</p>
+<hr />
+<p><a id="kpi-4-taux-de-resolution-des-incidents"></a></p>
+<h3>KPI 4 : Taux de résolution des incidents</h3>
+<pre><code class="language-sql">SELECT
+    COUNT(*)                                                                   AS TotalIncidents,
+    SUM(CASE WHEN Resolu = 'True'  THEN 1 ELSE 0 END)                         AS Resolus,
+    SUM(CASE WHEN Resolu = 'False' THEN 1 ELSE 0 END)                         AS NonResolus,
+    ROUND(
+        100.0 * SUM(CASE WHEN Resolu = 'True' THEN 1 ELSE 0 END)
+              / COUNT(*), 1
+    )                                                                          AS TauxResolution_Pct
+FROM incidents
+</code></pre>
+<p><strong>Résultat attendu</strong> : <code>50 | 50 | 0 | 100.0</code> <strong>Statut</strong> : ✅ Tous les incidents traités.</p>
+<hr />
+<p><a id="insights-metier"></a></p>
+<h2>💡 Insights métier</h2>
+<p><a id="insight-1-qualite-du-reseau-iot"></a></p>
+<h3>Insight 1 : Qualité du réseau IoT</h3>
+<p><strong>Constat</strong> : 55% des capteurs sont opérationnels — en dessous du seuil recommandé de 70%.</p>
+<p><strong>Recommandation</strong> :</p>
+<ul>
+<li>Planifier en urgence la remise en service des 27 capteurs En_Maintenance</li>
+<li>Investiguer les 5 capteurs En_Panne (panne matérielle ou obsolescence ?)</li>
+<li>Objectif prioritaire : atteindre 70% de disponibilité (soit 70 capteurs actifs)</li>
+</ul>
+<hr />
+<p><a id="insight-2-frequence-de-monitoring-optimale"></a></p>
+<h3>Insight 2 : Fréquence de monitoring optimale</h3>
+<p><strong>Constat</strong> : 1 relevé par capteur par heure (24 relevés/jour).</p>
+<p><strong>Recommandation</strong> :</p>
+<ul>
+<li>Fréquence suffisante pour les zones résidentielles</li>
+<li>Augmenter à 1 relevé/15 min pour la Zone Industrielle (consommation plus variable)</li>
+</ul>
+<hr />
+<p><a id="insight-3-distribution-des-incidents"></a></p>
+<h3>Insight 3 : Distribution des incidents</h3>
+<p><strong>Constat</strong> : 48% des incidents sont Critique ou Haute sévérité (24/50) — pyramide de criticité inversée.</p>
+<p><strong>Recommandation</strong> :</p>
+<ul>
+<li>Traiter en urgence les 8 incidents Critiques (risque de coupure réseau)</li>
+<li>Planifier sous 24h les 16 incidents Haute sévérité</li>
+<li>Automatiser le traitement des 14 incidents Faibles (règles métier)</li>
+<li>Créer des alertes prioritaires pour les incidents Critique et Haute</li>
+</ul>
+<hr />
+<p><a id="insight-4-performance-du-pipeline"></a></p>
+<h3>Insight 4 : Performance du pipeline</h3>
+<p><strong>Constat</strong> : 9 secondes pour traiter 50 incidents.</p>
+<p><strong>Recommandation</strong> :</p>
+<ul>
+<li>En production réelle, prévoir 3 minutes pour 1000 incidents</li>
+<li>Ajuster la valeur du Wait (actuellement 3 sec) selon la charge</li>
+<li>Paralléliser le traitement si &gt; 5000 incidents</li>
+</ul>
+<hr />
+<p><a id="conclusion-valeur-ajoutee-du-pipeline"></a></p>
+<h2>🎯 Conclusion : Valeur ajoutée du pipeline</h2>
+<p><a id="sans-le-pipeline-situation-initiale"></a></p>
+<h3>Sans le pipeline (situation initiale)</h3>
+<p>❌ 5 fichiers CSV éparpillés<br />
+❌ Données non vérifiées (capteurs inactifs inclus)<br />
+❌ Pas de référence pour détecter les anomalies<br />
+❌ Traitement manuel des incidents<br />
+❌ Aucune traçabilité</p>
+<p><a id="avec-le-pipeline-situation-finale"></a></p>
+<h3>Avec le pipeline (situation finale)</h3>
+<p>✅ Données brutes centralisées dans <strong>LH_Energie_Bronze</strong> (5 tables)<br />
+✅ Données transformées isolées dans <strong>LH_Energie_Silver</strong> (2 tables nettoyées)<br />
+✅ Architecture Medallion respectée : séparation Bronze / Silver claire<br />
+✅ Données nettoyées (55% de capteurs actifs — 45 exclus car En_Maintenance ou En_Panne)<br />
+✅ Seuils de référence chargés pour la détection<br />
+✅ Traitement automatisé de 50 incidents en 9 secondes<br />
+✅ Traçabilité complète (variables, logs, historique)</p>
+<p><a id="impact-quantifie"></a></p>
+<h3>Impact quantifié</h3>
+<ul>
+<li><strong>Gain de temps</strong> : 95% (manuel → automatisé)</li>
+<li><strong>Qualité des données</strong> : +45% (filtrage des capteurs En_Maintenance/En_Panne)</li>
+<li><strong>Fiabilité</strong> : 100% (tous les incidents traités)</li>
+<li><strong>Scalabilité</strong> : Prêt pour 10x le volume actuel</li>
+</ul>
+<hr />
+<p><a id="analyse-des-resultats-pipeline-1-chargement-1"></a></p>
+<h2>📊 Analyse des résultats - Pipeline 1 : Chargement</h2>
+<p><a id="resultats-obtenus-3"></a></p>
+<h3>Résultats obtenus</h3>
+<p>Après exécution du pipeline <code>PL_Chargement_CSV_Bronze</code>, vérifiez dans <strong>LH_Energie_Bronze</strong> → <strong>Tables</strong> → cliquez sur chaque table :</p>
+<table>
+<thead>
+<tr>
+<th>Table</th>
+<th>Lignes attendues</th>
+<th>Lignes obtenues</th>
+<th>Statut</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>infrastructures</code></td>
+<td>100</td>
+<td>✅ Vérifiez</td>
+<td>OK si = 100</td>
+</tr>
+<tr>
+<td><code>monitoring</code></td>
+<td>7200</td>
+<td>✅ Vérifiez</td>
+<td>OK si = 7200</td>
+</tr>
+<tr>
+<td><code>incidents</code></td>
+<td>50</td>
+<td>✅ Vérifiez</td>
+<td>OK si = 50</td>
+</tr>
+<tr>
+<td><code>metriques</code></td>
+<td>28</td>
+<td>✅ Vérifiez</td>
+<td>OK si = 28</td>
+</tr>
+<tr>
+<td><code>seuils</code></td>
+<td>4</td>
+<td>✅ Vérifiez</td>
+<td>OK si = 4</td>
+</tr>
+</tbody>
+</table>
+<p><a id="questions-danalyse-guidee-2"></a></p>
+<h3>Questions d'analyse guidée</h3>
+<p><a id="question-1-volume-de-donnees-iot-1"></a></p>
+<h4>Question 1 : Volume de données IoT</h4>
+<p><strong>Observez la table <code>monitoring</code></strong> :</p>
+<pre><code class="language-sql">SELECT COUNT(*) as TotalReleves FROM monitoring
+</code></pre>
+<p><strong>Résultat attendu</strong> : 7200 relevés</p>
+<p><strong>Interprétation</strong> :</p>
+<ul>
+<li>7200 relevés sur 3 jours = 2400 relevés/jour</li>
+<li>2400 relevés/jour ÷ 100 capteurs = 24 relevés/capteur/jour</li>
+<li><strong>Conclusion</strong> : Chaque capteur envoie <strong>1 relevé par heure</strong> (24h × 3 jours = 72 relevés/capteur)</li>
+</ul>
+<p>💡 <strong>Impact métier</strong> : Fréquence de monitoring suffisante pour détecter les anomalies en temps quasi-réel.</p>
+<hr />
+<p><a id="question-2-repartition-geographique-1"></a></p>
+<h4>Question 2 : Répartition géographique</h4>
+<p><strong>Observez la table <code>infrastructures</code></strong> :</p>
+<pre><code class="language-sql">SELECT Quartier, COUNT(*) as NbCapteurs 
+FROM infrastructures 
+GROUP BY Quartier
+ORDER BY NbCapteurs DESC
+</code></pre>
+<p><strong>Résultat obtenu</strong> :</p>
+<table>
+<thead>
+<tr>
+<th>Quartier</th>
+<th>Nb Capteurs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Quartier_Residentiel</td>
+<td>28</td>
+</tr>
+<tr>
+<td>Centre_Ville</td>
+<td>26</td>
+</tr>
+<tr>
+<td>Zone_Commerciale</td>
+<td>23</td>
+</tr>
+<tr>
+<td>Zone Industrielle</td>
+<td>23</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Interprétation</strong> :</p>
+<ul>
+<li>Répartition <strong>légèrement inégale</strong> des capteurs (de 23 à 28 selon les zones)</li>
+<li>Le <strong>Quartier Résidentiel</strong> est le mieux couvert (28 capteurs), cohérent avec une densité de population plus élevée</li>
+<li>La <strong>Zone Industrielle et la Zone Commerciale</strong> sont moins couvertes (23 capteurs chacune), ce qui peut représenter un risque si la consommation y est plus variable ou plus élevée</li>
+</ul>
+<p>💡 <strong>Impact métier</strong> : La couverture est globalement satisfaisante, mais une attention particulière devrait être portée sur la Zone Industrielle — moins couverte mais potentiellement à plus fort risque d'anomalie énergétique. Il serait pertinent d'y ajouter 2 à 5 capteurs supplémentaires pour équilibrer la surveillance.</p>
+<hr />
+<p><a id="question-3-etat-des-capteurs-1"></a></p>
+<h4>Question 3 : État des capteurs</h4>
+<p><strong>Observez la table <code>infrastructures</code></strong> :</p>
+<pre><code class="language-sql">SELECT Statut, COUNT(*) as NbCapteurs
+FROM infrastructures
+GROUP BY Statut
+</code></pre>
+<p><strong>Résultat attendu</strong> :</p>
+<table>
+<thead>
+<tr>
+<th>Statut</th>
+<th>Nb Capteurs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Actif</td>
+<td>55</td>
+</tr>
+<tr>
+<td>En_Maintenance</td>
+<td>27</td>
+</tr>
+<tr>
+<td>En_Panne</td>
+<td>5</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Interprétation</strong> :</p>
+<ul>
+<li><strong>55%</strong> des capteurs sont opérationnels (55/100)</li>
+<li><strong>27%</strong> sont en maintenance (En_Maintenance)</li>
+<li><strong>5%</strong> sont en panne (En_Panne)</li>
+<li><strong>13%</strong> ont un statut non renseigné (55+27+5 = 87 sur 100)</li>
+</ul>
+<p>💡 <strong>Impact métier</strong> : Taux de disponibilité en dessous du seuil recommandé (&lt; 70%). Il est urgent de planifier la remise en service des capteurs En_Maintenance et d'investiguer les capteurs En_Panne pour remonter à au moins 70% de disponibilité.</p>
+<hr />
+<p><a id="question-4-criticite-des-incidents-1"></a></p>
+<h4>Question 4 : Criticité des incidents</h4>
+<p><strong>Observez la table <code>incidents</code></strong> :</p>
+<pre><code class="language-sql">SELECT Severite, COUNT(*) as NbIncidents
+FROM incidents
+GROUP BY Severite
+ORDER BY 
+  CASE Severite 
+    WHEN 'Critique' THEN 1 
+    WHEN 'Haute' THEN 2 
+    WHEN 'Moyenne' THEN 3 
+    WHEN 'Faible' THEN 4
+  END
+</code></pre>
+<p><strong>Résultat attendu</strong> :</p>
+<table>
+<thead>
+<tr>
+<th>Severite</th>
+<th>Nb Incidents</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Critique</td>
+<td>8</td>
+</tr>
+<tr>
+<td>Haute</td>
+<td>16</td>
+</tr>
+<tr>
+<td>Moyenne</td>
+<td>12</td>
+</tr>
+<tr>
+<td>Faible</td>
+<td>14</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Interprétation</strong> :</p>
+<ul>
+<li><strong>16%</strong> d'incidents critiques (8/50) → nécessitent une intervention <strong>immédiate</strong></li>
+<li><strong>32%</strong> d'incidents de haute sévérité (16/50) → à traiter en <strong>priorité</strong></li>
+<li><strong>24%</strong> d'incidents de sévérité moyenne (12/50) → planifier sous 48h</li>
+<li><strong>28%</strong> d'incidents de faible sévérité (14/50) → surveillance continue</li>
+</ul>
+<p>⚠️ <strong>Alerte</strong> : Critique + Haute représentent <strong>48% des incidents</strong> (24/50) — presque la moitié. La pyramide de criticité est <strong>inversée</strong> : trop d'incidents graves par rapport aux incidents faibles.</p>
+<p>💡 <strong>Impact métier</strong> : Ce profil d'incidents révèle un réseau sous tension. Il est impératif de traiter en urgence les 24 incidents Critique/Haute avant qu'ils n'impactent la distribution électrique de la ville. <u>Une maintenance préventive renforcée est recommandée</u>.</p>
+<hr />
+<p><a id="questions-danalyse-guidee-3"></a></p>
+<h3>Questions d'analyse guidée</h3>
+<p><a id="question-5-filtrage-des-capteurs-actifs-1"></a></p>
+<h4>Question 5 : Filtrage des capteurs actifs</h4>
+<p><strong>Comparez les volumes</strong> :</p>
+<p>Dans <strong>LH_Energie_Bronze</strong> → SQL Analytics Endpoint :</p>
+<pre><code class="language-sql">-- Avant filtrage (données brutes)
+SELECT COUNT(*) FROM infrastructures
+</code></pre>
+<p>Dans <strong>LH_Energie_Silver</strong> → SQL Analytics Endpoint :</p>
+<pre><code class="language-sql">-- Après filtrage (données transformées)
+SELECT COUNT(*) FROM CapteursSilver
+</code></pre>
+<p><strong>Résultat attendu</strong> :</p>
+<ul>
+<li>Avant : 100 capteurs</li>
+<li>Après : 55 capteurs</li>
+</ul>
+<p><strong>Interprétation</strong> :</p>
+<ul>
+<li><strong>45 capteurs exclus</strong> (En_Maintenance ou En_Panne)</li>
+<li><strong>Réduction de 45%</strong> du volume de données à analyser</li>
+<li><strong>Qualité augmentée</strong> : on ne traite que les données des capteurs opérationnels</li>
+</ul>
+<p>💡 <strong>Impact métier</strong> : Économie significative de ressources de calcul.</p>
+<p>Cependant, avec seulement 55% de capteurs actifs, i<u>l est recommandé de prioriser la remise en service des capteurs En_Maintenance</u>.</p>
+<hr />
+<p><a id="question-6-reduction-du-volume-de-monitoring-1"></a></p>
+<h4>Question 6 : Réduction du volume de monitoring</h4>
+<p><strong>Comparez les volumes</strong> :</p>
+<p>Dans <strong>LH_Energie_Bronze</strong> → SQL Analytics Endpoint :</p>
+<pre><code class="language-sql">-- Avant filtrage (données brutes)
+SELECT COUNT(*) FROM monitoring
+</code></pre>
+<p>Dans <strong>LH_Energie_Silver</strong> → SQL Analytics Endpoint :</p>
+<pre><code class="language-sql">-- Après filtrage (données transformées)
+SELECT COUNT(*) FROM MonitoringSilver
+</code></pre>
+<p><strong>Résultat attendu</strong> :</p>
+<ul>
+<li>Avant : 7200 relevés (tous capteurs)</li>
+<li>Après : ~3960 relevés (capteurs actifs uniquement)</li>
+</ul>
+<p><strong>Calcul</strong> : 7200 × 55% = 3960 ✓</p>
+<p><strong>Interprétation</strong> :</p>
+<ul>
+<li><strong>Réduction de 45%</strong> du volume de données</li>
+<li><strong>Cohérence</strong> avec le filtrage des capteurs (55% conservés)</li>
+<li><strong>Données exploitables</strong> uniquement</li>
+</ul>
+<p>💡 <strong>Impact métier</strong> : Réduction importante du volume à analyser. Les analyses futures ne porteront que sur des données fiables, réduisant les faux positifs dans la détection d'anomalies.</p>
+<hr />
+<p><a id="synthese-reponse-a-la-problematique-1"></a></p>
+<h2>🎯 Synthèse : Réponse à la problématique</h2>
+<p><a id="problematique-rappelee-1"></a></p>
+<h3>Problématique rappelée</h3>
+<blockquote>
+<p>Comment transformer les données IoT brutes (Bronze) en données nettoyées et enrichies (Silver), en détectant les anomalies, en appliquant des règles métier avec une table de référence via Lookup, et en bouclant avec Until pour traiter les incidents non résolus ?</p>
+</blockquote>
+<p><a id="resultats-obtenus-4"></a></p>
+<h3>Résultats obtenus</h3>
+<table>
+<thead>
+<tr>
+<th>Objectif</th>
+<th>Méthode</th>
+<th>Résultat</th>
+<th>Impact métier</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>1. Charger les données brutes</strong></td>
+<td>5 activités Copy parallèles</td>
+<td>✅ 5 tables créées (7378 lignes totales)</td>
+<td>Données centralisées et structurées</td>
+</tr>
+<tr>
+<td><strong>2. Nettoyer les données</strong></td>
+<td>Filtrage SQL <code>WHERE Statut = 'Actif'</code></td>
+<td>✅ 45% de réduction (capteurs inactifs/en panne exclus)</td>
+<td>Qualité des données améliorée</td>
+</tr>
+<tr>
+<td><strong>3. Enrichir avec référence</strong></td>
+<td>Lookup sur table <code>seuils</code></td>
+<td>✅ 4 seuils chargés en mémoire</td>
+<td>Détection d'anomalies possible</td>
+</tr>
+<tr>
+<td><strong>4. Valider la qualité</strong></td>
+<td>If Condition sur <code>rowsCopied</code></td>
+<td>✅ Validation automatique</td>
+<td>Garantie de complétude</td>
+</tr>
+<tr>
+<td><strong>5. Traiter les incidents</strong></td>
+<td>Until Loop (max 5 itérations)</td>
+<td>✅ 50 incidents traités en 3 cycles</td>
+<td>Temps de résolution prévisible</td>
+</tr>
+<tr>
+<td><strong>6. Tracer l'exécution</strong></td>
+<td>Variables Array + Integer</td>
+<td>✅ Historique des itérations</td>
+<td>Audit et traçabilité</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<p><a id="indicateurs-cles-de-performance-kpi-1"></a></p>
+<h2>📈 Indicateurs clés de performance (KPI)</h2>
+<blockquote>
+<p>Tables Bronze (<code>infrastructures</code>, <code>monitoring</code>, <code>incidents</code>, <code>seuils</code>) : ouvrez <strong>LH_Energie_Bronze</strong> → <strong>SQL Analytics Endpoint</strong>.<br />
+Tables Silver (<code>CapteursSilver</code>, <code>MonitoringSilver</code>) : ouvrez <strong>LH_Energie_Silver</strong> → <strong>SQL Analytics Endpoint</strong>.<br />
+Pour les KPI croisant les deux couches, utilisez le SQL Endpoint de <strong>LH_Energie_Silver</strong> avec des références croisées (voir note KPI 2).</p>
+</blockquote>
+<p><a id="kpi-1-taux-de-couverture-reseau-1"></a></p>
+<h3>KPI 1 : Taux de couverture réseau</h3>
+<pre><code class="language-sql">SELECT
+    COUNT(*)                                                         AS TotalCapteurs,
+    SUM(CASE WHEN Statut = 'Actif' THEN 1 ELSE 0 END)               AS CapteursActifs,
+    ROUND(
+        100.0 * SUM(CASE WHEN Statut = 'Actif' THEN 1 ELSE 0 END)
+              / COUNT(*), 1
+    )                                                                AS TauxCouverture_Pct
+FROM infrastructures
+</code></pre>
+<p><strong>Résultat attendu</strong> : <code>100 | 55 | 55.0</code> <strong>Cible</strong> : &gt; 70% — ❌ Objectif non atteint, action corrective requise.</p>
+<hr />
+<p><a id="kpi-2-taux-de-reduction-des-donnees-1"></a></p>
+<h3>KPI 2 : Taux de réduction des données</h3>
+<blockquote>
+<p>⚠️ Ce KPI croise Bronze et Silver. Exécutez séparément dans chaque SQL Endpoint.</p>
+</blockquote>
+<p>Dans <strong>LH_Energie_Bronze</strong> → SQL Analytics Endpoint :</p>
+<pre><code class="language-sql">SELECT COUNT(*) AS DonnesBrutes FROM monitoring
+</code></pre>
+<p>Dans <strong>LH_Energie_Silver</strong> → SQL Analytics Endpoint :</p>
+<pre><code class="language-sql">SELECT COUNT(*) AS DonneesFiltrees FROM MonitoringSilver
+</code></pre>
+<p><strong>Résultat attendu</strong> : <code>7200 bruts | 3960 filtrés | 55.0%</code> <strong>Interprétation</strong> : 45% des relevés éliminés (capteurs inactifs/en panne). Taux élevé, cohérent avec le KPI 1.</p>
+<hr />
+<p><a id="kpi-3-velocite-de-traitement-des-incidents-1"></a></p>
+<h3>KPI 3 : Vélocité de traitement des incidents</h3>
+<pre><code class="language-sql">SELECT
+    COUNT(*)                                                AS TotalIncidents,
+    SUM(CASE WHEN Resolu = 'True' THEN 1 ELSE 0 END)       AS Resolus,
+    ROUND(AVG(CAST(TempsResolution_Min AS FLOAT)), 1)       AS TempsResolutionMoyen_Min,
+    MIN(CAST(TempsResolution_Min AS FLOAT))                 AS TempsMin_Min,
+    MAX(CAST(TempsResolution_Min AS FLOAT))                 AS TempsMax_Min
+FROM incidents
+WHERE Resolu = 'True'
+</code></pre>
+<p><strong>Résultat attendu</strong> : <code>50 | 50 | ~75 min | ... | ...</code> <strong>Interprétation</strong> : Temps moyen de résolution par incident. À comparer à la SLA cible de l'exploitant réseau.</p>
+<hr />
+<p><a id="kpi-4-taux-de-resolution-des-incidents-1"></a></p>
+<h3>KPI 4 : Taux de résolution des incidents</h3>
+<pre><code class="language-sql">SELECT
+    COUNT(*)                                                                   AS TotalIncidents,
+    SUM(CASE WHEN Resolu = 'True'  THEN 1 ELSE 0 END)                         AS Resolus,
+    SUM(CASE WHEN Resolu = 'False' THEN 1 ELSE 0 END)                         AS NonResolus,
+    ROUND(
+        100.0 * SUM(CASE WHEN Resolu = 'True' THEN 1 ELSE 0 END)
+              / COUNT(*), 1
+    )                                                                          AS TauxResolution_Pct
+FROM incidents
+</code></pre>
+<p><strong>Résultat attendu</strong> : <code>50 | 50 | 0 | 100.0</code> <strong>Statut</strong> : ✅ Tous les incidents traités.</p>
+<hr />
+<p><a id="partie-iii"></a></p>
+<h1>Partie III</h1>
+<p><a id="pipeline-silver-gold-agregation-pour-lanalyse-metier"></a></p>
+<h1>Pipeline Silver → Gold : Agrégation pour l'analyse métier</h1>
+<p><a id="objectif-1"></a></p>
+<h2>Objectif</h2>
+<p>Créer un pipeline <code>PL_Transformation_Silver_Gold</code> qui lit les tables Silver (<code>MonitoringSilver</code>, <code>incidents</code>, <code>metriques</code>) et produit <strong>3 tables Gold agrégées</strong>, directement exploitables dans Power BI via DirectLake.</p>
+<p><strong>Workflow</strong> :</p>
+<pre><code>VerifierDonneesSource (Lookup)
+    └── ValiderQuantiteDonnees (If Condition)
+            ├── [True] AgregarParQuartier (Copy)  ──┐
+            ├── [True] AgregarIncidents (Copy)    ──┼── MarquerFinGold (Set Variable)
+            └── [True] CopierMetriquesGold (Copy) ──┘
+</code></pre>
+<p><a id="tables-gold-produites"></a></p>
+<h3>Tables Gold produites</h3>
+<table>
+<thead>
+<tr>
+<th>Table Gold</th>
+<th>Source Silver</th>
+<th>Transformation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>goldconsoparquartier</code></td>
+<td><code>MonitoringSilver</code></td>
+<td>Agrégation par Quartier + TypeCapteur + Jour</td>
+</tr>
+<tr>
+<td><code>goldincidents</code></td>
+<td><code>incidents</code></td>
+<td>Synthèse par TypeIncident + Sévérité</td>
+</tr>
+<tr>
+<td><code>goldmetriques</code></td>
+<td><code>metriques</code></td>
+<td>Copie directe (déjà agrégée par jour)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<p><a id="variables-du-pipeline"></a></p>
+<h2>Variables du pipeline</h2>
+<p>Avant d'ajouter les activités, déclarez <strong>1 variable</strong> :</p>
+<ol>
+<li>Dans le canvas vide, cliquez sur un <strong>espace vide</strong> (pas sur une activité)</li>
+<li>Onglet <strong>Variables</strong> (panneau bas) → <strong>+ New</strong></li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Nom</th>
+<th>Type</th>
+<th>Valeur par défaut</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>DateExecutionGold</code></td>
+<td>String</td>
+<td><em>(vide)</em></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<p><a id="etapes-2"></a></p>
+<h2>Étapes</h2>
+<p><a id="1-creer-le-pipeline"></a></p>
+<h3>1. Créer le pipeline</h3>
+<ol>
+<li>Dans <strong>WS_Energie_Renouvelable</strong> → <strong>+ New item</strong> → <strong>Data pipeline</strong></li>
+<li><strong>Name</strong> : <code>PL_Transformation_Silver_Gold</code></li>
+<li><strong>Create</strong></li>
+</ol>
+<hr />
+<p><a id="2-activite-1-verifierdonneessource-lookup"></a></p>
+<h3>2. Activité 1 — VerifierDonneesSource (Lookup)</h3>
+<p>Cette activité vérifie que <code>MonitoringSilver</code> n'est pas vide avant toute agrégation.</p>
+<ol>
+<li>
+<p><strong>Activities</strong> → <strong>General</strong> → glissez <strong>Lookup</strong> sur le canvas</p>
+</li>
+<li>
+<p>Onglet <strong>General</strong> → <strong>Name</strong> : <code>VerifierDonneesSource</code></p>
+</li>
+<li>
+<p>Onglet <strong>Settings</strong> :</p>
+</li>
+</ol>
+<ul>
+<li>
+<p><strong>Data store type</strong> : <code>Workspace</code></p>
+</li>
+<li>
+<p><strong>Workspace data store type</strong> : <code>Lakehouse</code></p>
+</li>
+<li>
+<p><strong>Lakehouse</strong> : <code>LH_Energie_Silver</code></p>
+</li>
+<li>
+<p><strong>Table</strong> : <code>MonitoringSilver</code></p>
+</li>
+<li>
+<p><strong>Use query</strong> : <code>Query</code></p>
+</li>
+<li>
+<p><strong>Query</strong> :</p>
+<p><code>sql
+ SELECT COUNT(*) AS NbReleves FROM MonitoringSilver</code></p>
+<p>=======</p>
+</li>
+</ul>
+<p>💡 <strong>Astuce</strong> : <code>firstRowOnly = true</code> retourne <code>{ "NbReleves": 3960 }</code> — un seul objet JSON facile à référencer.</p>
+<hr />
+<p><a id="3-activite-2-validerquantitedonnees-if-condition"></a></p>
+<h3>3. Activité 2 — ValiderQuantiteDonnees (If Condition)</h3>
+<ol>
+<li>
+<p><strong>Activities</strong> → <strong>Iteration &amp; conditionals</strong> → glissez <strong>If Condition</strong></p>
+</li>
+<li>
+<p><strong>Reliez</strong> : <code>VerifierDonneesSource</code> → <code>ValiderQuantiteDonnees</code> (flèche verte)</p>
+</li>
+<li>
+<p>Onglet <strong>General</strong> → <strong>Name</strong> : <code>ValiderQuantiteDonnees</code></p>
+</li>
+<li>
+<p>Onglet <strong>Activities</strong> :</p>
+</li>
+</ol>
+<ul>
+<li>
+<p><strong>Expression</strong> :</p>
+<p><code>@greater(activity('VerifierDonneesSource').output.firstRow.NbReleves, 0)</code></p>
+</li>
+</ul>
+<p>💡 <strong>Astuce</strong> : Si <code>MonitoringSilver</code> est vide (0 ligne), le pipeline s'arrête proprement sans erreur.</p>
+<ol start="5">
+<li>Cliquez <strong>Edit True activities</strong> (crayon bleu) pour entrer dans la branche True.</li>
+</ol>
+<p>⚠️ <strong>Important</strong> : les 3 activités Copy suivantes sont toutes dans la <strong>branche True</strong> de cette condition.</p>
+<hr />
+<p><a id="4-activite-3-agregarparquartier-copy-data"></a></p>
+<h3>4. Activité 3 — AgregarParQuartier (Copy Data)</h3>
+<p>Agrège <code>MonitoringSilver</code> par Quartier, TypeCapteur et Jour.</p>
+<ol>
+<li>Dans la branche True → glissez <strong>Copy Data</strong></li>
+<li>Onglet <strong>General</strong> → <strong>Name</strong> : <code>AgregarParQuartier</code></li>
+</ol>
+<p><a id="source"></a></p>
+<h4>Source</h4>
+<table>
+<thead>
+<tr>
+<th>Paramètre</th>
+<th>Valeur</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Data store type</td>
+<td>Workspace</td>
+</tr>
+<tr>
+<td>Workspace data store</td>
+<td>Lakehouse</td>
+</tr>
+<tr>
+<td>Lakehouse</td>
+<td><code>LH_Energie_Silver</code></td>
+</tr>
+<tr>
+<td>Use query</td>
+<td>Query</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Query</strong> :</p>
+<pre><code class="language-sql">SELECT
+    Quartier,
+    TypeCapteur,
+    CAST(Timestamp AS DATE)         AS DateReleve,
+    COUNT(*)                        AS NbReleves,
+    ROUND(AVG(Consommation_kWh), 2) AS MoyenneConso_kWh,
+    MIN(Consommation_kWh)           AS ConsoMin_kWh,
+    MAX(Consommation_kWh)           AS ConsoMax_kWh,
+    ROUND(AVG(Tension_V), 2)        AS MoyenneTension_V,
+    ROUND(AVG(Frequence_Hz), 3)     AS MoyenneFrequence_Hz,
+    ROUND(AVG(FacteurPuissance), 3) AS MoyenneFacteurPuissance
+FROM MonitoringSilver
+GROUP BY Quartier, TypeCapteur, CAST(Timestamp AS DATE)
+</code></pre>
+<p><a id="sink"></a></p>
+<h4>Sink</h4>
+<table>
+<thead>
+<tr>
+<th>Paramètre</th>
+<th>Valeur</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Data store type</td>
+<td>Workspace</td>
+</tr>
+<tr>
+<td>Workspace data store</td>
+<td>Lakehouse</td>
+</tr>
+<tr>
+<td>Lakehouse</td>
+<td><code>LH_Energie_Silver</code></td>
+</tr>
+<tr>
+<td>Root folder</td>
+<td>Tables</td>
+</tr>
+<tr>
+<td>Table</td>
+<td><code>goldconsoparquartier</code></td>
+</tr>
+<tr>
+<td>Table action option</td>
+<td><strong>OverwriteSchema</strong></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<p><a id="5-activite-4-agregarincidents-copy-data"></a></p>
+<h3>5. Activité 4 — AgregarIncidents (Copy Data)</h3>
+<p>Synthétise les incidents par TypeIncident et Sévérité.</p>
+<ol>
+<li>Dans la branche True → glissez un deuxième <strong>Copy Data</strong></li>
+<li>Onglet <strong>General</strong> → <strong>Name</strong> : <code>AgregarIncidents</code></li>
+</ol>
+<p>⚠️ <strong>dependsOn</strong> : cette activité est indépendante de <code>AgregarParQuartier</code> (pas de flèche entre elles — elles s'exécutent en parallèle dans la branche True).</p>
+<p><a id="source-query"></a></p>
+<h4>Source — Query</h4>
+<pre><code class="language-sql">SELECT
+    TypeIncident,
+    Severite,
+    COUNT(*)                                                 AS NbIncidents,
+    SUM(CASE WHEN Resolu = 'True' THEN 1 ELSE 0 END)        AS Resolus,
+    SUM(CASE WHEN Resolu = 'False' THEN 1 ELSE 0 END)        AS NonResolus,
+    ROUND(AVG(CAST(TempsResolution_Min AS FLOAT)), 1)        AS TempsResolutionMoyen_Min
+FROM incidents
+GROUP BY TypeIncident, Severite
+</code></pre>
+<p><a id="sink-1"></a></p>
+<h4>Sink</h4>
+<table>
+<thead>
+<tr>
+<th>Paramètre</th>
+<th>Valeur</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Lakehouse</td>
+<td><code>LH_Energie_Silver</code></td>
+</tr>
+<tr>
+<td>Table</td>
+<td><code>goldincidents</code></td>
+</tr>
+<tr>
+<td>Table action option</td>
+<td><strong>OverwriteSchema</strong></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<p><a id="6-activite-5-copiermetriquesgold-copy-data"></a></p>
+<h3>6. Activité 5 — CopierMetriquesGold (Copy Data)</h3>
+<p>La table <code>metriques</code> contient déjà des KPI agrégés par jour et quartier — pas de transformation nécessaire, on la recopie telle quelle en Gold.</p>
+<ol>
+<li>Dans la branche True → glissez un troisième <strong>Copy Data</strong></li>
+<li>Onglet <strong>General</strong> → <strong>Name</strong> : <code>CopierMetriquesGold</code></li>
+</ol>
+<p><a id="source-1"></a></p>
+<h4>Source</h4>
+<table>
+<thead>
+<tr>
+<th>Paramètre</th>
+<th>Valeur</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Lakehouse</td>
+<td><code>LH_Energie_Silver</code></td>
+</tr>
+<tr>
+<td>Use query</td>
+<td>Table</td>
+</tr>
+<tr>
+<td>Table</td>
+<td><code>metriques</code></td>
+</tr>
+</tbody>
+</table>
+<p><a id="sink-2"></a></p>
+<h4>Sink</h4>
+<table>
+<thead>
+<tr>
+<th>Paramètre</th>
+<th>Valeur</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Lakehouse</td>
+<td><code>LH_Energie_Silver</code></td>
+</tr>
+<tr>
+<td>Table</td>
+<td><code>goldmetriques</code></td>
+</tr>
+<tr>
+<td>Table action option</td>
+<td><strong>OverwriteSchema</strong></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<p><a id="7-retour-au-canvas-principal-activite-6-marquerfingold-set-variable"></a></p>
+<h3>7. Retour au canvas principal — Activité 6 : MarquerFinGold (Set Variable)</h3>
+<ol>
+<li>Cliquez <strong>← Back</strong> pour revenir au canvas principal</li>
+<li><strong>Activities</strong> → <strong>General</strong> → glissez <strong>Set Variable</strong></li>
+<li><strong>Reliez</strong> : <code>ValiderQuantiteDonnees</code> → <code>MarquerFinGold</code> (flèche verte)</li>
+<li>Onglet <strong>General</strong> → <strong>Name</strong> : <code>MarquerFinGold</code></li>
+<li>Onglet <strong>Settings</strong> :<br />
+   - <strong>Variable</strong> : <code>DateExecutionGold</code><br />
+   - <strong>Value</strong> : <code>@utcNow()</code></li>
+</ol>
+<p>💡 <strong>Astuce</strong> : Cette variable enregistre l'horodatage de fin d'exécution Gold, utile pour l'audit et les logs d'orchestration.</p>
+<hr />
+<p><a id="8-sauvegarder-et-tester"></a></p>
+<h3>8. Sauvegarder et tester</h3>
+<ol>
+<li><strong>Save</strong> → attendez ✅</li>
+<li><strong>Run</strong></li>
+</ol>
+<p><strong>Durée estimée</strong> : 20-40 secondes (3 Copy en parallèle dans la branche True)</p>
+<p><strong>Vérification</strong> dans <strong>LH_Energie_Silver</strong> → <strong>Tables</strong> :</p>
+<table>
+<thead>
+<tr>
+<th>Table</th>
+<th>Lignes attendues</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>goldconsoparquartier</code></td>
+<td>~36 lignes</td>
+<td>4 quartiers × 3 jours × ~3 types</td>
+</tr>
+<tr>
+<td><code>goldincidents</code></td>
+<td>~8-12 lignes</td>
+<td>Combinaisons TypeIncident×Sévérité</td>
+</tr>
+<tr>
+<td><code>goldmetriques</code></td>
+<td>28 lignes</td>
+<td>Copie fidèle de metriques</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<p><a id="structure-complete-du-pipeline"></a></p>
+<h2>Structure complète du pipeline</h2>
+<pre><code>Canvas PL_Transformation_Silver_Gold :
+│
+├── VerifierDonneesSource (Lookup)
+│   └── Query : SELECT COUNT(*) AS NbReleves FROM MonitoringSilver
+│   └── firstRowOnly : true
+│
+└── ValiderQuantiteDonnees (If Condition)
+    └── Expression : @greater(activity('VerifierDonneesSource').output.firstRow.NbReleves, 0)
+    │
+    └── [Branche True]
+        ├── AgregarParQuartier (Copy)
+        │   └── Source : SQL agrégation MonitoringSilver
+        │   └── Sink   : goldconsoparquartier (OverwriteSchema)
+        ├── AgregarIncidents (Copy)  ← parallèle à AgregarParQuartier
+        │   └── Source : SQL agrégation incidents
+        │   └── Sink   : goldincidents (OverwriteSchema)
+        └── CopierMetriquesGold (Copy)  ← parallèle
+            └── Source : table metriques
+            └── Sink   : goldmetriques (OverwriteSchema)
+
+MarquerFinGold (Set Variable) ← après ValiderQuantiteDonnees
+    └── DateExecutionGold = @utcNow()
+</code></pre>
+<hr />
+<p><a id="analyse-des-resultats"></a></p>
+<h2>Analyse des résultats</h2>
+<p><a id="question-1-profil-de-consommation-par-quartier"></a></p>
+<h3>Question 1 : Profil de consommation par quartier</h3>
+<p><strong>Observez <code>goldconsoparquartier</code></strong> → SQL Analytics Endpoint :</p>
+<pre><code class="language-sql">SELECT Quartier, ROUND(AVG(MoyenneConso_kWh), 2) AS ConsoMoyenne
+FROM goldconsoparquartier
+GROUP BY Quartier
+ORDER BY ConsoMoyenne DESC
+</code></pre>
+<p><strong>Interprétation</strong> : Le quartier avec la plus forte consommation moyenne révèle les zones prioritaires pour l'optimisation énergétique.</p>
+<hr />
+<p><a id="question-2-incidents-les-plus-critiques"></a></p>
+<h3>Question 2 : Incidents les plus critiques</h3>
+<p><strong>Observez <code>goldincidents</code></strong> :</p>
+<pre><code class="language-sql">SELECT TypeIncident, Severite, NbIncidents, TempsResolutionMoyen_Min
+FROM goldincidents
+WHERE Severite = 'Critique'
+ORDER BY NbIncidents DESC
+</code></pre>
+<p><strong>Interprétation</strong> : Les incidents critiques les plus fréquents orientent les investissements en maintenance préventive.</p>
+<hr />
+<p><a id="question-3-kpi-de-disponibilite-reseau"></a></p>
+<h3>Question 3 : KPI de disponibilité réseau</h3>
+<p><strong>Observez <code>goldmetriques</code></strong> :</p>
+<pre><code class="language-sql">SELECT Quartier,
+       ROUND(AVG(Taux_Disponibilite_Pct), 2) AS DisponibiliteMoyenne,
+       ROUND(AVG(Pertes_Energie_Pct), 2)     AS PertesMoyennes
+FROM goldmetriques
+GROUP BY Quartier
+ORDER BY DisponibiliteMoyenne ASC
+</code></pre>
+<p><strong>Interprétation</strong> : Le quartier avec la plus faible disponibilité est la priorité d'intervention. Un taux &lt; 95% est considéré comme critique dans une grille intelligente.</p>
+<hr />
+<p><a id="activites-fabric-utilisees-dans-ce-pipeline"></a></p>
+<h2>🎓 Activités Fabric utilisées dans ce pipeline</h2>
+<table>
+<thead>
+<tr>
+<th>Activité</th>
+<th>Rôle</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Lookup</strong></td>
+<td>Vérification préalable du volume de données</td>
+</tr>
+<tr>
+<td><strong>If Condition</strong></td>
+<td>Garde-fou contre un Silver vide</td>
+</tr>
+<tr>
+<td><strong>Copy Data</strong></td>
+<td>Agrégation SQL + écriture Gold (×3 parallèles)</td>
+</tr>
+<tr>
+<td><strong>Set Variable</strong></td>
+<td>Horodatage de fin pour audit</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<p><a id="bonus-mis-a-jour-pipeline-orchestrateur-3-pipelines"></a></p>
+<h1>🍒 BONUS mis à jour : Pipeline Orchestrateur (3 pipelines)</h1>
+<p><a id="nouveau-workflow"></a></p>
+<h2>Nouveau workflow</h2>
+<pre><code>ExecuterChargementCSV → SynchronisationBronze → ExecuterTransformationSilver
+    → SynchronisationSilver → ExecuterTransformationGold → MarquerFinOrchestration
+</code></pre>
+<p>L'orchestrateur enchaîne désormais les <strong>3 pipelines</strong> de façon séquentielle et garantie.</p>
+<hr />
+<p><a id="mise-a-jour-de-plorchestrateurmaster"></a></p>
+<h2>Mise à jour de PL_Orchestrateur_Master</h2>
+<p>Ouvrez le pipeline <code>PL_Orchestrateur_Master</code> existant (qui chaîne déjà Pipeline 1 et Pipeline 2).</p>
+<p><a id="etape-a-renommer-le-wait-existant-optionnel-mais-recommande"></a></p>
+<h3>Étape A — Renommer le Wait existant (optionnel mais recommandé)</h3>
+<ol>
+<li>Cliquez sur l'activité <strong>Wait</strong> existante (<code>SynchronisationDonnees</code>)</li>
+<li>Onglet <strong>General</strong> → <strong>Name</strong> : <code>SynchronisationBronze</code></li>
+</ol>
+<p><a id="etape-b-ajouter-wait-silver"></a></p>
+<h3>Étape B — Ajouter Wait Silver</h3>
+<ol>
+<li><strong>Activities</strong> → <strong>General</strong> → glissez un nouveau <strong>Wait</strong></li>
+<li><strong>Reliez</strong> : <code>ExecuterTransformationSilver</code> → <code>SynchronisationSilver</code> (flèche verte)</li>
+<li>Onglet <strong>General</strong> → <strong>Name</strong> : <code>SynchronisationSilver</code></li>
+<li>Onglet <strong>Settings</strong> → <strong>Wait time in seconds</strong> : <code>5</code></li>
+</ol>
+<p><a id="etape-c-ajouter-execute-pipeline-3"></a></p>
+<h3>Étape C — Ajouter Execute Pipeline 3</h3>
+<ol>
+<li><strong>Activities</strong> → <strong>General</strong> → glissez <strong>Execute Pipeline</strong></li>
+<li><strong>Reliez</strong> : <code>SynchronisationSilver</code> → <code>ExecuterTransformationGold</code> (flèche verte)</li>
+<li>Onglet <strong>General</strong> → <strong>Name</strong> : <code>ExecuterTransformationGold</code></li>
+<li>Onglet <strong>Settings</strong> :<br />
+   - <strong>Invoked pipeline</strong> : <code>PL_Transformation_Silver_Gold</code><br />
+   - <strong>Wait on completion</strong> : ✅ (coché)</li>
+</ol>
+<p><a id="etape-d-ajouter-set-variable-de-fin-optionnel"></a></p>
+<h3>Étape D — Ajouter Set Variable de fin (optionnel)</h3>
+<ol>
+<li><strong>Activities</strong> → <strong>General</strong> → glissez <strong>Set Variable</strong></li>
+<li><strong>Reliez</strong> : <code>ExecuterTransformationGold</code> → <code>MarquerFinOrchestration</code></li>
+<li>Onglet <strong>General</strong> → <strong>Name</strong> : <code>MarquerFinOrchestration</code></li>
+<li>Onglet <strong>Settings</strong> :<br />
+   - <strong>Variable</strong> : (si non définie, ajoutez-la d'abord dans Variables : <code>DateFinExecution</code>, type String)<br />
+   - <strong>Value</strong> : <code>@utcNow()</code></li>
+</ol>
+<p><a id="etape-e-sauvegarder-et-tester"></a></p>
+<h3>Étape E — Sauvegarder et tester</h3>
+<ol>
+<li><strong>Save</strong> → <strong>Run</strong></li>
+</ol>
+<p><strong>Durée totale estimée</strong> : 2-4 minutes (3 pipelines enchaînés)</p>
+<hr />
+<p><a id="structure-finale-de-lorchestrateur"></a></p>
+<h2>Structure finale de l'orchestrateur</h2>
+<pre><code>Canvas PL_Orchestrateur_Master :
+│
+├── ExecuterChargementCSV (Execute Pipeline)
+│   └── Exécute : PL_Chargement_CSV_Bronze
+│   └── Wait on completion : true
+│
+├── SynchronisationBronze (Wait — 5s)
+│
+├── ExecuterTransformationSilver (Execute Pipeline)
+│   └── Exécute : PL_Transformation_Bronze_Silver
+│   └── Wait on completion : true
+│
+├── SynchronisationSilver (Wait — 5s)
+│
+├── ExecuterTransformationGold (Execute Pipeline)
+│   └── Exécute : PL_Transformation_Silver_Gold
+│   └── Wait on completion : true
+│
+└── MarquerFinOrchestration (Set Variable)
+    └── DateFinExecution = @utcNow()
+</code></pre>
+<hr />
+<p><a id="tableau-recapitulatif-4-pipelines-toutes-activites"></a></p>
+<h2>🎓 Tableau récapitulatif — 4 pipelines, toutes activités</h2>
+<p>&lt;&lt;&lt;&lt;&lt;&lt;&lt; HEAD<br />
+| Activité             | PL1 Bronze | PL2 Silver | PL3 Gold | Orchestrateur |<br />
+| -------------------- | ---------- | ---------- | -------- | ------------- |<br />
+| <strong>Copy Data</strong>        | ✅ ×5       | ✅ ×2       | ✅ ×3     | ❌             |<br />
+| <strong>Lookup</strong>           | ❌          | ✅ ×2       | ✅ ×1     | ❌             |<br />
+| <strong>If Condition</strong>     | ❌          | ✅          | ✅        | ❌             |<br />
+| <strong>Until</strong>            | ❌          | ✅          | ❌        | ❌             |<br />
+| <strong>Wait</strong>             | ❌          | ✅          | ❌        | ✅ ×2          |<br />
+| <strong>Set Variable</strong>     | ❌          | ✅ ×2       | ✅ ×1     | ✅ ×1          |<br />
+| <strong>Append Variable</strong>  | ❌          | ✅          | ❌        | ❌             |<br />
+| <strong>Execute Pipeline</strong> | ❌          | ❌          | ❌        | ✅ ×3          |<br />
+=======<br />
+| Activité | PL1 Bronze | PL2 Silver | PL3 Gold | Orchestrateur |<br />
+| --- | --- | --- | --- | --- |<br />
+| <strong>Copy Data</strong> | ✅ ×5 | ✅ ×2 | ✅ ×3 | ❌   |<br />
+| <strong>Lookup</strong> | ❌   | ✅ ×2 | ✅ ×1 | ❌   |<br />
+| <strong>If Condition</strong> | ❌   | ✅   | ✅   | ❌   |<br />
+| <strong>Until</strong> | ❌   | ✅   | ❌   | ❌   |<br />
+| <strong>Wait</strong> | ❌   | ✅   | ❌   | ✅ ×2 |<br />
+| <strong>Set Variable</strong> | ❌   | ✅ ×2 | ✅ ×1 | ✅ ×1 |<br />
+| <strong>Append Variable</strong> | ❌   | ✅   | ❌   | ❌   |<br />
+| <strong>Execute Pipeline</strong> | ❌   | ❌   | ❌   | ✅ ×3 |</p>
+<blockquote>
+<blockquote>
+<blockquote>
+<blockquote>
+<blockquote>
+<blockquote>
+<blockquote>
+<p>f88dff602ffaacd4231b505c0bc0f2b02880184a</p>
+</blockquote>
+</blockquote>
+</blockquote>
+</blockquote>
+</blockquote>
+</blockquote>
+</blockquote>
+<p><strong>Total : 9 activités différentes couvrant l'intégralité du catalogue Fabric Data Pipeline.</strong></p>
+<hr />
+<p><a id="resultat-final-apres-execution-de-lorchestrateur"></a></p>
+<h2>Résultat final après exécution de l'orchestrateur</h2>
+<pre><code>📁 LH_Energie_Silver/
+├── Files/smartgrid/ (inchangé — 5 CSV sources)
+└── Tables/
+    ├── Bronze (chargées par PL1)
+    │   ├── infrastructures     (100 lignes)
+    │   ├── monitoring          (7 200 lignes)
+    │   ├── incidents           (50 lignes)
+    │   ├── metriques           (28 lignes)
+    │   └── seuils              (4 lignes)
+    ├── Silver (transformées par PL2)
+    │   ├── CapteursSilver    (~55 capteurs actifs)
+    │   └── MonitoringSilver    (~3 960 relevés filtrés)
+    └── Gold (agrégées par PL3)
+        ├── goldconsoparquartier (~36 lignes — KPI par quartier/type/jour)
+        ├── goldincidents        (~10 lignes — synthèse incidents)
+        └── goldmetriques        (28 lignes — KPI opérationnels)
+</code></pre>
+<p><strong>10 tables Delta Lake produites en un seul clic. Architecture Medallion complète opérationnelle.</strong></p>
+<blockquote>
+<blockquote>
+<blockquote>
+<blockquote>
+<blockquote>
+<blockquote>
+<blockquote></blockquote>
+</blockquote>
+</blockquote>
+</blockquote>
+</blockquote>
+</blockquote>
+</blockquote></main>
+</body>
+</html>

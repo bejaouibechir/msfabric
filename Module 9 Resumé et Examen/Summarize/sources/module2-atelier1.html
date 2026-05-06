@@ -1,0 +1,1168 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Atelier Pipeline – Étude de cas 1</title>
+  <link rel="stylesheet" href="../assets/source.css">
+</head>
+<body>
+  <header class="src-header">
+    <a href="../index.html" class="back-link">&#8592; Retour à la présentation</a>
+    <h1 class="src-title">Atelier Pipeline – Étude de cas 1</h1>
+  </header>
+  <main class="src-content"><p><a id="atelier-1-ingestion-dynamique-multi-sources-avec-validation"></a></p>
+<h1>Atelier 1 : Ingestion dynamique multi-sources avec validation</h1>
+<p><a id="contexte-optimisation-dune-chaine-dapprovisionnement-en-energie-renouvelable"></a></p>
+<h2>Contexte : Optimisation d'une chaîne d'approvisionnement en énergie renouvelable</h2>
+<p>Une <strong>usine de production traditionnelle</strong> décide de migrer vers un modèle hybride solaire-éolien. Les données énergétiques proviennent de multiples capteurs et systèmes (consommation actuelle, production solaire, production éolienne, stockage batteries).</p>
+<p><a id="1-etat-des-lieux"></a></p>
+<h3>1. État des lieux</h3>
+<ul>
+<li><strong>3 sources de données</strong> quotidiennes :</li>
+<li><code>besoins_energetiques.csv</code> (consommation horaire de l'usine)</li>
+<li><code>production_solaire.csv</code> (rendement des panneaux par zone)</li>
+<li><code>production_eolienne.csv</code> (données des turbines)</li>
+<li><strong>Dépôt non structuré</strong> : fichiers déposés manuellement dans un dossier</li>
+<li><strong>Absence de validation</strong> : impossible de savoir si toutes les sources sont arrivées</li>
+<li><strong>Processus manuel</strong> : un technicien vérifie et importe les fichiers dans Excel</li>
+</ul>
+<p><a id="2-problematique"></a></p>
+<h3>2. Problématique</h3>
+<p>Comment automatiser l'ingestion de données énergétiques hétérogènes pour analyser les besoins actuels et identifier les sources renouvelables disponibles, sans intervention manuelle et avec validation de la complétude ?</p>
+<p>Contraintes :</p>
+<ul>
+<li>✅ Détecter dynamiquement quels fichiers sont présents</li>
+<li>✅ Ignorer les fichiers non-CSV (logs techniques, images...)</li>
+<li>✅ Créer une table Bronze par source énergétique</li>
+<li>✅ Tracer les fichiers ingérés pour l'audit</li>
+</ul>
+<p><a id="3-solution-pipeline-dingestion-intelligent"></a></p>
+<h3>3. Solution : Pipeline d'ingestion intelligent</h3>
+<p>Pipeline qui scanne, filtre, copie et trace automatiquement toutes les sources énergétiques vers Bronze.</p>
+<p><a id="etapes"></a></p>
+<h2>Étapes</h2>
+<p><a id="1-creer-le-workspace"></a></p>
+<h3>1. Créer le workspace</h3>
+<ol>
+<li>Ouvrez <strong>Microsoft Fabric</strong> : <code>https://app.fabric.microsoft.com</code></li>
+<li>Barre latérale gauche → cliquez sur <strong>Workspaces</strong></li>
+<li>Cliquez <strong>+ New workspace</strong></li>
+<li>Remplissez :<br />
+   - <strong>Name</strong> : <code>WS_Energie_Renouvelable</code><br />
+   - <strong>Description</strong> : <code>Workspace pour optimisation chaîne approvisionnement énergie</code><br />
+   - <strong>Advanced</strong> → <strong>License mode</strong> : sélectionnez votre licence (Trial ou Premium)</li>
+<li>Cliquez <strong>Apply</strong></li>
+</ol>
+<p>💡 <strong>Astuce</strong> : Le workspace est votre conteneur principal, tout sera créé dedans</p>
+<hr />
+<p><a id="2-creer-le-lakehouse-bronze"></a></p>
+<h3>2. Créer le lakehouse Bronze</h3>
+<ol>
+<li>Dans le workspace <strong>WS_Energie_Renouvelable</strong>, cliquez <strong>+ New item</strong></li>
+<li>Sélectionnez <strong>Lakehouse</strong></li>
+<li><strong>Name</strong> : <code>LH_Energie_Bronze</code></li>
+<li>Cliquez <strong>Create</strong></li>
+</ol>
+<p>⏳ Attendez la création (15-30 secondes)</p>
+<hr />
+<p><a id="3-creer-le-dossier-landing-et-uploader-les-fichiers"></a></p>
+<h3>3. Créer le dossier landing et uploader les fichiers</h3>
+<ol>
+<li>Dans <strong>LH_Energie_Bronze</strong>, section <strong>Explorer</strong> (gauche)</li>
+<li>Cliquez <strong>Files</strong> → bouton <strong>...</strong> (3 points) → <strong>New subfolder</strong></li>
+<li><strong>Folder name</strong> : <code>landing</code></li>
+<li>Cliquez <strong>Create</strong></li>
+<li>Cliquez sur le dossier <strong>landing</strong> pour l'ouvrir</li>
+<li>Cliquez <strong>Upload</strong> → <strong>Upload files</strong></li>
+<li>Sélectionnez les 3 fichiers CSV générés :<br />
+   - <code>besoins_energetiques.csv</code><br />
+   - <code>production_solaire.csv</code><br />
+   - <code>production_eolienne.csv</code></li>
+<li>Cliquez <strong>Upload</strong></li>
+</ol>
+<p>✅ Vérifiez que les 3 fichiers apparaissent dans <code>Files/landing/</code></p>
+<hr />
+<p><a id="4-creer-le-pipeline"></a></p>
+<h3>4. Créer le pipeline</h3>
+<ol>
+<li>Cliquez sur le nom du workspace <strong>WS_Energie_Renouvelable</strong> (en haut à gauche)</li>
+<li>Cliquez <strong>+ New item</strong></li>
+<li>Recherchez et sélectionnez <strong>Data pipeline</strong></li>
+<li><strong>Name</strong> : <code>PL_Ingestion_Energie_Bronze</code></li>
+<li>Cliquez <strong>Create</strong></li>
+</ol>
+<p>Le canvas du pipeline s'ouvre (zone blanche avec grille).</p>
+<hr />
+<p><a id="5-ajouter-lactivite-get-metadata"></a></p>
+<h2>5. Ajouter l'activité Get Metadata</h2>
+<ol start="6">
+<li>
+<p>Panneau <strong>Activities</strong> (gauche) → section <strong>General</strong></p>
+</li>
+<li>
+<p>Glissez <strong>Get Metadata</strong> sur le canvas</p>
+</li>
+<li>
+<p>Cliquez sur l'activité pour la sélectionner</p>
+</li>
+<li>
+<p>En bas, onglet <strong>General</strong> :</p>
+</li>
+</ol>
+<ul>
+<li><strong>Name</strong> : <code>ScanLanding</code></li>
+</ul>
+<ol start="10">
+<li>
+<p>Onglet <strong>Settings</strong> :</p>
+<ul>
+<li>Séléctionner la connection mon exemple <strong>(Lakehouse formateur4 (Preview)</strong></li>
+</ul>
+</li>
+<li>
+<ul>
+<li>
+<p><strong>Lakehouse</strong> : sélectionnez <code>LH_Energie_Bronze</code></p>
+</li>
+<li>
+<p>Cliquez <strong>Create</strong></p>
+</li>
+<li>
+<p><strong>Root folder</strong> : sélectionnez <code>Files</code></p>
+</li>
+<li>
+<p>Dans <strong>File path</strong> vous avez deux champs dans le premier vous mettez <code>landing</code> à côte du deuxième, il y a une icone <strong>Browse</strong> cliquez là et naviguer vers le fichier <code>besoins_energetiques.csv</code></p>
+</li>
+<li>
+<p>Dans la propeirété <strong>File format</strong> vous choisissez <strong>Delimited Text</strong></p>
+</li>
+<li>
+<p>Observez que l'option <strong>Preview data</strong> devient active cliquez là pour visualiser les données </p>
+</li>
+</ul>
+</li>
+<li>
+<p>Supprimez le nom du fichier laissez seulement ne nom du dossier sur <strong>Settings</strong> de <strong>ScanLanding</strong> :</p>
+<ul>
+<li><strong>Field list</strong> : cliquez <strong>+ New</strong></li>
+<li>Cochez <strong>Child items</strong></li>
+<li>Cliquez <strong>OK</strong></li>
+</ul>
+</li>
+</ol>
+<p>💡 <strong>Astuce</strong> : Get Metadata avec Child items retourne la liste de tous les fichiers du dossier </p>
+<hr />
+<p><a id="6-creer-les-variables-du-pipeline"></a></p>
+<h3>6. Créer les variables du pipeline</h3>
+<ol>
+<li>En bas du canvas, cliquez sur l'onglet <strong>Variables</strong></li>
+<li>Cliquez <strong>+ New</strong> (3 fois pour créer 3 variables)</li>
+</ol>
+<p><strong>Variable 1</strong> :</p>
+<ul>
+<li><strong>Name</strong> : <code>FichiersTraites</code></li>
+<li><strong>Type</strong> : <code>Array</code></li>
+<li><strong>Default value</strong> : laissez vide</li>
+</ul>
+<p><strong>Variable 2</strong> :</p>
+<ul>
+<li><strong>Name</strong> : <code>FichierActuel</code></li>
+<li><strong>Type</strong> : <code>String</code></li>
+<li><strong>Default value</strong> : laissez vide</li>
+</ul>
+<p><strong>Variable 3</strong> :</p>
+<ul>
+<li><strong>Name</strong> : <code>NombreFichiers</code></li>
+<li><strong>Type</strong> : <code>Integer</code></li>
+<li><strong>Default value</strong> : <code>0</code></li>
+</ul>
+<p><strong>Variable 4</strong> :</p>
+<ul>
+<li><strong>Name</strong> : <code>FichiersTemp</code></li>
+<li><strong>Type</strong> : <code>Array</code></li>
+<li><strong>Default value</strong> : laissez vide</li>
+</ul>
+<p>💡 <strong>Astuce</strong> : <code>FichiersTemp</code> sert de variable tampon intermédiaire — Fabric interdit à une variable de se référencer elle-même dans <code>Set Variable</code>, donc on accumule d'abord dans <code>FichiersTemp</code> puis on copie vers <code>FichiersTraites</code>.</p>
+<hr />
+<p><a id="7-ajouter-lactivite-foreach"></a></p>
+<h3>7. Ajouter l'activité ForEach</h3>
+<ol>
+<li>
+<p><strong>Activities</strong> → <strong>Iteration &amp; Conditionals</strong></p>
+</li>
+<li>
+<p>Glissez <strong>ForEach</strong> sur le canvas (à droite de ScanLanding)</p>
+</li>
+<li>
+<p>Reliez <strong>ScanLanding</strong> à <strong>ForEach</strong> :</p>
+</li>
+</ol>
+<ul>
+<li>Survolez <strong>ScanLanding</strong> → petit carré vert apparaît</li>
+<li>Cliquez et glissez vers <strong>ForEach</strong> (flèche verte se crée)</li>
+</ul>
+<ol start="4">
+<li>
+<p>Cliquez sur <strong>ForEach</strong></p>
+</li>
+<li>
+<p>Onglet <strong>General</strong> :</p>
+</li>
+</ol>
+<ul>
+<li><strong>Name</strong> : <code>BouclerFichiers</code></li>
+</ul>
+<ol start="6">
+<li>Onglet <strong>Settings</strong> :</li>
+</ol>
+<ul>
+<li><strong>Items</strong> : cliquez dans le champ → <strong>Add dynamic content</strong></li>
+<li>Copiez-collez cette expression :</li>
+</ul>
+<p><code>@activity('ScanLanding').output.childItems</code></p>
+<ul>
+<li>Cliquez <strong>OK</strong></li>
+</ul>
+<p>💡 <strong>Astuce</strong> : Cette expression récupère le tableau des fichiers détectés par Get Metadata</p>
+<hr />
+<p><a id="8-ajouter-lactivite-if-condition-dans-foreach"></a></p>
+<h3>8. Ajouter l'activité If Condition (dans ForEach)</h3>
+<ol>
+<li><strong>Double-cliquez</strong> sur l'activité <strong>BouclerFichiers</strong></li>
+</ol>
+<ul>
+<li>Une nouvelle zone de canvas s'ouvre (vous êtes maintenant "à l'intérieur" de la boucle)</li>
+</ul>
+<ol start="2">
+<li>
+<p><strong>Activities</strong> → <strong>Iteration &amp; Conditionals</strong></p>
+</li>
+<li>
+<p>Glissez <strong>If Condition</strong> sur ce canvas intérieur</p>
+</li>
+<li>
+<p>Cliquez sur <strong>If Condition</strong></p>
+</li>
+<li>
+<p>Onglet <strong>General</strong> :</p>
+</li>
+</ol>
+<ul>
+<li><strong>Name</strong> : <code>EstCSV</code></li>
+</ul>
+<ol start="6">
+<li>Onglet <strong>Activities</strong> :</li>
+</ol>
+<ul>
+<li><strong>Expression</strong> : cliquez <strong>Add dynamic content</strong></li>
+<li>Copiez-collez :</li>
+</ul>
+<p><code>@endswith(item().name, '.csv')</code></p>
+<p>💡 <strong>Astuce</strong> : <code>item()</code> représente l'élément actuel de la boucle ForEach</p>
+<p>⚠️ <strong>Piège</strong> : C'est <code>item()</code> sans <code>s</code>, pas <code>items()</code></p>
+<hr />
+<p><a id="9-configurer-la-branche-true-copy-data"></a></p>
+<h3>9. Configurer la branche True - Copy Data</h3>
+<ol>
+<li>Sur l'activité <strong>EstCSV</strong>, cliquez sur l'icône <strong>crayon</strong> dans la section <strong>True</strong><br />
+   - Une nouvelle zone s'ouvre (branche True)</li>
+<li>Dans <strong>Activities</strong> sous section <strong>Move &amp; Transform</strong></li>
+<li>Glissez <strong>Copy data</strong> sur ce canvas</li>
+<li>Cliquez sur <strong>Copy data</strong></li>
+<li>Onglet <strong>General</strong> :<br />
+   - <strong>Name</strong> : <code>CopierVersBronze</code></li>
+</ol>
+<p><strong>Configuration Source</strong> :</p>
+<ol start="6">
+<li>Onglet <strong>Source</strong> :</li>
+</ol>
+<ul>
+<li>Selectionnez <strong>Connection</strong> et mettez la connection exemple <strong>(Lakehouse formateur4 (Preview)</strong></li>
+<li>Dans <strong>Lakehouse</strong> selectionnez <code>LH_Energie_Bronze</code> dans la liste déroulante</li>
+<li>Pour <strong>Root folder</strong> selectionnez <strong>Files</strong></li>
+<li>En <strong>File path type</strong> selectionnez <strong>File path</strong></li>
+<li>Dans <strong>Folder path</strong> : entrez <code>landing</code></li>
+<li>Dans <strong>File name</strong> : cliquez <strong>Add dynamic content</strong> et entrez :</li>
+</ul>
+<p><code>@item().name</code></p>
+<ul>
+<li>En <strong>File format</strong> choisissez <strong>DelimitedText</strong></li>
+</ul>
+<ol start="7">
+<li>Onglet <strong>Destination</strong>:</li>
+</ol>
+<ul>
+<li>
+<p>Selectionner la connetion <strong>Lakehouse formateur4 (Preview) mon cas</strong> </p>
+</li>
+<li>
+<p>En <strong>Lakehouse</strong> selectionner <code>LH_Energie_Bronze</code> </p>
+</li>
+<li>
+<p>En <strong>Root folder</strong> selectionner <strong>Tables</strong></p>
+</li>
+<li>
+<p>En table action selectionnez <strong>Append</strong></p>
+</li>
+<li>
+<p>En <strong>Table</strong> mettre le focus une ligne verte  <strong>Add dynamic content</strong> s'affiche mettez l'expression <code>@replace(item().name, '.csv', '')</code> dans ce champ</p>
+</li>
+<li>
+<p>Laisser le check box <strong>Enter manually</strong> cochée</p>
+</li>
+</ul>
+<ol start="8">
+<li>
+<p>On laisse les propriétés dans les onglets <strong>Mapping</strong> et <strong>Settings</strong> tel qu'ils son</p>
+</li>
+<li>
+<p>Retour sur <strong>Source</strong> de <strong>CopierVersBronze</strong> :</p>
+</li>
+</ol>
+<ul>
+<li>Selectionner <strong>File path</strong>   </li>
+<li>Cliquer sur l'icône <strong>Add dynamic content</strong> (petit rectangle)</li>
+<li>Dans <strong>File path - Folder</strong> : entrez <code>landing</code></li>
+<li>Dans <strong>File path - File</strong> : cliquez <strong>Add dynamic content</strong></li>
+<li>Copiez-collez :</li>
+</ul>
+<p><code>@item().name</code></p>
+<ol start="10">
+<li>Onglet <strong>Destination</strong>  :<br />
+- <strong>Connection</strong> : sélectionnez votre connexion <code>LH_Energie_Bronze</code> existante<br />
+- <strong>Lakehouse</strong> : sélectionnez <code>LH_Energie_Bronze</code><br />
+- <strong>Root folder</strong> : sélectionnez <strong><code>Tables</code></strong> (pas Files)</li>
+<li><strong>Table</strong> :<ul>
+<li><strong>Cochez</strong> la case <strong><code>Enter manually</code></strong></li>
+<li>Un champ texte apparaît</li>
+<li>Cliquez sur l'icône <strong>Add dynamic content</strong> (petit rectangle)</li>
+<li>Copiez-collez :</li>
+</ul>
+</li>
+</ol>
+<pre><code>    @replace(item().name, '.csv', '')
+</code></pre>
+<pre><code>- Cliquez **OK**
+</code></pre>
+<ol start="13">
+<li>
+<p><strong>Table action</strong> :</p>
+<ul>
+<li>Sélectionnez <strong><code>Append</code></strong></li>
+</ul>
+</li>
+<li>
+<p><strong>Apply V-Order</strong> :</p>
+<p>Décochez ☐ (laissez <strong>non coché</strong> — désactivé)</p>
+</li>
+<li>
+<p>Onglets <strong>Mapping</strong> et <strong>Settings</strong> :</p>
+<p>Laissez toutes les valeurs par défaut</p>
+<ul>
+<li><strong>Mapping</strong> : Auto-détection activée</li>
+<li><strong>Settings</strong> : <code>Auto</code> pour tous les paramètres</li>
+</ul>
+</li>
+</ol>
+<p>💡 <strong>Astuce</strong> : <code>replace()</code> enlève <code>.csv</code> pour créer <code>besoins_energetiques</code> au lieu de <code>besoins_energetiques.csv</code></p>
+<p>⚠️ <strong>Important</strong> : Il n'y a plus de "Dataset" à créer pour la destination dans l'interface actuelle. Tout se configure directement dans l'onglet <strong>Destination</strong>.</p>
+<hr />
+<p><a id="10-ajouter-les-activites-de-tracabilite-dans-la-branche-true"></a></p>
+<h3>10. Ajouter les activités de traçabilité (dans la branche True)</h3>
+<p>Toujours dans la branche <strong>True</strong>, après <strong>CopierVersBronze</strong>, il faut ajouter <strong>deux activités</strong> pour tracer les fichiers traités.</p>
+<p><a id="activite-1-tracerfichier-append-variable"></a></p>
+<h4>Activité 1 : TracerFichier (Append Variable)</h4>
+<ol>
+<li>
+<p><strong>Activities</strong> → <strong>General</strong> → glissez <strong>Append Variable</strong> sur le canvas</p>
+</li>
+<li>
+<p>Reliez <strong>CopierVersBronze</strong> → <strong>TracerFichier</strong> (flèche verte)</p>
+</li>
+<li>
+<p>Cliquez sur <strong>Append Variable</strong></p>
+</li>
+<li>
+<p>Onglet <strong>General</strong> :</p>
+</li>
+</ol>
+<ul>
+<li><strong>Name</strong> : <code>TracerFichier</code></li>
+</ul>
+<ol start="5">
+<li>Onglet <strong>Settings</strong> :</li>
+</ol>
+<ul>
+<li><strong>Variable name</strong> : sélectionnez <code>FichiersTemp</code></li>
+<li><strong>Value</strong> : cliquez <strong>Add dynamic content</strong></li>
+<li>Copiez-collez :</li>
+</ul>
+<p><code>@item().name</code></p>
+<ul>
+<li>Cliquez <strong>OK</strong></li>
+</ul>
+<p>💡 <strong>Astuce</strong> : On accumule dans <code>FichiersTemp</code> car Fabric interdit à une variable de se référencer elle-même — c'est la variable tampon intermédiaire.</p>
+<hr />
+<p><a id="activite-2-recuperertracage-set-variable"></a></p>
+<h4>Activité 2 : RecupererTracage (Set Variable)</h4>
+<ol>
+<li>
+<p><strong>Activities</strong> → <strong>General</strong> → glissez <strong>Set Variable</strong> sur le canvas</p>
+</li>
+<li>
+<p>Reliez <strong>TracerFichier</strong> → <strong>RecupererTracage</strong> (flèche verte)</p>
+</li>
+<li>
+<p>Cliquez sur <strong>Set Variable</strong></p>
+</li>
+<li>
+<p>Onglet <strong>General</strong> :</p>
+</li>
+</ol>
+<ul>
+<li><strong>Name</strong> : <code>RecupererTracage</code></li>
+</ul>
+<ol start="5">
+<li>Onglet <strong>Settings</strong> :</li>
+</ol>
+<ul>
+<li><strong>Variable name</strong> : sélectionnez <code>FichiersTraites</code></li>
+<li><strong>Value</strong> : cliquez <strong>Add dynamic content</strong></li>
+<li>Copiez-collez :</li>
+</ul>
+<p><code>@variables('FichiersTemp')</code></p>
+<ul>
+<li>Cliquez <strong>OK</strong></li>
+</ul>
+<p>💡 <strong>Astuce</strong> : <code>RecupererTracage</code> recopie l'état actuel de <code>FichiersTemp</code> dans <code>FichiersTraites</code> à chaque itération. À la fin de la boucle, <code>FichiersTraites</code> contient la liste complète des fichiers traités.</p>
+<p>⚠️ <strong>Pourquoi deux activités ?</strong> Fabric interdit l'expression <code>@union(variables('FichiersTraites'), array(item().name))</code> dans un <code>Set Variable</code> car la variable ne peut pas se référencer elle-même (<em>self-referencing variable error</em>). Le pattern <code>FichiersTemp</code> → <code>FichiersTraites</code> contourne cette limitation.</p>
+<hr />
+<p><a id="12-retourner-au-canvas-principal"></a></p>
+<h3>12. Retourner au canvas principal</h3>
+<ol>
+<li>En haut à gauche, cliquez sur le fil d'Ariane : <strong>PL_Ingestion_Energie_Bronze</strong><br />
+   - Vous revenez au canvas principal avec votre pipeline complet</li>
+</ol>
+<hr />
+<p><a id="13-configurer-foreach"></a></p>
+<h3>13. Configurer ForEach</h3>
+<p>Le champ <strong>Items</strong> du <strong>ForEach</strong> est vide. Il faut y mettre l'expression dynamique.</p>
+<ol>
+<li>Cliquez sur l'activité <strong>BouclerFichiers</strong> (ForEach)</li>
+<li>Onglet <strong>Settings</strong> en bas</li>
+<li>Dans le champ <strong>Items</strong>, cliquez sur <strong>Add dynamic content</strong></li>
+<li>Copiez-collez cette expression :</li>
+</ol>
+<pre><code>@activity('ScanLanding').output.childItems
+</code></pre>
+<ol start="5">
+<li>Cliquez <strong>OK</strong></li>
+</ol>
+<p><a id="13-sauvegarder-le-pipeline"></a></p>
+<h3>13. Sauvegarder le pipeline</h3>
+<ol>
+<li>Cliquez <strong>Save</strong> (icône disquette en haut)</li>
+<li>Attendez la confirmation (✅ en haut à droite)</li>
+</ol>
+<hr />
+<p><a id="14-deboguer-et-tester-le-pipeline"></a></p>
+<h3>14. Déboguer et tester le pipeline</h3>
+<ol>
+<li>Cliquez <strong>Run</strong> en haut de la page</li>
+<li>Attendez l'exécution (15-45 secondes)</li>
+<li>Observez le <strong>Output</strong> :<br />
+   - <strong>ScanLanding</strong> : doit afficher <code>Succeeded</code> avec 3 items dans childItems<br />
+   - <strong>BouclerFichiers</strong> : 3 itérations visibles<br />
+   - <strong>EstCSV</strong> : 3× <code>Succeeded</code> (True branch)<br />
+   - <strong>CopierVersBronze</strong> : 3× <code>Succeeded</code><br />
+   - <strong>TracerFichier</strong> : 3× <code>Succeeded</code> (Append dans FichiersTemp)<br />
+   - <strong>RecupererTracage</strong> : 3× <code>Succeeded</code> (Copie dans FichiersTraites)</li>
+</ol>
+<p>💡 <strong>Astuce</strong> : Cliquez sur chaque activité dans Output pour voir les détails (JSON)</p>
+<p>⚠️ <strong>Piège</strong> : Si une activité échoue, cliquez dessus pour voir l'erreur détaillée</p>
+<hr />
+<p><a id="15-valider-les-tables-bronze-creees"></a></p>
+<h3>15. Valider les tables Bronze créées</h3>
+<ol>
+<li>Retournez au workspace <strong>WS_Energie_Renouvelable</strong></li>
+<li>Ouvrez <strong>LH_Energie_Bronze</strong></li>
+<li>Section <strong>Tables</strong> (gauche) :<br />
+   - ✅ <code>besoins_energetiques</code> → 168 lignes<br />
+   - ✅ <code>production_solaire</code> → 175 lignes<br />
+   - ✅ <code>production_eolienne</code> → 840 lignes</li>
+<li>Cliquez sur une table pour prévisualiser les données</li>
+</ol>
+<hr />
+<p><a id="resultat-attendu"></a></p>
+<h2>Résultat attendu</h2>
+<pre><code> LH_Energie_Bronze/Tables/
+├── besoins_energetiques (168 lignes - consommation horaire 1 semaine)
+├── production_solaire (175 lignes - 25 panneaux × 7 jours)
+└── production_eolienne (840 lignes - 5 turbines × 168 heures)
+</code></pre>
+<hr />
+<p><a id="section-analyse-interpretation-des-resultats-atelier-1"></a></p>
+<h1>Section Analyse : Interprétation des résultats - Atelier 1</h1>
+<p><a id="rappel-de-la-problematique"></a></p>
+<h2>Rappel de la problématique</h2>
+<p>Une usine de production traditionnelle migre vers un modèle hybride solaire-éolien. Comment automatiser l'ingestion de données énergétiques hétérogènes pour analyser les besoins actuels et identifier les sources renouvelables disponibles, sans intervention manuelle et avec validation de la complétude ?</p>
+<hr />
+<p><a id="analyse-des-resultats-obtenus"></a></p>
+<h2>Analyse des résultats obtenus</h2>
+<p><a id="resultats-techniques"></a></p>
+<h3>Résultats techniques</h3>
+<p>Après exécution du pipeline <code>PL_Ingestion_Energie_Bronze</code>, vérifiez dans <strong>LH_Energie_Bronze</strong> → <strong>Tables</strong> :</p>
+<table>
+<thead>
+<tr>
+<th>Table</th>
+<th>Lignes obtenues</th>
+<th>Type de données</th>
+<th>Période couverte</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>besoins_energetiques</code></td>
+<td>168</td>
+<td>Consommation horaire de l'usine</td>
+<td>1 semaine (7j × 24h)</td>
+</tr>
+<tr>
+<td><code>production_solaire</code></td>
+<td>175</td>
+<td>Rendement des panneaux par zone</td>
+<td>7 jours × 25 panneaux</td>
+</tr>
+<tr>
+<td><code>production_eolienne</code></td>
+<td>840</td>
+<td>Données des turbines</td>
+<td>168 heures × 5 turbines</td>
+</tr>
+</tbody>
+</table>
+<h3></h3>
+<p><a id="questions-danalyse-guidee"></a></p>
+<h2>Questions d'analyse guidée</h2>
+<p><a id="question-1-validation-de-la-completude-des-sources"></a></p>
+<h3>Question 1 : Validation de la complétude des sources</h3>
+<p><strong>Vérifiez la variable <code>FichiersTraites</code></strong> dans le panneau Output, en cliquant sur l'icône <strong>Input</strong> de l'activité <code>RecupererTracage</code> à chaque itération. Vous verrez :</p>
+<pre><code class="language-json">{ &quot;variableName&quot;: &quot;FichiersTraites&quot;, &quot;value&quot;: [&quot;besoins_energetiques.csv&quot;] }
+{ &quot;variableName&quot;: &quot;FichiersTraites&quot;, &quot;value&quot;: [&quot;besoins_energetiques.csv&quot;, &quot;production_solaire.csv&quot;] }
+{ &quot;variableName&quot;: &quot;FichiersTraites&quot;, &quot;value&quot;: [&quot;besoins_energetiques.csv&quot;, &quot;production_solaire.csv&quot;, &quot;production_eolienne.csv&quot;] }
+</code></pre>
+<p>La variable <code>FichiersTemp</code> accumule via <code>Append Variable</code>, puis <code>RecupererTracage</code> recopie l'état dans <code>FichiersTraites</code>. Le résultat final :</p>
+<pre><code class="language-json">[&quot;besoins_energetiques.csv&quot;, &quot;production_solaire.csv&quot;, &quot;production_eolienne.csv&quot;]
+</code></pre>
+<blockquote>
+<p>⚠️ <strong>Note</strong> : L'Output de <code>TracerFichier</code> et <code>RecupererTracage</code> affiche <code>{}</code> — c'est normal pour ces types d'activités. Consultez toujours l'<strong>Input</strong> pour voir les valeurs réelles.</p>
+</blockquote>
+<p><strong>Interprétation</strong> :</p>
+<ul>
+<li>
+<p>Les <strong>3 sources de données</strong> sont présentes et ont été ingérées</p>
+</li>
+<li>
+<p>Aucune source manquante → l'analyse énergétique peut être menée</p>
+</li>
+<li>
+<p>Le système détecte automatiquement les fichiers présents</p>
+</li>
+</ul>
+<p><strong>Impact métier</strong> : Si un fichier manque demain (ex: production_solaire.csv), la variable <code>NombreFichiers</code> serait = 2 au lieu de 3, ce qui déclencherait une alerte.</p>
+<hr />
+<p><a id="question-2-granularite-temporelle-des-besoins-energetiques"></a></p>
+<h3>Question 2 : Granularité temporelle des besoins énergétiques</h3>
+<p><strong>Analysez la table <code>besoins_energetiques</code></strong> :</p>
+<pre><code class="language-sql">SELECT COUNT(*) as NbReleves FROM besoins_energetiques
+-- Résultat : 168 lignes
+</code></pre>
+<p><strong>Calculez la fréquence de mesure</strong> :</p>
+<pre><code>168 relevés sur 7 jours = 168 / 7 = 24 relevés/jour
+24 relevés/jour = 1 relevé/heure
+</code></pre>
+<p><strong>Interprétation</strong> :</p>
+<ul>
+<li>
+<p><strong>Granularité horaire</strong> : La consommation est mesurée chaque heure</p>
+</li>
+<li>
+<p><strong>Période</strong> : 7 jours complets (1 semaine type)</p>
+</li>
+<li>
+<p><strong>Précision</strong> : Suffisante pour identifier les pics de consommation</p>
+</li>
+</ul>
+<p><strong>Impact métier</strong> : Permet d'analyser les patterns de consommation (jour/nuit, jour de semaine/weekend) et d'ajuster la production en conséquence.</p>
+<p><strong>Exemple d'analyse complémentaire</strong> :</p>
+<pre><code class="language-sql">SELECT 
+    DATEPART(hour, Horodatage) as Heure,
+    AVG(Consommation_kWh) as Conso_Moyenne
+FROM besoins_energetiques
+GROUP BY DATEPART(hour, Horodatage)
+ORDER BY Heure
+</code></pre>
+<p><strong>Insight attendu</strong> : Identifier les heures de pointe (ex: 8h-18h pour une usine)</p>
+<hr />
+<p><a id="question-3-couverture-photovoltaique"></a></p>
+<h3>Question 3 : Couverture photovoltaïque</h3>
+<p><strong>Analysez la table <code>production_solaire</code></strong> :</p>
+<pre><code class="language-sql">SELECT COUNT(*) as NbReleves FROM production_solaire
+-- Résultat : 175 lignes
+</code></pre>
+<p><strong>Calculez le nombre de panneaux</strong> :</p>
+<pre><code>175 relevés / 7 jours = 25 panneaux solaires
+</code></pre>
+<p><strong>Vérifiez la répartition géographique</strong> :</p>
+<pre><code class="language-sql">SELECT ZoneInstallation, COUNT(*) as NbPanneaux
+FROM production_solaire
+GROUP BY ZoneInstallation
+ORDER BY NbPanneaux DESC
+</code></pre>
+<p><strong>Résultat attendu</strong> :</p>
+<table>
+<thead>
+<tr>
+<th>Zone</th>
+<th>Nb Panneaux</th>
+<th>% du total</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Toit Nord</td>
+<td>7</td>
+<td>28%</td>
+</tr>
+<tr>
+<td>Toit Sud</td>
+<td>7</td>
+<td>28%</td>
+</tr>
+<tr>
+<td>Parking</td>
+<td>6</td>
+<td>24%</td>
+</tr>
+<tr>
+<td>Façade Est</td>
+<td>5</td>
+<td>20%</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Interprétation</strong> :</p>
+<ul>
+<li>
+<p><strong>25 panneaux</strong> répartis sur 4 zones</p>
+</li>
+<li>
+<p><strong>Couverture équilibrée</strong> : Toits (56%), Parking (24%), Façade (20%)</p>
+</li>
+<li>
+<p><strong>Redondance géographique</strong> : Si une zone est ombragée, les autres compensent</p>
+</li>
+</ul>
+<p><strong>Impact métier</strong> : Diversification des emplacements pour maximiser la production sur toute la journée (Est le matin, Sud à midi, Ouest l'après-midi).</p>
+<hr />
+<p><a id="question-4-capacite-eolienne-et-frequence-de-mesure"></a></p>
+<h3>Question 4 : Capacité éolienne et fréquence de mesure</h3>
+<p><strong>Analysez la table <code>production_eolienne</code></strong> :</p>
+<pre><code class="language-sql">SELECT COUNT(*) as NbReleves FROM production_eolienne
+-- Résultat : 840 lignes
+</code></pre>
+<p><strong>Calculez le nombre de turbines et la fréquence</strong> :</p>
+<pre><code>840 relevés / 168 heures (7j × 24h) = 5 turbines
+5 relevés par heure = 1 relevé toutes les 12 minutes par turbine
+</code></pre>
+<p><strong>Interprétation</strong> :</p>
+<ul>
+<li>
+<p><strong>5 turbines éoliennes</strong> en production</p>
+</li>
+<li>
+<p><strong>Fréquence élevée</strong> : 1 mesure toutes les 12 minutes</p>
+</li>
+<li>
+<p><strong>Granularité fine</strong> : Permet de détecter les variations rapides de vent</p>
+</li>
+</ul>
+<p><strong>Impact métier</strong> : La haute fréquence permet d'ajuster la consommation en temps quasi-réel selon la production éolienne (ex: lancer des machines énergivores quand le vent souffle fort).</p>
+<p><strong>Vérifiez la distribution</strong> :</p>
+<pre><code class="language-sql">SELECT TurbineID, COUNT(*) as NbReleves
+FROM production_eolienne
+GROUP BY TurbineID
+ORDER BY TurbineID
+</code></pre>
+<p><strong>Résultat attendu</strong> :</p>
+<table>
+<thead>
+<tr>
+<th>Turbine</th>
+<th>Nb Relevés</th>
+<th>% du total</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>EOL-01</td>
+<td>168</td>
+<td>20%</td>
+</tr>
+<tr>
+<td>EOL-02</td>
+<td>168</td>
+<td>20%</td>
+</tr>
+<tr>
+<td>EOL-03</td>
+<td>168</td>
+<td>20%</td>
+</tr>
+<tr>
+<td>EOL-04</td>
+<td>168</td>
+<td>20%</td>
+</tr>
+<tr>
+<td>EOL-05</td>
+<td>168</td>
+<td>20%</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Interprétation</strong> : Distribution <strong>parfaitement équilibrée</strong> → Toutes les turbines sont opérationnelles.</p>
+<hr />
+<p><a id="question-5-comparaison-des-volumes-de-donnees-par-source"></a></p>
+<h3>Question 5 : Comparaison des volumes de données par source</h3>
+<p><strong>Synthèse des volumes</strong> :</p>
+<table>
+<thead>
+<tr>
+<th>Source</th>
+<th>Lignes</th>
+<th>Équipements</th>
+<th>Fréquence</th>
+<th>Volume relatif</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Besoins</td>
+<td>168</td>
+<td>1 usine</td>
+<td>1/heure</td>
+<td>16%</td>
+</tr>
+<tr>
+<td>Solaire</td>
+<td>175</td>
+<td>25 panneaux</td>
+<td>1/jour</td>
+<td>17%</td>
+</tr>
+<tr>
+<td>Éolien</td>
+<td>840</td>
+<td>5 turbines</td>
+<td>5/heure</td>
+<td>67%</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Interprétation</strong> :</p>
+<ul>
+<li>
+<p><strong>L'éolien représente 67%</strong> des données ingérées</p>
+</li>
+<li>
+<p>Raison : Fréquence élevée (5 relevés/h) + 5 équipements</p>
+</li>
+<li>
+<p><strong>Volumes déséquilibrés</strong> mais normaux (capteurs différents)</p>
+</li>
+</ul>
+<p><strong>Impact métier</strong> :</p>
+<ul>
+<li>
+<p>Les coûts de stockage seront principalement liés aux données éoliennes</p>
+</li>
+<li>
+<p>Les traitements en temps réel devront prioriser les flux éoliens</p>
+</li>
+<li>
+<p>Le solaire peut être agrégé quotidiennement sans perte d'information</p>
+</li>
+</ul>
+<hr />
+<p><a id="synthese-reponse-a-la-problematique"></a></p>
+<h2>Synthèse : Réponse à la problématique</h2>
+<p><a id="problematique-rappelee"></a></p>
+<h3>Problématique rappelée</h3>
+<blockquote>
+<p>Comment automatiser l'ingestion de données énergétiques hétérogènes pour analyser les besoins actuels et identifier les sources renouvelables disponibles, sans intervention manuelle et avec validation de la complétude ?</p>
+</blockquote>
+<p><a id="tableau-de-satisfaction-des-objectifs"></a></p>
+<h3>Tableau de satisfaction des objectifs</h3>
+<table>
+<thead>
+<tr>
+<th>Objectif</th>
+<th>Méthode</th>
+<th>Résultat</th>
+<th>Impact métier</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>1. Automatisation</strong></td>
+<td>Pipeline dynamique avec Get Metadata</td>
+<td>✅ 0 intervention manuelle</td>
+<td>Économie de 2h/jour de travail technicien</td>
+</tr>
+<tr>
+<td><strong>2. Détection dynamique</strong></td>
+<td>Child items sur dossier landing</td>
+<td>✅ 3 fichiers détectés automatiquement</td>
+<td>Fonctionne pour 3, 10 ou 100 fichiers</td>
+</tr>
+<tr>
+<td><strong>3. Filtrage intelligent</strong></td>
+<td>If Condition sur <code>.csv</code></td>
+<td>✅ Seuls les CSV traités</td>
+<td>Ignore logs, images, fichiers temporaires</td>
+</tr>
+<tr>
+<td><strong>4. Création tables Bronze</strong></td>
+<td>Copy Data avec nom dynamique</td>
+<td>✅ 3 tables créées (1183 lignes totales)</td>
+<td>Données structurées et requêtables</td>
+</tr>
+<tr>
+<td><strong>5. Validation complétude</strong></td>
+<td>Variable <code>FichiersTraites</code></td>
+<td>✅ 100% de complétude (3/3)</td>
+<td>Alerte automatique si source manquante</td>
+</tr>
+<tr>
+<td><strong>6. Traçabilité</strong></td>
+<td>AppendVariable (FichiersTemp) + SetVariable (FichiersTraites)</td>
+<td>✅ Historique des fichiers ingérés</td>
+<td>Audit et conformité RGPD</td>
+</tr>
+</tbody>
+</table>
+<p><a id="insights-metier"></a></p>
+<h2>Insights métier</h2>
+<p><a id="insight-1-equilibre-energetique-preliminaire"></a></p>
+<h3>Insight 1 : Équilibre énergétique préliminaire</h3>
+<p><strong>Calculez la capacité renouvelable théorique</strong> :</p>
+<pre><code class="language-sql">-- Production solaire moyenne
+SELECT AVG(Production_kWh) as Prod_Solaire_Moyenne
+FROM production_solaire
+-- Résultat attendu : ~350 kWh/jour (25 panneaux × 14 kWh)
+
+-- Production éolienne moyenne
+SELECT AVG(Production_kWh) as Prod_Eolienne_Moyenne
+FROM production_eolienne
+-- Résultat attendu : ~1200 kWh/jour (5 turbines × 240 kWh)
+
+-- Besoin énergétique quotidien
+SELECT SUM(Consommation_kWh) / 7 as Conso_Quotidienne
+FROM besoins_energetiques
+-- Résultat attendu : ~1800 kWh/jour
+</code></pre>
+<p><strong>Analyse de couverture</strong> :</p>
+<pre><code>Production renouvelable : 350 (solaire) + 1200 (éolien) = 1550 kWh/jour
+Besoin énergétique : 1800 kWh/jour
+Taux de couverture : (1550 / 1800) × 100 = 86%
+Déficit : 1800 - 1550 = 250 kWh/jour (14%)
+</code></pre>
+<p><strong>Interprétation</strong> :</p>
+<ul>
+<li><strong>86% d'autonomie énergétique</strong> avec les sources renouvelables</li>
+<li><strong>14% de déficit</strong> à combler (réseau traditionnel ou batteries)</li>
+<li><strong>Objectif atteint</strong> : Réduction significative de la dépendance au réseau</li>
+</ul>
+<p>💡 <strong>Recommandations métier</strong> :</p>
+<ol>
+<li>Ajouter <strong>5 panneaux solaires</strong> supplémentaires (+70 kWh/j) pour atteindre 90% d'autonomie</li>
+<li>Installer un <strong>système de batteries</strong> de 250 kWh pour stocker les surplus et couvrir les pics</li>
+<li>Implémenter un <strong>système de délestage intelligent</strong> pour reporter certaines charges non prioritaires</li>
+</ol>
+<hr />
+<p><a id="insight-2-patterns-temporels-de-consommation"></a></p>
+<h3>Insight 2 : Patterns temporels de consommation</h3>
+<p><strong>Identifiez les heures de pointe</strong> :</p>
+<pre><code class="language-sql">SELECT 
+    DATEPART(hour, Horodatage) as Heure,
+    AVG(Consommation_kWh) as Conso_Moyenne,
+    MAX(Consommation_kWh) as Conso_Max
+FROM besoins_energetiques
+GROUP BY DATEPART(hour, Horodatage)
+ORDER BY Conso_Moyenne DESC
+</code></pre>
+<p><strong>Résultat attendu (heures de pointe)</strong> :</p>
+<table>
+<thead>
+<tr>
+<th>Heure</th>
+<th>Conso Moyenne</th>
+<th>Conso Max</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>14h</td>
+<td>95 kWh</td>
+<td>110 kWh</td>
+</tr>
+<tr>
+<td>15h</td>
+<td>92 kWh</td>
+<td>105 kWh</td>
+</tr>
+<tr>
+<td>10h</td>
+<td>88 kWh</td>
+<td>100 kWh</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Interprétation</strong> :</p>
+<ul>
+<li>
+<p><strong>Pic de consommation</strong> : 14h-15h (heures de production maximale de l'usine)</p>
+</li>
+<li>
+<p><strong>Coïncidence</strong> : Production solaire maximale également à cette période</p>
+</li>
+<li>
+<p><strong>Opportunité</strong> : Synchronisation naturelle production solaire / consommation</p>
+</li>
+</ul>
+<p><strong>Recommandations métier</strong> :</p>
+<ul>
+<li>
+<p><strong>Optimiser</strong> : Lancer les processus énergivores entre 12h-16h (solaire au max)</p>
+</li>
+<li>
+<p><strong>Différer</strong> : Recharger les batteries et préchauffer les équipements tôt le matin (éolien nocturne)</p>
+</li>
+<li>
+<p><strong>Éviter</strong> : Ne pas lancer de gros consommateurs entre 18h-22h (creux de production)</p>
+</li>
+</ul>
+<hr />
+<p><a id="insight-3-variabilite-de-la-production-eolienne"></a></p>
+<h3>Insight 3 : Variabilité de la production éolienne</h3>
+<p><strong>Analysez la stabilité</strong> :</p>
+<pre><code class="language-sql">SELECT 
+    TurbineID,
+    AVG(Production_kWh) as Prod_Moyenne,
+    STDEV(Production_kWh) as Ecart_Type,
+    MIN(Production_kWh) as Prod_Min,
+    MAX(Production_kWh) as Prod_Max
+FROM production_eolienne
+GROUP BY TurbineID
+</code></pre>
+<p><strong>Résultat attendu</strong> :</p>
+<table>
+<thead>
+<tr>
+<th>Turbine</th>
+<th>Moyenne</th>
+<th>Écart-type</th>
+<th>Min</th>
+<th>Max</th>
+<th>Coefficient variation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>EOL-01</td>
+<td>10 kWh</td>
+<td>4.2 kWh</td>
+<td>0</td>
+<td>18</td>
+<td>42%</td>
+</tr>
+<tr>
+<td>EOL-02</td>
+<td>10 kWh</td>
+<td>4.5 kWh</td>
+<td>0</td>
+<td>19</td>
+<td>45%</td>
+</tr>
+<tr>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+<td>...</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Interprétation</strong> :</p>
+<ul>
+<li>
+<p><strong>Variabilité élevée</strong> : Coefficient de variation ~40-45%</p>
+</li>
+<li>
+<p><strong>Imprévisibilité</strong> : Production fluctue de 0 à 18-19 kWh</p>
+</li>
+<li>
+<p><strong>Besoin de stockage</strong> : Les batteries sont essentielles pour lisser la production</p>
+</li>
+</ul>
+<p><strong>Recommandations métier</strong> :</p>
+<ul>
+<li>
+<p><strong>Court terme</strong> : Système de batteries de 500 kWh (couvre 6h de déficit)</p>
+</li>
+<li>
+<p><strong>Moyen terme</strong> : Contrat de backup avec le réseau traditionnel</p>
+</li>
+<li>
+<p><strong>Long terme</strong> : Diversifier avec une 2ème source prévisible (hydroélectrique si possible)</p>
+</li>
+</ul>
+<p><a id="conclusion-valeur-ajoutee-du-pipeline"></a></p>
+<h2>Conclusion : Valeur ajoutée du pipeline</h2>
+<p><a id="situation-avant-processus-manuel"></a></p>
+<h3>Situation AVANT (processus manuel)</h3>
+<table>
+<thead>
+<tr>
+<th>Critère</th>
+<th>État</th>
+<th>Impact</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Temps d'ingestion</strong></td>
+<td>2h/jour</td>
+<td>Coût : 400€/mois (salaire technicien)</td>
+</tr>
+<tr>
+<td><strong>Erreurs humaines</strong></td>
+<td>1-2/semaine</td>
+<td>Analyses faussées, décisions erronées</td>
+</tr>
+<tr>
+<td><strong>Validation complétude</strong></td>
+<td>Manuelle</td>
+<td>Risque de fichier oublié : 10%</td>
+</tr>
+<tr>
+<td><strong>Traçabilité</strong></td>
+<td>Fichier Excel</td>
+<td>Pas d'audit fiable</td>
+</tr>
+<tr>
+<td><strong>Réactivité</strong></td>
+<td>J+1</td>
+<td>Décisions prises sur données de la veille</td>
+</tr>
+</tbody>
+</table>
+<p><a id="situation-apres-pipeline-automatise"></a></p>
+<h3>Situation APRÈS (pipeline automatisé)</h3>
+<table>
+<thead>
+<tr>
+<th>Critère</th>
+<th>État</th>
+<th>Impact</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Temps d'ingestion</strong></td>
+<td>15-45 sec</td>
+<td>Coût : 0€/mois (automatisé)</td>
+</tr>
+<tr>
+<td><strong>Erreurs humaines</strong></td>
+<td>0</td>
+<td>Données fiables à 100%</td>
+</tr>
+<tr>
+<td><strong>Validation complétude</strong></td>
+<td>Automatique</td>
+<td>Alerte immédiate si fichier manquant</td>
+</tr>
+<tr>
+<td><strong>Traçabilité</strong></td>
+<td>Variable Array</td>
+<td>Audit complet et historisé</td>
+</tr>
+<tr>
+<td><strong>Réactivité</strong></td>
+<td>Temps réel</td>
+<td>Décisions prises sur données actuelles</td>
+</tr>
+</tbody>
+</table>
+<p><a id="gains-quantifies"></a></p>
+<h3>Gains quantifiés</h3>
+<table>
+<thead>
+<tr>
+<th>Indicateur</th>
+<th>Avant</th>
+<th>Après</th>
+<th>Gain</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Temps traitement</strong></td>
+<td>2h/jour</td>
+<td>45 sec/jour</td>
+<td><strong>99.6%</strong></td>
+</tr>
+<tr>
+<td><strong>Coût mensuel</strong></td>
+<td>400€</td>
+<td>5€ (compute)</td>
+<td><strong>98.75%</strong></td>
+</tr>
+<tr>
+<td><strong>Taux d'erreur</strong></td>
+<td>10%</td>
+<td>0%</td>
+<td><strong>100%</strong></td>
+</tr>
+<tr>
+<td><strong>Délai décision</strong></td>
+<td>24h</td>
+<td>1h</td>
+<td><strong>95.8%</strong></td>
+</tr>
+</tbody>
+</table>
+<p><a id="roi-return-on-investment"></a></p>
+<h3>ROI (Return on Investment)</h3>
+<p><strong>Investissement initial</strong> :</p>
+<ul>
+<li>Développement pipeline : 4h × 80€/h = 320€</li>
+<li>Formation : 2h × 80€/h = 160€</li>
+<li><strong>Total</strong> : 480€</li>
+</ul>
+<p><strong>Économies mensuelles</strong> :</p>
+<ul>
+<li>Temps technicien : 400€/mois</li>
+<li>Réduction erreurs : ~50€/mois (coût moyen d'une erreur)</li>
+<li><strong>Total</strong> : 450€/mois</li>
+</ul>
+<p><strong>Retour sur investissement</strong> :</p>
+<pre><code>ROI = (480€) / (450€/mois) = 1.07 mois
+</code></pre></main>
+</body>
+</html>

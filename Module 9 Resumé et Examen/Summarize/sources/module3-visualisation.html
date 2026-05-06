@@ -1,0 +1,1314 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Atelier Notebooks – Visualisation</title>
+  <link rel="stylesheet" href="../assets/source.css">
+</head>
+<body>
+  <header class="src-header">
+    <a href="../index.html" class="back-link">&#8592; Retour à la présentation</a>
+    <h1 class="src-title">Atelier Notebooks – Visualisation</h1>
+  </header>
+  <main class="src-content"><p><a id="atelier-4-visualisation-et-analyse-des-donnees-gold"></a></p>
+<h1>ATELIER 4 : VISUALISATION ET ANALYSE DES DONNÉES GOLD</h1>
+<hr />
+<p><a id="objectif-de-latelier"></a></p>
+<h2>🎯 Objectif de l'atelier</h2>
+<p>Nous avons construit un pipeline Medallion complet (Bronze → Silver → Gold) pour modéliser un parc énergétique de 6 sites français. Les données Bronze contenaient les mesures brutes de 115 200 capteurs IoT (30 jours × 15 min). Elles ont été nettoyées (Silver) et agrégées (Gold) pour produire des tables analytiques prêtes à la décision.</p>
+<p>Cet atelier final franchit la dernière étape : transformer ces tables Gold en <strong>visualisations intelligentes</strong> qui racontent l'histoire des données. Nous adopterons une <strong>double approche pédagogique</strong> : d'abord Python (Matplotlib/Seaborn) pour construire des graphiques sur mesure et comprendre finement les données, puis Power BI pour créer un tableau de bord interactif et partageable avec les métiers. Cette progression montre comment un data scientist passe du prototype exploratoire au produit analytique robuste.</p>
+<hr />
+<p><a id="partie-1-visualisation-avec-python-matplotlib-seaborn"></a></p>
+<h1>PARTIE 1 : VISUALISATION AVEC PYTHON (Matplotlib / Seaborn)</h1>
+<p><a id="prerequis"></a></p>
+<h2>🛠️ Prérequis</h2>
+<ol>
+<li><strong>Créer le notebook</strong> : Dans votre workspace Microsoft Fabric, créez un nouveau <strong>Notebook</strong> nommé <code>NB_04_Visualisation</code></li>
+<li><strong>Configurer le Lakehouse</strong> : Définissez <code>Lakehouse_gold</code> comme <strong>Lakehouse par défaut</strong> du notebook (section "⚙️ Lakehouse" du notebook)</li>
+<li><strong>Vérifier les tables Gold</strong> : Via l'Explorateur du Lakehouse, assurez-vous que les 6 tables sont présentes :<br />
+   - <code>gold.daily_consumption_by_site</code><br />
+   - <code>gold.site_kpis</code><br />
+   - <code>gold.consumption_by_site_type</code><br />
+   - <code>gold.curtailment_opportunities</code><br />
+   - <code>gold.monthly_consumption_pivot</code><br />
+   - <code>gold.active_alerts</code></li>
+<li><strong>Runtime</strong> : Assurez-vous que vous avez un runtime PySpark actif (environnement Fabric par défaut suffit)</li>
+</ol>
+<hr />
+<p><a id="cellule-0-configuration-et-chargement-des-donnees"></a></p>
+<h2>📝 Cellule 0 : Configuration et chargement des données</h2>
+<p>🔍 <strong>Avant d'exécuter</strong> : Cette cellule initialise tous les paramètres visuels (polices, couleurs, thème) et charge les 5 tables Gold dans des DataFrames pandas. Elle valide que toutes les données sont disponibles.</p>
+<p>💻 <strong>Code</strong> :</p>
+<pre><code class="language-python">import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+import seaborn as sns
+import pandas as pd
+import numpy as np
+
+&lt;a id=&quot;configuration-du-style-visuel-global&quot;&gt;&lt;/a&gt;
+# ─── Configuration du style visuel global ───
+plt.rcParams.update({
+    'figure.facecolor': 'white',
+    'axes.facecolor': '#f8f9fa',
+    'axes.grid': True,
+    'grid.alpha': 0.3,
+    'font.family': 'DejaVu Sans',
+    'axes.spines.top': False,
+    'axes.spines.right': False
+})
+
+&lt;a id=&quot;palette-de-couleurs-par-site-coherente-sur-tous-les-graphiques&quot;&gt;&lt;/a&gt;
+# ─── Palette de couleurs par site (cohérente sur tous les graphiques) ───
+SITE_COLORS = {
+    'SITE_IND_001': '#e63946',
+    'SITE_IND_002': '#f4a261',
+    'SITE_COM_001': '#2a9d8f',
+    'SITE_COM_002': '#457b9d',
+    'SITE_RES_001': '#8ecae6',
+    'SITE_RES_002': '#b7e4c7'
+}
+
+TYPE_COLORS = {
+    'Industrie': '#e63946',
+    'Commercial': '#2a9d8f',
+    'Résidentiel': '#8ecae6'
+}
+
+&lt;a id=&quot;chargement-des-tables-gold&quot;&gt;&lt;/a&gt;
+# ─── Chargement des tables Gold ───
+df_daily = spark.table(&quot;Lakehouse_gold.gold.daily_consumption_by_site&quot;).toPandas()
+df_kpis = spark.table(&quot;Lakehouse_gold.gold.site_kpis&quot;).toPandas()
+df_by_type = spark.table(&quot;Lakehouse_gold.gold.consumption_by_site_type&quot;).toPandas()
+df_curtailment = spark.table(&quot;Lakehouse_gold.gold.curtailment_opportunities&quot;).toPandas()
+df_alerts = spark.table(&quot;Lakehouse_gold.gold.active_alerts&quot;).toPandas()
+
+&lt;a id=&quot;conversions-de-types-pour-dates&quot;&gt;&lt;/a&gt;
+# ─── Conversions de types pour dates ───
+df_daily['date'] = pd.to_datetime(df_daily['date'])
+df_by_type['date'] = pd.to_datetime(df_by_type['date'])
+df_curtailment['hour'] = pd.to_datetime(df_curtailment['hour'])
+df_alerts['alert_time'] = pd.to_datetime(df_alerts['alert_time'])
+
+print(&quot;✅ Données chargées et prêtes&quot;)
+print(f&quot;  • daily_consumption_by_site  : {len(df_daily):,} lignes&quot;)
+print(f&quot;  • site_kpis                  : {len(df_kpis)} lignes&quot;)
+print(f&quot;  • consumption_by_site_type   : {len(df_by_type)} lignes&quot;)
+print(f&quot;  • curtailment_opportunities  : {len(df_curtailment):,} lignes&quot;)
+print(f&quot;  • active_alerts              : {len(df_alerts)} lignes&quot;)
+print(f&quot;\n📊 Palettes de couleurs définies ({len(SITE_COLORS)} sites, {len(TYPE_COLORS)} types)&quot;)
+</code></pre>
+<p>📤 <strong>Résultat attendu</strong> : Un message de validation affichant les 5 tables chargées avec leur nombre de lignes, confirmant que toutes les données sont accessibles.</p>
+<p>💡 <strong>Interprétation</strong> : Cette cellule pose les fondations visuelles et techniques. Les palettes <code>SITE_COLORS</code> et <code>TYPE_COLORS</code> garantissent une cohérence visuelle sur tous les graphiques (par exemple, le site SITE_IND_001 sera toujours rouge). Les conversions <code>to_datetime</code> permettent à matplotlib de manipuler correctement les axes temporels.</p>
+<hr />
+<p><a id="cellule-1-viz-1-evolution-temporelle-de-la-consommation-par-site"></a></p>
+<h2>📝 Cellule 1 : VIZ 1 — Évolution temporelle de la consommation par site</h2>
+<p>🔍 <strong>Avant d'exécuter</strong> : Cette visualisation montre les <strong>tendances sur 30 jours</strong> pour les 6 sites, regroupés par type (Industrie, Commercial, Résidentiel). Elle révèle les patterns quotidiens et les variations de charge.</p>
+<p><strong>Intérêt métier</strong> : Comprendre si les sites suivent des patterns prévisibles et identifier les écarts inhabituels. Par exemple, on observe généralement une consommation stable en industrie, un pic le matin/soir en commercial, et une oscillation jour/nuit en résidentiel.</p>
+<p>💻 <strong>Code</strong> :</p>
+<pre><code class="language-python">fig, axes = plt.subplots(3, 1, figsize=(14, 12), sharex=True)
+
+site_groups = {
+    'Industrie': ['SITE_IND_001', 'SITE_IND_002'],
+    'Commercial': ['SITE_COM_001', 'SITE_COM_002'],
+    'Résidentiel': ['SITE_RES_001', 'SITE_RES_002']
+}
+
+for ax, (site_type, sites) in zip(axes, site_groups.items()):
+    for site in sites:
+        data = df_daily[df_daily['site_id'] == site].sort_values('date')
+        ax.plot(data['date'], data['avg_consumption_mw'],
+                color=SITE_COLORS[site], label=site, linewidth=1.8, alpha=0.9)
+        ax.fill_between(data['date'], data['avg_consumption_mw'],
+                        alpha=0.08, color=SITE_COLORS[site])
+
+    ax.set_title(f'Sites {site_type}', fontsize=12, fontweight='bold', pad=8)
+    ax.set_ylabel('Consommation (MW)', fontsize=10)
+    ax.legend(loc='upper right', fontsize=9)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%d/%m'))
+    ax.xaxis.set_major_locator(mdates.WeekdayLocator(interval=1))
+
+axes[-1].set_xlabel('Date', fontsize=10)
+fig.suptitle('Évolution de la consommation électrique par site (30 jours)',
+             fontsize=14, fontweight='bold', y=1.01)
+plt.tight_layout()
+plt.savefig('/tmp/viz1_evolution_temporelle.png', dpi=150, bbox_inches='tight')
+plt.show()
+print(&quot;✅ Viz 1 générée : évolution temporelle&quot;)
+</code></pre>
+<p>📤 <strong>Résultat attendu</strong> : Trois sous-graphiques superposés (un par type de site) montrant la courbe de consommation journalière lissée. Les zones colorées sous les courbes aident à comparer visuellement les magnitudes.</p>
+<p>💡 <strong>Interprétation</strong> :</p>
+<ul>
+<li><strong>Industrie</strong> : Consommation stable (charge de base continue), peu de variation jour/nuit</li>
+<li><strong>Commercial</strong> : Pics marqués le jour (8h-18h), creux la nuit</li>
+<li><strong>Résidentiel</strong> : Oscillation jour/nuit nette, pics matinal et soirée</li>
+</ul>
+<p>Ces patterns sont essentiels pour la prédiction (les modèles apprennent ces cycles) et l'optimisation d'effacement (on peut réduire en creux, moins utile à la pointe).</p>
+<hr />
+<p><a id="cellule-2-viz-2-tableau-de-bord-kpis-comparatif"></a></p>
+<h2>📝 Cellule 2 : VIZ 2 — Tableau de bord KPIs comparatif</h2>
+<p>🔍 <strong>Avant d'exécuter</strong> : Cette visualisation synthétise 3 KPIs clés pour les 6 sites en un seul graphique : taux de charge, taux d'anomalies, et erreur de prédiction. Elle permet une comparaison rapide de la performance opérationnelle.</p>
+<p><strong>Intérêt métier</strong> : Un site avec un taux de charge élevé mais une prédiction fiable est un bon candidat pour les contrats d'effacement. Un taux d'anomalies élevé signale des dysfonctionnements de capteur ou des événements imprévus.</p>
+<p>💻 <strong>Code</strong> :</p>
+<pre><code class="language-python">fig, axes = plt.subplots(1, 3, figsize=(16, 6))
+
+&lt;a id=&quot;kpi-1-taux-de-charge&quot;&gt;&lt;/a&gt;
+# ─── KPI 1 : Taux de charge ───
+df_kpis_sorted = df_kpis.sort_values('load_factor_pct', ascending=True)
+colors = [TYPE_COLORS[t] for t in df_kpis_sorted['site_type']]
+
+bars1 = axes[0].barh(df_kpis_sorted['site_id'], df_kpis_sorted['load_factor_pct'],
+                      color=colors, edgecolor='white', linewidth=0.5)
+axes[0].set_xlabel('Taux de charge (%)', fontsize=10)
+axes[0].set_title('Taux de charge\nmoyen mensuel', fontsize=11, fontweight='bold')
+axes[0].axvline(x=df_kpis['load_factor_pct'].mean(), color='gray', linestyle='--',
+                alpha=0.7, label='Moyenne')
+for bar, val in zip(bars1, df_kpis_sorted['load_factor_pct']):
+    axes[0].text(bar.get_width() + 0.3, bar.get_y() + bar.get_height()/2,
+                 f'{val:.1f}%', va='center', fontsize=9)
+axes[0].legend(fontsize=9)
+
+&lt;a id=&quot;kpi-2-taux-danomalies&quot;&gt;&lt;/a&gt;
+# ─── KPI 2 : Taux d'anomalies ───
+df_kpis_anom = df_kpis.sort_values('anomaly_rate_pct', ascending=True)
+colors_anom = [TYPE_COLORS[t] for t in df_kpis_anom['site_type']]
+bars2 = axes[1].barh(df_kpis_anom['site_id'], df_kpis_anom['anomaly_rate_pct'],
+                      color=colors_anom, edgecolor='white', linewidth=0.5)
+axes[1].set_xlabel(&quot;Taux d'anomalies (%)&quot;, fontsize=10)
+axes[1].set_title(&quot;Taux d'anomalies\n(z-score &gt; 3σ)&quot;, fontsize=11, fontweight='bold')
+for bar, val in zip(bars2, df_kpis_anom['anomaly_rate_pct']):
+    axes[1].text(bar.get_width() + 0.01, bar.get_y() + bar.get_height()/2,
+                 f'{val:.2f}%', va='center', fontsize=9)
+
+&lt;a id=&quot;kpi-3-erreur-de-prediction&quot;&gt;&lt;/a&gt;
+# ─── KPI 3 : Erreur de prédiction ───
+df_kpis_pred = df_kpis.sort_values('prediction_error_pct', ascending=True)
+colors_pred = [TYPE_COLORS[t] for t in df_kpis_pred['site_type']]
+bars3 = axes[2].barh(df_kpis_pred['site_id'], df_kpis_pred['prediction_error_pct'],
+                      color=colors_pred, edgecolor='white', linewidth=0.5)
+axes[2].set_xlabel('Erreur de prédiction (%)', fontsize=10)
+axes[2].set_title('Erreur de prédiction\nmoyenne mensuelle', fontsize=11, fontweight='bold')
+for bar, val in zip(bars3, df_kpis_pred['prediction_error_pct']):
+    axes[2].text(bar.get_width() + 0.1, bar.get_y() + bar.get_height()/2,
+                 f'{val:.1f}%', va='center', fontsize=9)
+
+&lt;a id=&quot;legende-commune-types-de-sites&quot;&gt;&lt;/a&gt;
+# ─── Légende commune (types de sites) ───
+from matplotlib.patches import Patch
+legend_elements = [Patch(facecolor=c, label=t) for t, c in TYPE_COLORS.items()]
+fig.legend(handles=legend_elements, loc='lower center', ncol=3, fontsize=10,
+           bbox_to_anchor=(0.5, -0.05))
+
+fig.suptitle('KPIs comparatifs — 6 sites électriques (30 jours)',
+             fontsize=14, fontweight='bold')
+plt.tight_layout()
+plt.savefig('/tmp/viz2_kpis_comparatifs.png', dpi=150, bbox_inches='tight')
+plt.show()
+print(&quot;✅ Viz 2 générée : KPIs comparatifs&quot;)
+</code></pre>
+<p>📤 <strong>Résultat attendu</strong> : Trois histogrammes horizontaux côte à côte, chaque site coloré selon son type. Les valeurs numériques sont affichées à côté de chaque barre, avec une ligne pointillée grise indiquant la moyenne globale.</p>
+<p>💡 <strong>Interprétation</strong> :</p>
+<ul>
+<li><strong>Taux de charge</strong> : Sites industriels = 60-80% (charge stable), commerciaux = 30-50% (pics ponctuels), résidentiels = 40-60% (oscillation jour/nuit)</li>
+<li><strong>Taux d'anomalies</strong> : Un site &gt; 2% signale des problèmes de data quality ou des événements rares (coupures, pics anormaux)</li>
+<li><strong>Erreur de prédiction</strong> : &lt; 10% = excellent, 10-20% = bon, &gt; 20% = besoin de recalibrage du modèle ML</li>
+</ul>
+<p>Ensemble, ces trois KPIs donnent une <strong>vue d'ensemble de la santé opérationnelle</strong> et de la <strong>maturité analytique</strong> du parc.</p>
+<hr />
+<p><a id="cellule-3-viz-3-analyse-prix-vs-consommation-et-opportunites-deffacement"></a></p>
+<h2>📝 Cellule 3 : VIZ 3 — Analyse prix vs consommation et opportunités d'effacement</h2>
+<p>🔍 <strong>Avant d'exécuter</strong> : Cette visualisation double axe montre (1) la <strong>corrélation entre prix spot marché et consommation</strong>, et (2) les <strong>gains potentiels d'effacement par site</strong>.</p>
+<p><strong>Intérêt métier</strong> : Les sites flexibles doivent réduire la consommation quand le prix est élevé. Ce graphique identifie les <strong>opportunités d'optimisation financière</strong> : quels sites peuvent économiser le plus en s'effaçant aux bonnes heures ?</p>
+<p>💻 <strong>Code</strong> :</p>
+<pre><code class="language-python">fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+
+&lt;a id=&quot;scatter-prix-vs-consommation-par-type&quot;&gt;&lt;/a&gt;
+# ─── Scatter : Prix vs Consommation par type ───
+for site_type, color in TYPE_COLORS.items():
+    mask = df_daily['site_type'] == site_type
+    ax1.scatter(df_daily[mask]['avg_price_eur_mwh'],
+                df_daily[mask]['avg_consumption_mw'],
+                c=color, label=site_type, alpha=0.6, s=40,
+                edgecolors='white', linewidth=0.3)
+
+&lt;a id=&quot;ligne-de-tendance-globale-regression-lineaire&quot;&gt;&lt;/a&gt;
+# Ligne de tendance globale (régression linéaire)
+z = np.polyfit(df_daily['avg_price_eur_mwh'].fillna(0),
+               df_daily['avg_consumption_mw'].fillna(0), 1)
+p = np.poly1d(z)
+x_range = np.linspace(df_daily['avg_price_eur_mwh'].min(),
+                      df_daily['avg_price_eur_mwh'].max(), 100)
+ax1.plot(x_range, p(x_range), &quot;k--&quot;, alpha=0.4, linewidth=1.5, label='Tendance')
+
+&lt;a id=&quot;seuils-de-prix-pour-effacement&quot;&gt;&lt;/a&gt;
+# Seuils de prix pour effacement
+ax1.axvline(x=200, color='orange', linestyle=':', alpha=0.7, label='Seuil effacement partiel')
+ax1.axvline(x=300, color='red', linestyle=':', alpha=0.7, label='Seuil effacement max')
+ax1.set_xlabel('Prix spot moyen journalier (€/MWh)', fontsize=10)
+ax1.set_ylabel('Consommation moyenne journalière (MW)', fontsize=10)
+ax1.set_title('Corrélation Prix marché ↔ Consommation', fontsize=12, fontweight='bold')
+ax1.legend(fontsize=9)
+ax1.grid(True, alpha=0.3)
+
+&lt;a id=&quot;potentiel-deffacement-par-site-gains-cumules&quot;&gt;&lt;/a&gt;
+# ─── Potentiel d'effacement par site (gains cumulés) ───
+curtail_gains = df_curtailment[df_curtailment['potential_gain_eur'] &gt; 0].groupby('site_id')['potential_gain_eur'].sum().reset_index()
+curtail_gains = curtail_gains.sort_values('potential_gain_eur', ascending=False)
+colors_c = [SITE_COLORS[s] for s in curtail_gains['site_id']]
+
+bars = ax2.bar(curtail_gains['site_id'], curtail_gains['potential_gain_eur'],
+               color=colors_c, edgecolor='white', linewidth=0.5)
+ax2.set_xlabel('Site', fontsize=10)
+ax2.set_ylabel('Gain potentiel cumulé (€)', fontsize=10)
+ax2.set_title(&quot;Gains potentiels d'effacement sur 30 jours&quot;, fontsize=12, fontweight='bold')
+ax2.tick_params(axis='x', rotation=30)
+for bar, val in zip(bars, curtail_gains['potential_gain_eur']):
+    ax2.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 50,
+             f'{val:,.0f} €', ha='center', fontsize=9, fontweight='bold')
+
+plt.suptitle(&quot;Marchés électriques : sensibilité au prix et optimisation d'effacement&quot;,
+             fontsize=13, fontweight='bold')
+plt.tight_layout()
+plt.savefig('/tmp/viz3_prix_effacement.png', dpi=150, bbox_inches='tight')
+plt.show()
+print(&quot;✅ Viz 3 générée : prix et effacement&quot;)
+</code></pre>
+<p>📤 <strong>Résultat attendu</strong> :</p>
+<ul>
+<li><strong>Gauche</strong> : Nuage de points coloré par type de site, avec une droite de tendance et deux lignes verticales (seuils d'effacement)</li>
+<li><strong>Droite</strong> : Histogramme vertical montrant les gains d'effacement par site, trié décroissant</li>
+</ul>
+<p>💡 <strong>Interprétation</strong> :</p>
+<ul>
+<li><strong>Corrélation</strong> : Si la droite de tendance a une pente négative, cela confirme que <strong>quand le prix monte, les sites flexibles réduisent consommation</strong>. Une pente proche de 0 signale des sites non-réactifs (rigides, comme les usines 24/7)</li>
+<li><strong>Gains d'effacement</strong> : Les sites avec le plus haut potentiel sont les meilleurs candidats pour les contrats d'agrégation (vente de services de flexibilité au gestionnaire réseau)</li>
+</ul>
+<hr />
+<p><a id="cellule-4-viz-4-heatmap-temporelle-heure-jour-de-la-semaine"></a></p>
+<h2>📝 Cellule 4 : VIZ 4 — Heatmap temporelle (heure × jour de la semaine)</h2>
+<p>🔍 <strong>Avant d'exécuter</strong> : Cette visualisation recharge les données <strong>horaires</strong> depuis Silver (granularité 15 min → agrégées en heures) et crée une <strong>heatmap 24h × 7j</strong> montrant les patterns cycliques.</p>
+<p><strong>Intérêt métier</strong> : Identifier les heures de pointe (matin, soir), les creux (nuit), et les variations week-end vs semaine. Essentiel pour la tarification dynamique et les stratégies d'effacement.</p>
+<p>💻 <strong>Code</strong> :</p>
+<pre><code class="language-python">&lt;a id=&quot;charger-les-donnees-horaires-depuis-silver&quot;&gt;&lt;/a&gt;
+# Charger les données horaires depuis Silver
+df_hourly = spark.table(&quot;Lakehouse_silver.silver.consumption_with_prices&quot;).toPandas()
+df_hourly['hour'] = pd.to_datetime(df_hourly['hour'])
+df_hourly['hour_of_day'] = df_hourly['hour'].dt.hour
+df_hourly['day_of_week'] = df_hourly['hour'].dt.day_name()
+
+&lt;a id=&quot;agregation-par-heure-jour-de-semaine-moyenne-tous-sites&quot;&gt;&lt;/a&gt;
+# Agrégation par heure × jour de semaine (moyenne tous sites)
+day_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+day_labels_fr = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche']
+
+pivot = df_hourly.groupby(['day_of_week', 'hour_of_day'])['avg_consumption_mw'].mean().unstack()
+pivot = pivot.reindex(day_order)
+
+fig, ax = plt.subplots(figsize=(14, 6))
+sns.heatmap(pivot, ax=ax,
+            cmap='YlOrRd',
+            fmt='.2f',
+            annot=False,
+            linewidths=0.3,
+            linecolor='white',
+            cbar_kws={'label': 'Consommation moyenne (MW)'})
+
+ax.set_xticklabels([f'{h}h' for h in range(24)], fontsize=8, rotation=0)
+ax.set_yticklabels(day_labels_fr, fontsize=10, rotation=0)
+ax.set_xlabel('Heure de la journée', fontsize=11)
+ax.set_ylabel('Jour de la semaine', fontsize=11)
+ax.set_title('Patterns de consommation : Heure × Jour de la semaine\n(moyenne tous sites)',
+             fontsize=13, fontweight='bold', pad=15)
+
+&lt;a id=&quot;annotations-des-heures-cles&quot;&gt;&lt;/a&gt;
+# Annotations des heures clés
+ax.axvline(x=8, color='navy', linewidth=2, alpha=0.5, linestyle='--')
+ax.axvline(x=19, color='navy', linewidth=2, alpha=0.5, linestyle='--')
+ax.text(8.2, -0.5, 'Début activité', fontsize=8, color='navy', ha='left')
+ax.text(19.2, -0.5, 'Fin activité', fontsize=8, color='navy', ha='left')
+
+plt.tight_layout()
+plt.savefig('/tmp/viz4_heatmap_temporelle.png', dpi=150, bbox_inches='tight')
+plt.show()
+print(&quot;✅ Viz 4 générée : heatmap temporelle&quot;)
+</code></pre>
+<p>📤 <strong>Résultat attendu</strong> : Une matrice de 7 lignes (jours) × 24 colonnes (heures) avec gradient de couleur du jaune pâle (faible consommation) au rouge foncé (forte consommation).</p>
+<p>💡 <strong>Interprétation</strong> :</p>
+<ul>
+<li><strong>Zones rouges</strong> : Heures 8-19 en semaine (pic activité), très prononcé lundi-vendredi</li>
+<li><strong>Zones blanches/jaunes</strong> : Nuits (23h-7h) et samedi-dimanche (baisse générale)</li>
+<li><strong>Transition</strong> : Rampes marquées 7h-8h (start-up) et 18h-20h (shutdown)</li>
+</ul>
+<p>Ces patterns sont <strong>déterministes et prédictibles</strong> → les modèles de prédiction apprennent ces cycles → précision accrue → meilleure optimisation d'effacement.</p>
+<hr />
+<p><a id="cellule-5-viz-5-analyse-des-anomalies-et-alertes-operationnelles"></a></p>
+<h2>📝 Cellule 5 : VIZ 5 — Analyse des anomalies et alertes opérationnelles</h2>
+<p>🔍 <strong>Avant d'exécuter</strong> : Cette visualisation analyse les <strong>alertes et anomalies</strong> détectées sur 30 jours : distribution par type/priorité, et timeline des alertes critiques corrélée au prix.</p>
+<p><strong>Intérêt métier</strong> : Les alertes CRITIQUE doivent déclencher une action immédiate (investigation, révision de prédiction, isolement de capteur défaillant). Les alertes HAUTE méritent une surveillance accrue.</p>
+<p>💻 <strong>Code</strong> :</p>
+<pre><code class="language-python">fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+
+&lt;a id=&quot;distribution-des-alertes-par-type-et-priorite&quot;&gt;&lt;/a&gt;
+# ─── Distribution des alertes par type et priorité ───
+priority_colors = {
+    'CRITIQUE': '#e63946',
+    'HAUTE': '#f4a261',
+    'MOYENNE': '#2a9d8f',
+    'BASSE': '#8ecae6'
+}
+
+alert_counts = df_alerts.groupby(['alert_type', 'priority']).size().reset_index(name='count')
+pivot_alerts = alert_counts.pivot(index='alert_type', columns='priority', values='count').fillna(0)
+
+&lt;a id=&quot;reordonner-les-colonnes-prioritaires&quot;&gt;&lt;/a&gt;
+# Réordonner les colonnes prioritaires
+priority_order = ['CRITIQUE', 'HAUTE', 'MOYENNE', 'BASSE']
+pivot_alerts = pivot_alerts[[col for col in priority_order if col in pivot_alerts.columns]]
+
+pivot_alerts.plot(kind='bar', ax=ax1,
+                  color=[priority_colors.get(c, '#808080') for c in pivot_alerts.columns],
+                  edgecolor='white', linewidth=0.5)
+ax1.set_xlabel('Type d\'alerte', fontsize=10)
+ax1.set_ylabel('Nombre d\'alertes', fontsize=10)
+ax1.set_title('Distribution des alertes par type et priorité', fontsize=12, fontweight='bold')
+ax1.tick_params(axis='x', rotation=20)
+ax1.legend(title='Priorité', fontsize=9)
+ax1.grid(axis='y', alpha=0.3)
+
+&lt;a id=&quot;timeline-des-alertes-critique-et-haute&quot;&gt;&lt;/a&gt;
+# ─── Timeline des alertes CRITIQUE et HAUTE ───
+df_high = df_alerts[df_alerts['priority'].isin(['CRITIQUE', 'HAUTE'])].copy()
+df_high['alert_time'] = pd.to_datetime(df_high['alert_time'])
+
+for priority, color in [('CRITIQUE', '#e63946'), ('HAUTE', '#f4a261')]:
+    subset = df_high[df_high['priority'] == priority]
+    ax2.scatter(subset['alert_time'], subset['price_eur_mwh'],
+                c=color, label=priority, s=60, alpha=0.8,
+                edgecolors='white', linewidth=0.3)
+
+ax2.axhline(y=300, color='red', linestyle='--', alpha=0.5, linewidth=1,
+            label='Seuil prix 300€/MWh')
+ax2.set_xlabel('Date/heure', fontsize=10)
+ax2.set_ylabel('Prix spot (€/MWh)', fontsize=10)
+ax2.set_title('Timeline des alertes critiques\n(corrélation avec pic de prix)',
+              fontsize=12, fontweight='bold')
+ax2.xaxis.set_major_formatter(mdates.DateFormatter('%d/%m'))
+ax2.xaxis.set_major_locator(mdates.WeekdayLocator(interval=2))
+ax2.tick_params(axis='x', rotation=30, labelsize=8)
+ax2.legend(fontsize=9)
+ax2.grid(True, alpha=0.3)
+
+plt.suptitle('Tableau de bord opérationnel — Alertes et anomalies',
+             fontsize=13, fontweight='bold')
+plt.tight_layout()
+plt.savefig('/tmp/viz5_alertes.png', dpi=150, bbox_inches='tight')
+plt.show()
+print(&quot;✅ Viz 5 générée : alertes et anomalies&quot;)
+</code></pre>
+<p>📤 <strong>Résultat attendu</strong> :</p>
+<ul>
+<li><strong>Gauche</strong> : Histogramme empilé montrant le nombre d'alertes par type, avec segments colorés par priorité</li>
+<li><strong>Droite</strong> : Scatter plot montrant chaque alerte CRITIQUE/HAUTE avec sa date en x et le prix spot en y</li>
+</ul>
+<p>💡 <strong>Interprétation</strong> :</p>
+<ul>
+<li><strong>Distribution d'alertes</strong> : Les types les plus fréquents identifient les problèmes chroniques (ex: mauvaise qualité de prédiction → type "Erreur_Prédiction")</li>
+<li><strong>Corrélation prix-alertes</strong> : Si la plupart des alertes CRITIQUE sont au-dessus de 300€/MWh, cela signale une <strong>instabilité du réseau lors des pics</strong> → besoin de flex contractée</li>
+<li><strong>Absence d'alertes</strong> : Un site avec peu d'alertes est un bon candidat pour relaxer les seuils de détection (moins de faux positifs)</li>
+</ul>
+<hr />
+<p><a id="cellule-6-viz-6-dashboard-recapitulatif-synthese-en-4-kpis"></a></p>
+<h2>📝 Cellule 6 : VIZ 6 — Dashboard récapitulatif (synthèse en 4 KPIs)</h2>
+<p>🔍 <strong>Avant d'exécuter</strong> : Cette cellule crée un <strong>tableau de bord synthétique</strong> en une seule page (format A4) destiné aux <strong>présentations exécutives</strong>. Il combine 4 visualisations clés : répartition consommation, évolution prix, taux de charge, gains d'effacement.</p>
+<p><strong>Intérêt métier</strong> : Vue complète et imprimable pour un rapport mensuel ou une présentation au management. Tous les insights critiques en un coup d'œil.</p>
+<p>💻 <strong>Code</strong> :</p>
+<pre><code class="language-python">fig = plt.figure(figsize=(16, 10))
+fig.suptitle('Tableau de Bord Énergétique — Synthèse Mensuelle\nParc de 6 Sites | Janvier 2025',
+             fontsize=15, fontweight='bold', y=0.98)
+
+&lt;a id=&quot;layout-22&quot;&gt;&lt;/a&gt;
+# ─── Layout 2×2 ───
+ax1 = fig.add_subplot(2, 2, 1)
+ax2 = fig.add_subplot(2, 2, 2)
+ax3 = fig.add_subplot(2, 2, 3)
+ax4 = fig.add_subplot(2, 2, 4)
+
+&lt;a id=&quot;mini-graphique-1-consommation-totale-par-type-donut&quot;&gt;&lt;/a&gt;
+# ──── Mini-graphique 1 : Consommation totale par type (donut) ────
+total_by_type = df_kpis.groupby('site_type')['total_consumption_month_mwh'].sum()
+wedge_props = {'linewidth': 2, 'edgecolor': 'white'}
+explode = (0.05, 0.05, 0.05)
+
+ax1.pie(total_by_type.values,
+        labels=[f'{t}\n{v:.0f} MWh' for t, v in zip(total_by_type.index, total_by_type.values)],
+        colors=[TYPE_COLORS[t] for t in total_by_type.index],
+        autopct='%1.1f%%', startangle=90,
+        wedgeprops=wedge_props, textprops={'fontsize': 9},
+        explode=explode)
+ax1.set_title('Répartition de la consommation\npar type de site',
+              fontsize=11, fontweight='bold', pad=10)
+
+&lt;a id=&quot;mini-graphique-2-evolution-du-prix-marche&quot;&gt;&lt;/a&gt;
+# ──── Mini-graphique 2 : Évolution du prix marché ────
+df_price_daily = df_daily.groupby('date')['avg_price_eur_mwh'].mean().reset_index()
+df_price_daily = df_price_daily.sort_values('date')
+
+ax2.plot(df_price_daily['date'], df_price_daily['avg_price_eur_mwh'],
+         color='#e63946', linewidth=2, marker='o', markersize=3)
+ax2.fill_between(df_price_daily['date'], df_price_daily['avg_price_eur_mwh'],
+                 alpha=0.1, color='#e63946')
+ax2.axhline(y=200, color='orange', linestyle='--', alpha=0.6, linewidth=1.5,
+            label='Seuil effacement')
+ax2.set_ylabel('€/MWh', fontsize=9)
+ax2.set_xlabel('Date', fontsize=9)
+ax2.xaxis.set_major_formatter(mdates.DateFormatter('%d/%m'))
+ax2.xaxis.set_major_locator(mdates.WeekdayLocator(interval=2))
+ax2.set_title('Évolution du prix spot EPEX', fontsize=11, fontweight='bold')
+ax2.legend(fontsize=8)
+ax2.tick_params(axis='x', rotation=30, labelsize=7)
+ax2.grid(True, alpha=0.3)
+
+&lt;a id=&quot;mini-graphique-3-load-factor-par-site-barres&quot;&gt;&lt;/a&gt;
+# ──── Mini-graphique 3 : Load factor par site (barres) ────
+df_lf = df_kpis.sort_values('load_factor_pct', ascending=False)
+colors_lf = [TYPE_COLORS[t] for t in df_lf['site_type']]
+
+bars_lf = ax3.bar(range(len(df_lf)), df_lf['load_factor_pct'],
+                   color=colors_lf, edgecolor='white', linewidth=0.5)
+ax3.set_xticks(range(len(df_lf)))
+ax3.set_xticklabels(df_lf['site_id'], rotation=30, ha='right', fontsize=8)
+ax3.set_ylabel('Taux de charge (%)', fontsize=9)
+ax3.set_title('Taux de charge mensuel\npar site', fontsize=11, fontweight='bold')
+
+avg_lf = df_kpis['load_factor_pct'].mean()
+ax3.axhline(y=avg_lf, color='gray', linestyle='--', alpha=0.7, linewidth=1.5,
+            label=f'Moyenne {avg_lf:.1f}%')
+ax3.legend(fontsize=8)
+ax3.grid(axis='y', alpha=0.3)
+
+for bar, val in zip(bars_lf, df_lf['load_factor_pct']):
+    ax3.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1,
+             f'{val:.1f}%', ha='center', fontsize=8, fontweight='bold')
+
+&lt;a id=&quot;mini-graphique-4-gains-effacement-cumules-par-site&quot;&gt;&lt;/a&gt;
+# ──── Mini-graphique 4 : Gains effacement cumulés par site ────
+gains = df_curtailment[df_curtailment['potential_gain_eur'] &gt; 0].groupby('site_id')['potential_gain_eur'].sum().reset_index()
+gains = gains.sort_values('potential_gain_eur', ascending=False)
+colors_g = [SITE_COLORS[s] for s in gains['site_id']]
+
+bars_g = ax4.bar(gains['site_id'], gains['potential_gain_eur'],
+                  color=colors_g, edgecolor='white', linewidth=0.5)
+ax4.set_ylabel('Gain potentiel (€)', fontsize=9)
+ax4.set_xlabel('Site', fontsize=9)
+ax4.set_title(&quot;Gains d'effacement potentiels\n(sites flexibles)&quot;, fontsize=11, fontweight='bold')
+ax4.tick_params(axis='x', rotation=30, labelsize=8)
+ax4.grid(axis='y', alpha=0.3)
+
+total_gain = gains['potential_gain_eur'].sum()
+ax4.text(0.98, 0.95, f'Total : {total_gain:,.0f} €',
+         transform=ax4.transAxes, ha='right', fontsize=10, fontweight='bold',
+         bbox=dict(boxstyle='round', facecolor='#f4a261', alpha=0.3, pad=0.5))
+
+for bar, val in zip(bars_g, gains['potential_gain_eur']):
+    ax4.text(bar.get_x() + bar.get_width()/2, bar.get_height() + total_gain*0.02,
+             f'{val:,.0f}€', ha='center', fontsize=8, fontweight='bold')
+
+plt.tight_layout(rect=[0, 0, 1, 0.96])
+plt.savefig('/tmp/viz6_dashboard_synthese.png', dpi=150, bbox_inches='tight')
+plt.show()
+print(&quot;✅ Dashboard de synthèse généré&quot;)
+print(f&quot;\n📊 6 visualisations créées — prêtes pour intégration dans rapports et présentations&quot;)
+</code></pre>
+<p>📤 <strong>Résultat attendu</strong> : Une page unique divisée en 4 panneaux :</p>
+<ol>
+<li><strong>Donut chart</strong> : Répartition consommation par type</li>
+<li><strong>Line chart</strong> : Prix spot sur 30 jours avec seuil d'effacement</li>
+<li><strong>Bar chart</strong> : Taux de charge par site (barres colorées)</li>
+<li><strong>Bar chart</strong> : Gains d'effacement par site avec total en encadré</li>
+</ol>
+<p>💡 <strong>Interprétation</strong> :<br />
+Ce dashboard synthétise la <strong>performance globale</strong> du parc en 4 métriques-clés :</p>
+<ul>
+<li><strong>Répartition</strong> : Confirme le mix industriel/commercial/résidentiel</li>
+<li><strong>Prix</strong> : Montre les volatilités du marché et les opportunités d'effacement (jours &gt; 200€/MWh)</li>
+<li><strong>Load factor</strong> : Sites bien chargés = économies d'échelle, sites sous-utilisés = opportunités de développement</li>
+<li><strong>Gains d'effacement</strong> : Revenu additionnel possible via flexibilité contractée</li>
+</ul>
+<hr />
+<p><a id="partie-2-tableau-de-bord-power-bi-modele-semantique-fabric"></a></p>
+<h1>PARTIE 2 : TABLEAU DE BORD POWER BI (Modèle Sémantique Fabric)</h1>
+<p><a id="objectif"></a></p>
+<h2>🎯 Objectif</h2>
+<p>Construire un tableau de bord interactif directement dans Microsoft Fabric, <strong>sans installer Power BI Desktop</strong>. On utilise le <strong>Modèle Sémantique Power BI</strong> natif de Fabric, accessible depuis n'importe quel navigateur. Le modèle se connecte au SQL Endpoint de <code>Lakehouse_gold</code> et expose les données aux visuels Power BI.</p>
+<hr />
+<p><a id="a-creer-le-modele-semantique-dans-fabric"></a></p>
+<h2>A. Créer le Modèle Sémantique dans Fabric</h2>
+<p><a id="etape-1-creer-le-modele-semantique"></a></p>
+<h3>Étape 1 : Créer le modèle sémantique</h3>
+<ol>
+<li>Dans votre workspace <strong>WS_Energie_Electrique</strong>, cliquez sur <strong>+ Nouvel élément</strong></li>
+<li>Cherchez et sélectionnez <strong>Modèle sémantique Power BI</strong></li>
+<li>Donnez-lui le nom : <code>SM_Parc_Energetique</code></li>
+<li>Cliquez sur <strong>Créer</strong></li>
+</ol>
+<blockquote>
+<p>Fabric ouvre automatiquement l'éditeur web du modèle sémantique. Vous n'avez pas besoin de Power BI Desktop.</p>
+</blockquote>
+<hr />
+<p><a id="etape-2-connecter-les-tables-gold"></a></p>
+<h3>Étape 2 : Connecter les tables Gold</h3>
+<ol>
+<li>Dans l'éditeur du modèle, cliquez sur <strong>Obtenir les données</strong> (icône base de données en haut à gauche)</li>
+<li>Sélectionnez <strong>OneLake</strong> dans la liste des sources</li>
+<li>Naviguez jusqu'à <strong>Lakehouse_gold</strong> → <strong>Tables SQL (SQL Endpoint)</strong></li>
+<li>Cochez les 6 tables suivantes :</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Table</th>
+<th>Contenu</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>daily_consumption_by_site</code></td>
+<td>Agrégats journaliers par site</td>
+</tr>
+<tr>
+<td><code>site_kpis</code></td>
+<td>KPIs mensuels par site</td>
+</tr>
+<tr>
+<td><code>consumption_by_site_type</code></td>
+<td>Agrégats par type de site</td>
+</tr>
+<tr>
+<td><code>curtailment_opportunities</code></td>
+<td>Signaux d'effacement horaires</td>
+</tr>
+<tr>
+<td><code>monthly_consumption_pivot</code></td>
+<td>Pivot mensuel</td>
+</tr>
+<tr>
+<td><code>active_alerts</code></td>
+<td>Alertes opérationnelles</td>
+</tr>
+</tbody>
+</table>
+<ol start="5">
+<li>Cliquez sur <strong>Confirmer</strong></li>
+</ol>
+<blockquote>
+<p>Les 6 tables apparaissent maintenant dans le panneau de droite (<strong>Données</strong>).</p>
+</blockquote>
+<hr />
+<p><a id="etape-3-creer-les-relations-entre-tables"></a></p>
+<h3>Étape 3 : Créer les relations entre tables</h3>
+<p>Cliquez sur l'onglet <strong>Modélisation</strong> (icône schéma en haut). Vous voyez les 6 tables disposées sur un canvas. Il faut relier les tables entre elles.</p>
+<p><strong>Relation 1 — <code>daily_consumption_by_site</code> → <code>site_kpis</code></strong></p>
+<ol>
+<li>Faites glisser le champ <code>daily_consumption_by_site[site_id]</code> sur <code>site_kpis[site_id]</code></li>
+<li>Une fenêtre s'ouvre — vérifiez :<br />
+   - <strong>Cardinalité</strong> : <code>Plusieurs à un (*:1)</code><br />
+   - <strong>Direction du filtre croisé</strong> : <code>Unique</code></li>
+<li>Cliquez <strong>OK</strong></li>
+</ol>
+<p><strong>Relation 2 — <code>curtailment_opportunities</code> → <code>site_kpis</code></strong></p>
+<ol>
+<li>Faites glisser <code>curtailment_opportunities[site_id]</code> sur <code>site_kpis[site_id]</code></li>
+<li>Cardinalité : <code>Plusieurs à un (*:1)</code> → <strong>OK</strong></li>
+</ol>
+<p><strong>Relation 3 — <code>active_alerts</code> → <code>site_kpis</code></strong></p>
+<ol>
+<li>Faites glisser <code>active_alerts[site_id]</code> sur <code>site_kpis[site_id]</code></li>
+<li>Cardinalité : <code>Plusieurs à un (*:1)</code> → <strong>OK</strong></li>
+</ol>
+<p><strong>Relation 4 — <code>consumption_by_site_type</code> → <code>daily_consumption_by_site</code></strong></p>
+<ol>
+<li>Faites glisser <code>consumption_by_site_type[date]</code> sur <code>daily_consumption_by_site[date]</code></li>
+<li>Cardinalité : <code>Plusieurs à plusieurs (*:*)</code> → <strong>OK</strong></li>
+</ol>
+<hr />
+<p><a id="etape-4-creer-la-table-de-dates-dimdate"></a></p>
+<h3>Étape 4 : Créer la table de dates DimDate</h3>
+<p>Une table de dates dédiée est nécessaire pour les analyses temporelles (filtres glissants, drill Année→Mois→Jour).</p>
+<ol>
+<li>Dans l'onglet <strong>Modélisation</strong>, cliquez sur <strong>Nouvelle table</strong></li>
+<li>Collez ce code DAX et appuyez sur <strong>Entrée</strong> :</li>
+</ol>
+<pre><code class="language-dax">DimDate =
+ADDCOLUMNS(
+    CALENDAR(DATE(2025,1,1), DATE(2025,1,31)),
+    &quot;Année&quot;,   YEAR([Date]),
+    &quot;Mois&quot;,    MONTH([Date]),
+    &quot;Semaine&quot;, WEEKNUM([Date]),
+    &quot;JourSem&quot;, WEEKDAY([Date]),
+    &quot;NomJour&quot;, FORMAT([Date], &quot;DDDD&quot;)
+)
+</code></pre>
+<ol start="3">
+<li>Faites glisser <code>DimDate[Date]</code> sur <code>daily_consumption_by_site[date]</code></li>
+<li>Cardinalité : <code>Un à plusieurs (1:*)</code> → <strong>OK</strong></li>
+</ol>
+<hr />
+<p><a id="b-creer-les-mesures-dax"></a></p>
+<h2>B. Créer les Mesures DAX</h2>
+<p>Les mesures sont les calculs dynamiques qui s'adaptent aux filtres du rapport.</p>
+<p><strong>Comment créer une mesure :</strong></p>
+<ol>
+<li>Dans le panneau <strong>Données</strong> (droite), cliquez-droit sur la table <code>daily_consumption_by_site</code></li>
+<li>Sélectionnez <strong>Nouvelle mesure</strong></li>
+<li>Une barre de formule s'ouvre en haut du canvas</li>
+<li>Effacez le texte par défaut, collez la mesure, appuyez sur <strong>Entrée</strong></li>
+<li>Répétez pour chaque mesure</li>
+</ol>
+<blockquote>
+<p>💡 <strong>Bonne pratique</strong> : Créez toutes les mesures dans la même table pour les retrouver facilement.</p>
+</blockquote>
+<hr />
+<p><a id="mesure-1-consommation-totale-mwh"></a></p>
+<h3>Mesure 1 — Consommation Totale (MWh)</h3>
+<pre><code class="language-dax">Consommation Totale (MWh) =
+SUM('daily_consumption_by_site'[total_consumption_mwh])
+</code></pre>
+<p>Somme de la consommation sur la période et le contexte de filtrage actif (site, date, type).</p>
+<hr />
+<p><a id="mesure-2-taux-de-charge-moyen"></a></p>
+<h3>Mesure 2 — Taux de Charge Moyen (%)</h3>
+<pre><code class="language-dax">Taux de Charge Moyen (%) =
+AVERAGE('site_kpis'[load_factor_pct])
+</code></pre>
+<blockquote>
+<p>⚠️ Cette mesure lit directement la colonne <code>load_factor_pct</code> déjà calculée dans <code>site_kpis</code>. Ne pas tenter de la recalculer depuis <code>avg_consumption_mw</code> / <code>capacity_mw</code> — ces colonnes ne sont pas accessibles dans ce contexte de filtre.</p>
+</blockquote>
+<p>Un taux &gt; 70 % indique une forte utilisation. En dessous de 30 %, le site est sous-exploité.</p>
+<hr />
+<p><a id="mesure-3-gain-effacement-total"></a></p>
+<h3>Mesure 3 — Gain Effacement Total (€)</h3>
+<pre><code class="language-dax">Gain Effacement Total (€) =
+CALCULATE(
+    SUM('curtailment_opportunities'[potential_gain_eur]),
+    'curtailment_opportunities'[potential_gain_eur] &gt; 0
+)
+</code></pre>
+<p>Somme des gains financiers sur les créneaux où l'effacement est rentable (prix spot &gt; prix de déclenchement du site).</p>
+<hr />
+<p><a id="mesure-4-nombre-dalertes-critiques"></a></p>
+<h3>Mesure 4 — Nombre d'Alertes Critiques</h3>
+<pre><code class="language-dax">Nb Alertes Critiques =
+CALCULATE(
+    COUNTROWS('active_alerts'),
+    'active_alerts'[priority] = &quot;CRITIQUE&quot;
+)
+</code></pre>
+<p>Compte le nombre d'alertes de priorité maximale. À surveiller en temps réel.</p>
+<hr />
+<p><a id="mesure-5-taux-anomalies-glissant-7j"></a></p>
+<h3>Mesure 5 — Taux Anomalies Glissant 7j (%)</h3>
+<pre><code class="language-dax">Taux Anomalies Glissant 7j (%) =
+VAR EndDate = MAX('daily_consumption_by_site'[date])
+VAR StartDate = EndDate - 7
+RETURN
+DIVIDE(
+    CALCULATE(
+        SUM('daily_consumption_by_site'[nb_anomalies]),
+        'daily_consumption_by_site'[date] &gt;= StartDate,
+        'daily_consumption_by_site'[date] &lt;= EndDate
+    ),
+    CALCULATE(
+        SUM('daily_consumption_by_site'[nb_measurements]),
+        'daily_consumption_by_site'[date] &gt;= StartDate,
+        'daily_consumption_by_site'[date] &lt;= EndDate
+    )
+) * 100
+</code></pre>
+<blockquote>
+<p>⚠️ Ne pas utiliser <code>LastDate</code> — c'est un mot réservé DAX. Utiliser <code>EndDate</code> comme ci-dessus. Ne pas utiliser <code>DATESBETWEEN</code> ici car la colonne <code>date</code> n'est pas marquée comme table de dates.</p>
+</blockquote>
+<hr />
+<p><a id="mesure-6-prix-spot-moyen-mwh"></a></p>
+<h3>Mesure 6 — Prix Spot Moyen (€/MWh)</h3>
+<pre><code class="language-dax">Prix Spot Moyen (€/MWh) =
+AVERAGE('daily_consumption_by_site'[avg_price_eur_mwh])
+</code></pre>
+<hr />
+<p><a id="mesure-7-erreur-prediction-moyenne"></a></p>
+<h3>Mesure 7 — Erreur Prédiction Moyenne (%)</h3>
+<pre><code class="language-dax">Erreur Prédiction Moyenne (%) =
+DIVIDE(
+    AVERAGE('daily_consumption_by_site'[avg_prediction_error_mw]),
+    AVERAGE('daily_consumption_by_site'[avg_consumption_mw])
+) * 100
+</code></pre>
+<hr />
+<p><a id="c-creer-le-rapport-power-bi"></a></p>
+<h2>C. Créer le Rapport Power BI</h2>
+<p><a id="comment-ouvrir-lediteur-de-rapport"></a></p>
+<h3>Comment ouvrir l'éditeur de rapport</h3>
+<ol>
+<li>Dans le workspace, cliquez sur <code>SM_Parc_Energetique</code></li>
+<li>En haut à droite, cliquez sur <strong>Créer un rapport</strong></li>
+<li>Sélectionnez <strong>Commencer depuis le début</strong></li>
+<li>L'éditeur de rapport s'ouvre dans le navigateur</li>
+</ol>
+<p>L'interface se compose de trois zones :</p>
+<ul>
+<li><strong>Canvas</strong> (centre) : là où vous posez vos visuels</li>
+<li><strong>Visualisations</strong> (droite, haut) : icônes des types de visuels disponibles</li>
+<li><strong>Données</strong> (droite, bas) : liste de toutes vos tables et colonnes</li>
+</ul>
+<hr />
+<p><a id="page-1-accueil-kpis"></a></p>
+<h3>Page 1 : "Accueil — KPIs"</h3>
+<p><a id="renommer-la-page"></a></p>
+<h4>Renommer la page</h4>
+<p>En bas de l'écran, double-cliquez sur l'onglet <strong>Page 1</strong> et renommez-le <code>Accueil</code>.</p>
+<hr />
+<p><a id="visual-1-carte-consommation-totale"></a></p>
+<h4>Visual 1 — Carte : Consommation Totale</h4>
+<p><strong>Créer le visuel :</strong></p>
+<ol>
+<li>Dans <strong>Visualisations</strong>, cliquez sur l'icône <strong>Carte</strong> (rectangle avec un grand chiffre au centre)</li>
+<li>Un visuel vide apparaît sur le canvas — redimensionnez-le en tirant ses coins</li>
+<li>Dans <strong>Données</strong>, développez la table <code>daily_consumption_by_site</code></li>
+<li>Cochez <strong>Consommation Totale (MWh)</strong> (votre mesure) → elle apparaît dans le visuel</li>
+</ol>
+<p><strong>Formater le visuel :</strong></p>
+<ol>
+<li>Cliquez sur le visuel pour le sélectionner</li>
+<li>Dans le panneau <strong>Visualisations</strong>, cliquez sur l'onglet <strong>Mettre en forme</strong> (icône pinceau 🖌️)</li>
+<li>Développez <strong>Valeur de légende</strong> → mettez la taille de police à <strong>44</strong></li>
+<li>Développez <strong>Format de la valeur</strong> → dans le champ format, saisissez <code>#,##0 "MWh"</code></li>
+</ol>
+<hr />
+<p><a id="visual-2-carte-taux-de-charge-moyen"></a></p>
+<h4>Visual 2 — Carte : Taux de Charge Moyen</h4>
+<ol>
+<li>Cliquez sur une zone vide du canvas (pour désélectionner le visuel précédent)</li>
+<li>Cliquez sur <strong>Carte</strong> dans le panneau Visualisations</li>
+<li>Depuis <strong>Données</strong>, faites glisser <strong>Taux de Charge Moyen (%)</strong> dans le puits <strong>Champ</strong></li>
+<li><strong>Mettre en forme</strong> → <strong>Format de la valeur</strong> → saisissez <code>0.0"%"</code></li>
+</ol>
+<p><strong>Ajouter la mise en forme conditionnelle :</strong></p>
+<ol>
+<li>Avec le visuel sélectionné, allez dans <strong>Mettre en forme</strong> → <strong>Couleur du texte de la légende</strong></li>
+<li>Cliquez sur le bouton <strong>fx</strong> (mise en forme conditionnelle)</li>
+<li><strong>Basé sur</strong> : sélectionnez <strong>Règles</strong></li>
+<li>Ajoutez trois règles :<br />
+   - Si valeur <strong>&lt; 50</strong> → couleur <strong>Rouge</strong><br />
+   - Si valeur entre <strong>50</strong> et <strong>80</strong> → couleur <strong>Vert</strong><br />
+   - Si valeur <strong>&gt; 80</strong> → couleur <strong>Orange</strong></li>
+<li>Cliquez <strong>OK</strong></li>
+</ol>
+<hr />
+<p><a id="visual-3-carte-gain-effacement-total"></a></p>
+<h4>Visual 3 — Carte : Gain Effacement Total</h4>
+<ol>
+<li>Ajoutez un visuel <strong>Carte</strong></li>
+<li>Glissez <strong>Gain Effacement Total (€)</strong> dans <strong>Champ</strong></li>
+<li><strong>Format de la valeur</strong> → <code>#,##0 "€"</code></li>
+</ol>
+<hr />
+<p><a id="visual-4-carte-alertes-critiques"></a></p>
+<h4>Visual 4 — Carte : Alertes Critiques</h4>
+<ol>
+<li>Ajoutez un visuel <strong>Carte</strong></li>
+<li>Glissez <strong>Nb Alertes Critiques</strong> dans <strong>Champ</strong></li>
+<li><strong>Mettre en forme</strong> → <strong>Couleur du texte de la légende</strong> → <strong>fx</strong> → Règles :<br />
+   - Si valeur <strong>= 0</strong> → <strong>Vert</strong><br />
+   - Si valeur entre <strong>1</strong> et <strong>3</strong> → <strong>Orange</strong><br />
+   - Si valeur <strong>&gt; 3</strong> → <strong>Rouge</strong></li>
+</ol>
+<p><strong>Disposition finale de la page :</strong> Arrangez les 4 cartes côte à côte en haut du canvas pour former une barre de KPIs.</p>
+<hr />
+<p><a id="page-2-tendances"></a></p>
+<h3>Page 2 : "Tendances"</h3>
+<p>En bas, cliquez sur <strong>+</strong> pour ajouter une nouvelle page. Renommez-la <code>Tendances</code>.</p>
+<hr />
+<p><a id="visual-5-graphique-en-courbes-consommation-par-site"></a></p>
+<h4>Visual 5 — Graphique en courbes : Consommation par site</h4>
+<ol>
+<li>Dans <strong>Visualisations</strong>, cliquez sur <strong>Graphique en courbes</strong> (icône courbe montante)</li>
+<li>Configurez les puits comme suit :</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Puits</th>
+<th>Champ à glisser</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Axe X</strong></td>
+<td><code>DimDate[Date]</code></td>
+</tr>
+<tr>
+<td><strong>Axe Y</strong></td>
+<td><code>Consommation Totale (MWh)</code> (votre mesure)</td>
+</tr>
+<tr>
+<td><strong>Légende</strong></td>
+<td><code>daily_consumption_by_site[site_id]</code></td>
+</tr>
+</tbody>
+</table>
+<ol start="3">
+<li><strong>Mettre en forme</strong> → <strong>Lignes</strong> → activez <strong>Afficher les marqueurs</strong> pour repérer les points</li>
+</ol>
+<p><strong>Activer le drill de date :</strong></p>
+<ol>
+<li>Cliquez sur le visuel</li>
+<li>En haut du visuel, une barre d'icônes apparaît — cliquez sur la double flèche vers le bas (<strong>Tout explorer</strong>)</li>
+<li>Power BI crée automatiquement la hiérarchie Année → Mois → Jour sur l'axe X</li>
+</ol>
+<hr />
+<p><a id="visual-6-histogramme-empile-consommation-par-type"></a></p>
+<h4>Visual 6 — Histogramme empilé : Consommation par type</h4>
+<ol>
+<li>Cliquez sur <strong>Histogramme empilé</strong> dans Visualisations</li>
+<li>Configurez :</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Puits</th>
+<th>Champ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Axe X</strong></td>
+<td><code>DimDate[Date]</code></td>
+</tr>
+<tr>
+<td><strong>Axe Y</strong></td>
+<td><code>Consommation Totale (MWh)</code></td>
+</tr>
+<tr>
+<td><strong>Légende</strong></td>
+<td><code>daily_consumption_by_site[site_type]</code></td>
+</tr>
+</tbody>
+</table>
+<ol start="3">
+<li><strong>Mettre en forme</strong> → <strong>Couleurs des données</strong> → assignez manuellement :<br />
+   - Industrie → Rouge foncé <code>#e63946</code><br />
+   - Commercial → Bleu-vert <code>#2a9d8f</code><br />
+   - Residentiel → Bleu clair <code>#8ecae6</code></li>
+</ol>
+<hr />
+<p><a id="page-3-kpis-sites"></a></p>
+<h3>Page 3 : "KPIs Sites"</h3>
+<p>Ajoutez une page, renommez-la <code>KPIs Sites</code>.</p>
+<hr />
+<p><a id="visual-7-tableau-comparaison-des-6-sites"></a></p>
+<h4>Visual 7 — Tableau : Comparaison des 6 sites</h4>
+<ol>
+<li>Cliquez sur <strong>Tableau</strong> dans Visualisations (icône grille)</li>
+<li>Glissez ces colonnes dans le puits <strong>Colonnes</strong> :</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Champ</th>
+<th>Provenance</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>site_id</code></td>
+<td><code>site_kpis</code></td>
+</tr>
+<tr>
+<td><code>site_type</code></td>
+<td><code>site_kpis</code></td>
+</tr>
+<tr>
+<td><code>load_factor_pct</code></td>
+<td><code>site_kpis</code></td>
+</tr>
+<tr>
+<td><code>anomaly_rate_pct</code></td>
+<td><code>site_kpis</code></td>
+</tr>
+<tr>
+<td><code>prediction_error_pct</code></td>
+<td><code>site_kpis</code></td>
+</tr>
+<tr>
+<td><code>avg_electricity_price_eur_mwh</code></td>
+<td><code>site_kpis</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Ajouter les couleurs conditionnelles sur <code>load_factor_pct</code> :</strong></p>
+<ol>
+<li>Dans le panneau <strong>Mettre en forme</strong>, développez <strong>Valeurs de cellule</strong></li>
+<li>À côté de la colonne <code>load_factor_pct</code>, cliquez sur <strong>fx</strong></li>
+<li><strong>Basé sur</strong> : Règles<br />
+   - Valeur &lt; 50 → Fond <strong>Rouge</strong> clair<br />
+   - Valeur 50–80 → Fond <strong>Vert</strong> clair<br />
+   - Valeur &gt; 80 → Fond <strong>Orange</strong> clair</li>
+<li>Répétez pour <code>anomaly_rate_pct</code> :<br />
+   - &lt; 1 → Vert | 1–2 → Orange | &gt; 2 → Rouge</li>
+</ol>
+<hr />
+<p><a id="page-4-effacement"></a></p>
+<h3>Page 4 : "Effacement"</h3>
+<p>Ajoutez une page, renommez-la <code>Effacement</code>.</p>
+<hr />
+<p><a id="visual-8-barres-horizontales-gains-par-site"></a></p>
+<h4>Visual 8 — Barres horizontales : Gains par site</h4>
+<ol>
+<li>Cliquez sur <strong>Graphique à barres groupées</strong> dans Visualisations</li>
+<li>Configurez :</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Puits</th>
+<th>Champ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Axe Y</strong></td>
+<td><code>curtailment_opportunities[site_id]</code></td>
+</tr>
+<tr>
+<td><strong>Axe X</strong></td>
+<td><code>Gain Effacement Total (€)</code></td>
+</tr>
+</tbody>
+</table>
+<ol start="3">
+<li><strong>Mettre en forme</strong> → <strong>Barres de données</strong> → activez les étiquettes de données pour afficher le montant sur chaque barre</li>
+<li><strong>Trier</strong> : Cliquez sur les trois points <code>...</code> du visuel → <strong>Trier par</strong> → <strong>Gain Effacement Total (€)</strong> décroissant</li>
+</ol>
+<hr />
+<p><a id="visual-9-nuage-de-points-baseline-vs-consommation-reelle"></a></p>
+<h4>Visual 9 — Nuage de points : Baseline vs Consommation réelle</h4>
+<ol>
+<li>Cliquez sur <strong>Nuage de points</strong> dans Visualisations</li>
+<li>Configurez :</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Puits</th>
+<th>Champ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Axe X</strong></td>
+<td><code>curtailment_opportunities[baseline_7d_mw]</code></td>
+</tr>
+<tr>
+<td><strong>Axe Y</strong></td>
+<td><code>curtailment_opportunities[avg_consumption_mw]</code></td>
+</tr>
+<tr>
+<td><strong>Taille</strong></td>
+<td><code>curtailment_opportunities[potential_gain_eur]</code></td>
+</tr>
+<tr>
+<td><strong>Légende</strong></td>
+<td><code>curtailment_opportunities[site_id]</code></td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>Les points <strong>au-dessus de la diagonale</strong> représentent les heures de surconsommation vs la baseline — ce sont les opportunités d'effacement prioritaires.</p>
+</blockquote>
+<hr />
+<p><a id="page-5-alertes"></a></p>
+<h3>Page 5 : "Alertes"</h3>
+<p>Ajoutez une page, renommez-la <code>Alertes</code>.</p>
+<hr />
+<p><a id="visual-10-histogramme-groupe-alertes-par-type-et-priorite"></a></p>
+<h4>Visual 10 — Histogramme groupé : Alertes par type et priorité</h4>
+<ol>
+<li>Cliquez sur <strong>Histogramme groupé</strong> dans Visualisations</li>
+<li>Configurez :</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Puits</th>
+<th>Champ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Axe X</strong></td>
+<td><code>active_alerts[alert_type]</code></td>
+</tr>
+<tr>
+<td><strong>Axe Y</strong></td>
+<td>COUNTROWS automatique (nombre de lignes)</td>
+</tr>
+<tr>
+<td><strong>Légende</strong></td>
+<td><code>active_alerts[priority]</code></td>
+</tr>
+</tbody>
+</table>
+<ol start="3">
+<li><strong>Mettre en forme</strong> → <strong>Couleurs des données</strong> → assignez :<br />
+   - CRITIQUE → <code>#e63946</code><br />
+   - HAUTE → <code>#f4a261</code><br />
+   - MOYENNE → <code>#2a9d8f</code><br />
+   - BASSE → <code>#8ecae6</code></li>
+</ol>
+<hr />
+<p><a id="visual-11-graphique-en-courbes-timeline-des-alertes"></a></p>
+<h4>Visual 11 — Graphique en courbes : Timeline des alertes</h4>
+<ol>
+<li>Cliquez sur <strong>Graphique en courbes et histogramme groupé</strong> dans Visualisations</li>
+<li>Configurez :</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>Puits</th>
+<th>Champ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Axe X</strong></td>
+<td><code>active_alerts[alert_time]</code></td>
+</tr>
+<tr>
+<td><strong>Axe Y de la colonne</strong></td>
+<td>COUNTROWS</td>
+</tr>
+<tr>
+<td><strong>Légende</strong></td>
+<td><code>active_alerts[priority]</code></td>
+</tr>
+</tbody>
+</table>
+<ol start="3">
+<li><strong>Mettre en forme</strong> → <strong>Ligne de référence constante</strong> → <strong>Ajouter une ligne</strong> → Valeur <code>300</code> → Label <code>Seuil prix</code></li>
+</ol>
+<hr />
+<p><a id="page-6-detail-site-drill-through"></a></p>
+<h3>Page 6 : "Détail Site" (Drill-through)</h3>
+<p>Cette page se déclenche automatiquement quand l'utilisateur <strong>fait un clic droit sur un site_id</strong> dans n'importe quel visuel et sélectionne <strong>Extraire</strong>.</p>
+<p><a id="configurer-le-drill-through"></a></p>
+<h4>Configurer le drill-through</h4>
+<ol>
+<li>Ajoutez une page, renommez-la <code>Détail Site</code></li>
+<li>Dans le panneau <strong>Visualisations</strong>, faites défiler vers le bas jusqu'à la section <strong>Extraire</strong></li>
+<li>Faites glisser <code>site_kpis[site_id]</code> dans le puits <strong>Ajouter des champs d'extraction ici</strong></li>
+</ol>
+<blockquote>
+<p>À partir de maintenant, un clic droit sur n'importe quel <code>site_id</code> dans les autres pages proposera <strong>Extraire → Détail Site</strong>.</p>
+</blockquote>
+<p><a id="visuels-de-la-page-detail-site"></a></p>
+<h4>Visuels de la page Détail Site</h4>
+<p><strong>Visual A — 4 cartes KPIs du site</strong></p>
+<p>Ajoutez 4 visuels <strong>Carte</strong> avec :</p>
+<ul>
+<li><code>site_kpis[load_factor_pct]</code></li>
+<li><code>site_kpis[anomaly_rate_pct]</code></li>
+<li><code>site_kpis[prediction_error_pct]</code></li>
+<li><code>site_kpis[total_consumption_month_mwh]</code></li>
+</ul>
+<p><strong>Visual B — Courbes : Évolution du site sélectionné</strong></p>
+<table>
+<thead>
+<tr>
+<th>Puits</th>
+<th>Champ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Axe X</strong></td>
+<td><code>DimDate[Date]</code></td>
+</tr>
+<tr>
+<td><strong>Axe Y</strong></td>
+<td><code>daily_consumption_by_site[avg_consumption_mw]</code> ET <code>daily_consumption_by_site[avg_predicted_mw]</code></td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>Les deux lignes (réel vs prédit) permettent de visualiser la qualité du modèle de prédiction pour ce site.</p>
+</blockquote>
+<p><strong>Visual C — Tableau des alertes du site</strong></p>
+<table>
+<thead>
+<tr>
+<th>Colonnes</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>alert_time</code></td>
+<td><code>active_alerts</code></td>
+</tr>
+<tr>
+<td><code>alert_type</code></td>
+<td><code>active_alerts</code></td>
+</tr>
+<tr>
+<td><code>priority</code></td>
+<td><code>active_alerts</code></td>
+</tr>
+<tr>
+<td><code>price_eur_mwh</code></td>
+<td><code>active_alerts</code></td>
+</tr>
+</tbody>
+</table>
+<p>Triez par <code>alert_time</code> décroissant.</p>
+<hr />
+<p><a id="d-filtres-sur-trois-niveaux"></a></p>
+<h2>D. Filtres sur trois niveaux</h2>
+<p><a id="niveau-rapport-sapplique-a-toutes-les-pages"></a></p>
+<h3>Niveau Rapport — s'applique à TOUTES les pages</h3>
+<p><strong>Comment appliquer un filtre rapport :</strong></p>
+<ol>
+<li>Cliquez sur une zone vide du canvas (aucun visuel sélectionné)</li>
+<li>Dans le panneau <strong>Filtres</strong> (à gauche des Visualisations), vous voyez la section <strong>Filtres sur toutes les pages</strong></li>
+<li>Faites glisser un champ dans cette zone</li>
+</ol>
+<p><strong>Filtre 1 — Plage de dates (segment interactif)</strong></p>
+<ol>
+<li>Ajoutez un visuel <strong>Segment</strong> (icône entonnoir) sur la page <code>Accueil</code></li>
+<li>Glissez <code>DimDate[Date]</code> dans le puits <strong>Champ</strong></li>
+<li><strong>Mettre en forme</strong> → <strong>Paramètres du segment</strong> → <strong>Style</strong> → sélectionnez <strong>Entre</strong> (affiche deux sélecteurs de date)</li>
+<li>Pour synchroniser ce segment sur toutes les pages : <strong>Affichage</strong> (menu haut) → <strong>Synchroniser les segments</strong> → cochez toutes les pages</li>
+</ol>
+<p><strong>Filtre 2 — Type de site (segment interactif)</strong></p>
+<ol>
+<li>Ajoutez un visuel <strong>Segment</strong> sur <code>Accueil</code></li>
+<li>Glissez <code>daily_consumption_by_site[site_type]</code> dans <strong>Champ</strong></li>
+<li><strong>Mettre en forme</strong> → <strong>Paramètres du segment</strong> → <strong>Style</strong> → <strong>Liste</strong> (affiche les 3 types avec cases à cocher)</li>
+<li><strong>Synchroniser les segments</strong> → cochez toutes les pages</li>
+</ol>
+<hr />
+<p><a id="niveau-page-sapplique-a-une-page-uniquement"></a></p>
+<h3>Niveau Page — s'applique à une page uniquement</h3>
+<p><strong>Page "Effacement" — filtrer sur sites flexibles uniquement</strong></p>
+<ol>
+<li>Allez sur la page <code>Effacement</code>, cliquez sur une zone vide</li>
+<li>Dans le panneau <strong>Filtres</strong> → section <strong>Filtres sur cette page</strong></li>
+<li>Glissez <code>site_kpis[flexible]</code> dans cette zone</li>
+<li><strong>Type de filtre</strong> : Filtrage de base → cochez <strong>True</strong> uniquement</li>
+<li>Cliquez sur l'icône <strong>œil</strong> pour masquer ce filtre à l'utilisateur final (il est appliqué silencieusement)</li>
+</ol>
+<p><strong>Page "Alertes" — pré-filtrer sur CRITIQUE et HAUTE</strong></p>
+<ol>
+<li>Sur la page <code>Alertes</code>, dans <strong>Filtres sur cette page</strong></li>
+<li>Glissez <code>active_alerts[priority]</code></li>
+<li>Cochez <strong>CRITIQUE</strong> et <strong>HAUTE</strong></li>
+<li>Masquez le filtre (icône œil) — l'utilisateur voit un bouton bascule pour inclure MOYENNE si besoin</li>
+</ol>
+<hr />
+<p><a id="niveau-visuel-sapplique-a-un-seul-visuel"></a></p>
+<h3>Niveau Visuel — s'applique à un seul visuel</h3>
+<p><strong>Visual "Gains par site" — exclure les gains nuls</strong></p>
+<ol>
+<li>Cliquez sur le visuel des barres de gains pour le sélectionner</li>
+<li>Dans <strong>Filtres</strong> → section <strong>Filtres sur ce visuel</strong></li>
+<li>Glissez <code>curtailment_opportunities[potential_gain_eur]</code></li>
+<li><strong>Type de filtre</strong> : Filtrage avancé → <strong>est supérieur à</strong> → <code>0</code></li>
+<li>Cliquez <strong>Appliquer le filtre</strong></li>
+</ol>
+<p><strong>Visual "Alertes histogramme" — exclure le type "Autre"</strong></p>
+<ol>
+<li>Sélectionnez le visuel histogramme des alertes</li>
+<li>Dans <strong>Filtres sur ce visuel</strong>, glissez <code>active_alerts[alert_type]</code></li>
+<li><strong>Type de filtre</strong> : Filtrage de base → <strong>décochez</strong> uniquement <code>Autre</code></li>
+<li>Cliquez <strong>Appliquer le filtre</strong></li>
+</ol>
+<hr />
+<p><a id="e-sauvegarder-et-partager"></a></p>
+<h2>E. Sauvegarder et partager</h2>
+<ol>
+<li>Cliquez sur l'icône <strong>Enregistrer</strong> (disquette, en haut à gauche) ou <code>Ctrl+S</code></li>
+<li>Nommez le rapport : <code>Parc_Energetique_Dashboard</code></li>
+<li>Le rapport est automatiquement accessible à tous les membres du workspace</li>
+<li>Pour partager avec quelqu'un hors du workspace : <strong>Fichier</strong> → <strong>Partager</strong> → saisissez l'adresse email</li>
+</ol>
+<blockquote>
+<p>Le rapport étant hébergé dans Fabric, il n'y a rien à publier ni à installer. Le lien URL suffit pour y accéder depuis n'importe quel navigateur.</p>
+</blockquote>
+<hr />
+<hr />
+<p><a id="synthese-de-latelier"></a></p>
+<h1>SYNTHÈSE DE L'ATELIER</h1>
+<p><a id="recapitulatif-des-acquis"></a></p>
+<h2>🎯 Récapitulatif des acquis</h2>
+<p>Vous venez de compléter l'ensemble du pipeline <strong>Medallion Architecture</strong> pour un parc énergétique français :</p>
+<table>
+<thead>
+<tr>
+<th>Phase</th>
+<th>Objectif</th>
+<th>Outil</th>
+<th>Résultat</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Bronze → Silver</strong></td>
+<td>Nettoyage, standardisation</td>
+<td>PySpark SQL</td>
+<td>5 tables Silver prêtes</td>
+</tr>
+<tr>
+<td><strong>Silver → Gold</strong></td>
+<td>Agrégation, KPIs, signaux</td>
+<td>PySpark SQL</td>
+<td>6 tables Gold analytiques</td>
+</tr>
+<tr>
+<td><strong>Gold → Python Viz</strong></td>
+<td>Exploration, prototypage</td>
+<td>Matplotlib/Seaborn</td>
+<td>6 visualisations exploratoires</td>
+</tr>
+<tr>
+<td><strong>Gold → Power BI</strong></td>
+<td>Tableau de bord interactif</td>
+<td>Modèle Sémantique Fabric (navigateur)</td>
+<td>Rapport partageable 6 pages</td>
+</tr>
+</tbody>
+</table>
+<p><a id="les-6-visualisations-python"></a></p>
+<h2>📊 Les 6 visualisations Python</h2>
+<ol>
+<li><strong>Évolution temporelle</strong> : Tendances par site sur 30 jours</li>
+<li><strong>KPIs comparatifs</strong> : Load factor, anomalies, prédiction côte à côte</li>
+<li><strong>Prix &amp; effacement</strong> : Corrélation marché + gains d'optimisation</li>
+<li><strong>Heatmap temporelle</strong> : Patterns horaires (heure × jour de semaine)</li>
+<li><strong>Alertes &amp; anomalies</strong> : Distribution et timeline corrélée au prix</li>
+<li><strong>Dashboard synthétique</strong> : Page exécutive (consommation, prix, charge, gains)</li>
+</ol>
+<p><a id="le-tableau-de-bord-power-bi"></a></p>
+<h2>🎛️ Le tableau de bord Power BI</h2>
+<ul>
+<li><strong>6 pages</strong> : Accueil | Tendances | Analyse KPIs | Effacement | Alertes | Drill-through Site</li>
+<li><strong>7 mesures DAX</strong> : Consommation | Taux charge | Gains | Alertes | Anomalies | Prix | Prédiction</li>
+<li><strong>Filtres 3 niveaux</strong> : Rapport (date, type) | Page (flexibilité, gains) | Visuel (top N)</li>
+<li><strong>Interactivité</strong> : Drill-through, cross-filtering, slicers dynamiques</li>
+</ul>
+<p><a id="cas-dusage-metier-actives"></a></p>
+<h2>💡 Cas d'usage métier activés</h2>
+<p>✅ <strong>DSO (Gestionnaire réseau)</strong> : Monitoring temps réel des pics, signaux d'effacement, alertes critiques<br />
+✅ <strong>Commercial énergétique</strong> : Volumes consommés par type, opportunités de contrats de flexibilité<br />
+✅ <strong>Data scientist</strong> : Validation qualité prédictions, analyse anomalies, priorisation R&amp;D ML<br />
+✅ <strong>Management</strong> : KPIs synthétiques, tendances prix, opt</p></main>
+</body>
+</html>
