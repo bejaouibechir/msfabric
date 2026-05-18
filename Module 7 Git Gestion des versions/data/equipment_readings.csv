@@ -1,0 +1,11 @@
+ReadingId,EquipmentId,Site,ReadingTime,EnergyType,PowerKW,TemperatureC,VibrationMmS,AvailabilityPct
+1,EQ-WT-001,Bizerte Wind,2026-05-01T08:00:00Z,Wind,1450,72,3.1,98.5
+2,EQ-WT-002,Bizerte Wind,2026-05-01T08:00:00Z,Wind,1320,76,3.8,97.2
+3,EQ-WT-003,Bizerte Wind,2026-05-01T08:00:00Z,Wind,900,104,6.7,91.0
+4,EQ-SP-001,Gabes Solar,2026-05-01T08:00:00Z,Solar,680,51,0.2,99.1
+5,EQ-SP-002,Gabes Solar,2026-05-01T08:00:00Z,Solar,710,54,0.2,98.8
+6,EQ-WT-001,Bizerte Wind,2026-05-01T09:00:00Z,Wind,1510,74,3.4,98.7
+7,EQ-WT-002,Bizerte Wind,2026-05-01T09:00:00Z,Wind,1260,82,4.2,96.5
+8,EQ-WT-003,Bizerte Wind,2026-05-01T09:00:00Z,Wind,620,111,8.9,87.3
+9,EQ-SP-001,Gabes Solar,2026-05-01T09:00:00Z,Solar,740,53,0.2,99.0
+10,EQ-SP-002,Gabes Solar,2026-05-01T09:00:00Z,Solar,760,55,0.2,98.9

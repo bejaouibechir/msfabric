@@ -1,0 +1,6 @@
+EquipmentId,EquipmentName,Site,Region,EnergyType,NominalPowerKW,CriticalTemperatureC,CriticalVibrationMmS
+EQ-WT-001,Turbine Nord 1,Bizerte Wind,North,Wind,1600,100,8
+EQ-WT-002,Turbine Nord 2,Bizerte Wind,North,Wind,1600,100,8
+EQ-WT-003,Turbine Nord 3,Bizerte Wind,North,Wind,1600,100,8
+EQ-SP-001,Panneau Sud 1,Gabes Solar,South,Solar,800,75,1
+EQ-SP-002,Panneau Sud 2,Gabes Solar,South,Solar,800,75,1
