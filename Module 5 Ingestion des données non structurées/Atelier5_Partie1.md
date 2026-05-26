@@ -34,14 +34,14 @@ Fichiers audio (MP3 synthétiques)
 
 ## Prérequis
 
-| Élément | Valeur |
-| --- | --- |
-| Workspace Fabric | `WS_SolarVoix` (F64 ou capacité Trial) |
-| Lakehouse | `LH_SolarVoix` |
-| Notebook 1 | `NB_Generation_Donnees` |
-| Notebook 2 | `NB_Bronze_to_Silver` |
-| Notebook 3 | `NB_Visualisations` |
-| Bibliothèques | `transformers`, `torch`, `pydub`, `faker` (installables via %pip) |
+| Élément          | Valeur                                                            |
+| ---------------- | ----------------------------------------------------------------- |
+| Workspace Fabric | `WS_SolarVoix` (F64 ou capacité Trial)                            |
+| Lakehouse        | `LH_SolarVoix`                                                    |
+| Notebook 1       | `NB_Generation_Donnees`                                           |
+| Notebook 2       | `NB_Bronze_to_Silver`                                             |
+| Notebook 3       | `NB_Visualisations`                                               |
+| Bibliothèques    | `transformers`, `torch`, `pydub`, `faker` (installables via %pip) |
 
 ---
 
@@ -975,13 +975,13 @@ Voici le raisonnement :
 
 Le numérotage des cellules dans l'atelier suit le notebook `NB_Bronze_to_Silver`, pas `NB_Visualisations` :
 
-| Notebook | Cellule | Bloc |
-| --- | --- | --- |
-| NB_Bronze_to_Silver | 1, 2, 3 | Bloc 3 (ingestion Bronze) |
-| NB_Bronze_to_Silver | 4   | Bloc 4 (sentiment IA) |
-| NB_Bronze_to_Silver | 5, 6, 7 | Bloc 5 (intent + Silver + QC) |
-| NB_Visualisations | **1, 2, 3** | Bloc 6 (visualisations) |
-| NB_Bronze_to_Silver | **8** | Bloc 7 (OPTIMIZE/VACUUM) |
+| Notebook            | Cellule     | Bloc                          |
+| ------------------- | ----------- | ----------------------------- |
+| NB_Bronze_to_Silver | 1, 2, 3     | Bloc 3 (ingestion Bronze)     |
+| NB_Bronze_to_Silver | 4           | Bloc 4 (sentiment IA)         |
+| NB_Bronze_to_Silver | 5, 6, 7     | Bloc 5 (intent + Silver + QC) |
+| NB_Visualisations   | **1, 2, 3** | Bloc 6 (visualisations)       |
+| NB_Bronze_to_Silver | **8**       | Bloc 7 (OPTIMIZE/VACUUM)      |
 
 La **Cellule 8** appartient logiquement à `NB_Bronze_to_Silver` (suite des cellules 1→7), pas à `NB_Visualisations`. L'OPTIMIZE/VACUUM s'applique à la table Silver qu'on vient d'écrire — ce serait incohérent de le mettre dans le notebook de visualisation.
 
@@ -1016,9 +1016,9 @@ spark.sql("DESCRIBE DETAIL silver_appels_enrichis") \
 
 ## Récapitulatif de la Partie 1
 
-| Étape | Outil | Résultat |
-| --- | --- | --- |
-| Génération données | Python / Faker | 120 appels synthétiques réalistes |
-| Ingestion Bronze | Spark binaryFile + CSV | 2 tables Delta Bronze |
-| Analyse sentiment | HuggingFace Transformers | sentiment_ia + score_sentiment |
-| Détection intention | Règles |     |
+| Étape               | Outil                    | Résultat                          |
+| ------------------- | ------------------------ | --------------------------------- |
+| Génération données  | Python / Faker           | 120 appels synthétiques réalistes |
+| Ingestion Bronze    | Spark binaryFile + CSV   | 2 tables Delta Bronze             |
+| Analyse sentiment   | HuggingFace Transformers | sentiment_ia + score_sentiment    |
+| Détection intention | Règles                   |                                   |
